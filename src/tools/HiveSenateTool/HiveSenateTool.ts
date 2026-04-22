@@ -40,6 +40,13 @@ export const HiveSenateTool = buildTool({
   get outputSchema(): OutputSchema { return outputSchema() },
   isConcurrencySafe() { return true },
   isReadOnly(input) { return input.action === 'list' || input.action === 'show' },
+  mapToolResultToToolResultBlockParam(data, toolUseID) {
+    return {
+      tool_use_id: toolUseID,
+      type: 'tool_result' as const,
+      content: [{ type: 'text' as const, text: JSON.stringify(data) }],
+    }
+  },
   async call(input, context, canUseTool, parentMessage) {
     const { action, decreeId, title, content, authority, scope, priority } = input
 
