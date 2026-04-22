@@ -45,11 +45,11 @@ function cliOk(msg: string): void {
 }
 
 export function registerDuckhiveMcpCommand(program: Command): void {
-  // Use 'dmcp' as the command name to avoid conflict with the existing
-  // 'mcp' command from the OpenClaude codebase.
-  // Usage: duckhive dmcp list|add|remove|reload
+  // Register 'mcp' as the top-level command (replaces OpenClaude's mcp when
+  // running as duckhive binary).
+  // Usage: duckhive mcp list|add|remove|reload
   const mcp = program
-    .command('dmcp')
+    .command('mcp')
     .description('Manage DuckHive MCP servers')
     .configureHelp(createSortedHelpConfig())
     .enablePositionalOptions()
