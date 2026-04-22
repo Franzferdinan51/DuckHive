@@ -1,6 +1,6 @@
 # 🦆 DuckHive
 
-![DuckHive](https://img.shields.io/badge/DuckHive-v0.6.0-gold?style=for-the-badge&logo=buymeacoffee)
+![DuckHive](https://img.shields.io/badge/DuckHive-v0.7.0-gold?style=for-the-badge&logo=buymeacoffee)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?style=for-the-badge&logo=typescript)](package.json)
 [![Bun](https://img.shields.io/badge/Bun-1.1-yellow?style=for-the-badge&logo=bun)](package.json)
@@ -20,13 +20,17 @@ DuckHive is an AI coding CLI agent harness built on [OpenClaw](https://github.co
 | OpenClaude ships | DuckHive adds |
 |-----------------|---------------|
 | Claude as default | **MiniMax M2.7** as default |
-| Basic tool set | **24 custom tools** including mmx, council, senate |
-| Single-agent | **Agent Teams** — spawn multi-agent crews |
+| Basic tool set | **24+ custom tools** including mmx, council, senate |
+| Single-agent | **Sub-Agent spawning** with per-agent model routing |
 | No deliberation layer | **AI Council** — 46 adversarial councilors |
 | No MiniMax modalities | **Full mmx** — image, speech, music, video |
 | No shell toggle | **Ctrl-X shell toggle** |
 | No hierarchical context | **DUCK.md** context loading (gemini-cli style) |
+| No project init | **/init** — auto-generates AGENTS.md + workspace setup |
+| No session export | **/export** — zip sessions for sharing |
+| No built-in council daemon | **Integrated Council daemon** — auto-starts on first run |
 | Basic MCP | **dmcp** — enhanced MCP server management |
+| Distribution | **npm global install** — one command setup |
 
 ---
 
@@ -34,16 +38,90 @@ DuckHive is an AI coding CLI agent harness built on [OpenClaw](https://github.co
 
 ### Getting Started
 
+**Option 1 — npm global install (recommended):**
 ```bash
+npm install -g openclaude  # then rename or alias to duckhive
+# OR clone and install locally
 git clone https://github.com/Franzferdinan51/DuckHive.git
 cd DuckHive && bun install && bun run build
+```
+
+**Option 2 — Direct run:**
+```bash
 ./bin/duckhive
 ```
 
-Or after adding to PATH:
+**After setup:**
+```bash
+# First-run: /init auto-analyzes your project and creates AGENTS.md
+/init setup
+
+# Then just code
+duckhive "Implement a REST API"
+```
+
+---
+
+### Distribution
+
+DuckHive is distributed as a single `duckhive` binary (Go CLI wrapper around the TypeScript agent core):
+
+| Method | Command |
+|--------|---------|  
+| npm global | `npm i -g openclaude` |
+| Homebrew | `brew install franzferdinan51/tap/duckhive` |
+| Git clone | `git clone && bun install && bun run build` |
+
+The TypeScript agent core (`dist/cli.mjs`) is built via `bun run build` and runs under the Go CLI harness. All integrated services (council daemon on port 3007, MCP servers) are started on-demand.
+
+### /init — Project Setup
+
+Analyze any codebase and auto-generate `AGENTS.md`, `SOUL.md`, and DuckHive config. Uses a sub-agent for deep codebase analysis.
 
 ```bash
-duckhive
+# Auto-analyze and create all workspace files
+/init setup
+
+# See what would be created (no changes)
+/init detect
+
+# Configure providers and model preferences
+/init config --provider minmax --model MiniMax-M2.7
+```
+
+### /export — Session Packaging
+
+Zip up a DuckHive session for sharing or archival. Includes context files, history, and config.
+
+```bash
+/export                        # Export current session
+/export list                   # Show saved exports
+/export import session.zip    # Restore a session
+```
+
+### Sub-Agent Spawning with Model Routing
+
+Spawn specialized sub-agents with automatic model selection based on task type. Each sub-agent gets the optimal model from the router.
+
+```bash
+# Spawn a coding sub-agent (routes to GPT-4o or best available)
+/subagent spawn coding "Implement a REST API"
+
+# Spawn with explicit model
+/subagent spawn --model qwen3.6-35b "Analyze this code"
+
+# Route a task by complexity
+/router route "build a Flutter app" complexity=7 vision=true
+```
+
+### Integrated Council Daemon
+
+AI Council deliberation is auto-started on first run. No separate install — the daemon forks automatically and stays alive between runs.
+
+```bash
+/council "Should we use microservices?" mode=adversarial
+/team spawn analysis "Research Redis caching"
+/senate show DECREE-001
 ```
 
 ---

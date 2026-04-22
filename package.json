@@ -1,7 +1,7 @@
 {
   "name": "@gitlawb/duckhive",
-  "version": "0.6.0",
-  "description": "DuckHive — Claude Code with any LLM: OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
+  "version": "0.7.0",
+  "description": "DuckHive \u2014 Claude Code with any LLM: OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
   "type": "module",
   "bin": {
     "duckhive": "./bin/duckhive"
