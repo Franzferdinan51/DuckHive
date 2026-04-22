@@ -24,6 +24,8 @@ import { StreamTool } from './tools/StreamTool/StreamTool.js'
 import { REPLPanelTool } from './tools/REPLPanelTool/REPLPanelTool.js'
 import { ShadowGitTool } from './tools/ShadowGitTool/ShadowGitTool.js'
 import { MultiModelRouterTool } from './tools/MultiModelRouterTool/MultiModelRouterTool.js'
+import { ShadowGitTool } from './tools/ShadowGitTool/ShadowGitTool.js'
+import { ContextTool } from './tools/ContextTool/ContextTool.js'
 import { BashTool } from './tools/BashTool/BashTool.js'
 import { FileEditTool } from './tools/FileEditTool/FileEditTool.js'
 import { FileReadTool } from './tools/FileReadTool/FileReadTool.js'
@@ -237,6 +239,8 @@ export function getAllBaseTools(): Tools {
     REPLPanelTool,
     ShadowGitTool,
     MultiModelRouterTool,
+    ShadowGitTool,
+    ContextTool,
     TaskStopTool,
     AskUserQuestionTool,
     SkillTool,

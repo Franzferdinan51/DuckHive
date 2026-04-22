@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'Hierarchical context loader — GEMINI.md pattern. Loads global → workspace → JIT context files (.duckhive.md, AGENTS.md, GEMINI.md). Builds AI session context from layered files.'
