@@ -804,19 +804,10 @@ export async function main() {
   const hasInitOnlyFlag = cliArgs.includes('--init-only');
   const hasSdkUrl = cliArgs.some(arg => arg.startsWith('--sdk-url'));
   const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || hasSdkUrl || !process.stdout.isTTY;
-  console.error('[DEBUG] stdin.isTTY:', process.stdin.isTTY, 'stdout.isTTY:', process.stdout.isTTY);
-  // Stop capturing early input for non-interactive modes
+// Stop capturing early input for non-interactive modes
   if (isNonInteractive) {
     stopCapturingEarlyInput();
   }
-  // DEBUG: check stdin state
-  const stdinState = { 
-    isTTY: process.stdin.isTTY, 
-    readableHighWaterMark: process.stdin.readableHighWaterMark,
-    readableFlowing: (process.stdin as any)._readableState?.flowing,
-    refCount: (process.stdin as any)._handle?.refCount?.() ?? 'no handle'
-  };
-  console.error('[STDIN] state:', JSON.stringify(stdinState));
 
   // Set simplified tracking fields
   const isInteractive = !isNonInteractive;
@@ -1008,8 +999,27 @@ async function run(): Promise<CommanderCommand> {
   // top-level option. Single-value + collect accumulator means each
   // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
-    // Go TUI auto-launch disabled — use 'duckhive tui' to launch manually
-    // REPL is the default interface for now
+    // Launch Go TUI when no prompt AND we're in a real TTY
+    if (!prompt && process.stdout.isTTY) {
+      const { spawn } = await import('child_process')
+      const helper = join(__dirname, 'bin', 'tui-pty-helper.py')
+      const { existsSync } = await import('fs')
+      if (existsSync(helper)) {
+        const child = spawn(process.execPath, [helper], {
+          stdio: 'inherit',
+          env: { ...process.env },
+        })
+        child.on('exit', (code) => process.exit(code ?? 0))
+        return
+      }
+      // Fallback: try direct spawn
+      const tuiPath = join(__dirname, '..', 'tui', 'duckhive-tui')
+      if (existsSync(tuiPath)) {
+        const child = spawn(tuiPath, [], { stdio: 'inherit', env: { ...process.env } })
+        child.on('exit', (code) => process.exit(code ?? 0))
+        return
+      }
+    }
     profileCheckpoint('action_handler_start');
 
     // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
