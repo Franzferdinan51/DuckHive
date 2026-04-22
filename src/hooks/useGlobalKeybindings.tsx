@@ -5,6 +5,7 @@
  * This component renders nothing - it just registers the keybinding handlers.
  */
 import { feature } from 'bun:bundle';
+import { spawn } from 'child_process';
 import { useCallback } from 'react';
 import instances from '../ink/instances.js';
 import { useKeybinding } from '../keybindings/useKeybinding.js';

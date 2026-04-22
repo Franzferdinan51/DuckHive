@@ -1909,6 +1909,27 @@ function PromptInput({
       return;
     }
 
+    // Ctrl-X: Toggle between AI mode and shell mode (DuckHive feature)
+    // In prompt mode: prepend ! to enter shell mode
+    // In bash mode: remove ! prefix to return to AI mode
+    if (key.ctrl && char === 'x') {
+      if (mode === 'bash') {
+        // Exit shell mode: remove the leading ! if present
+        const currentInput = input
+        if (currentInput.startsWith('!')) {
+          onInputChange(currentInput.slice(1))
+        } else {
+          onInputChange('')
+        }
+        onModeChange('prompt')
+      } else {
+        // Enter shell mode: prepend ! to the current input
+        onInputChange('!' + input)
+        onModeChange('bash')
+      }
+      return
+    }
+
     // Detect failed Alt shortcuts on macOS (Option key produces special characters)
     if (getPlatform() === 'macos' && isMacosOptionChar(char)) {
       const shortcut = MACOS_OPTION_SPECIAL_CHARS[char];
