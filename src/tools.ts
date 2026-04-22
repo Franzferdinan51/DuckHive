@@ -2,6 +2,15 @@
 import { toolMatchesName, type Tool, type Tools } from './Tool.js'
 import { AgentTool } from './tools/AgentTool/AgentTool.js'
 import { SkillTool } from './tools/SkillTool/SkillTool.js'
+import { AndroidTool } from './tools/AndroidTool/AndroidTool.js'
+import { HiveCouncilTool } from './tools/HiveCouncilTool/HiveCouncilTool.js'
+import { HiveSenateTool } from './tools/HiveSenateTool/HiveSenateTool.js'
+import { HiveTeamTool } from './tools/HiveTeamTool/HiveTeamTool.js'
+import { CheckpointTool } from './tools/CheckpointTool/CheckpointTool.js'
+import { TrustedFoldersTool } from './tools/TrustedFoldersTool/TrustedFoldersTool.js'
+import { ShellModeTool } from './tools/ShellModeTool/ShellModeTool.js'
+import { MCPManageTool } from './tools/MCPManageTool/MCPManageTool.js'
+import { DeskDevTool } from './tools/DeskDevTool/DeskDevTool.js'
 import { BashTool } from './tools/BashTool/BashTool.js'
 import { FileEditTool } from './tools/FileEditTool/FileEditTool.js'
 import { FileReadTool } from './tools/FileReadTool/FileReadTool.js'
@@ -196,6 +205,15 @@ export function getAllBaseTools(): Tools {
     WebFetchTool,
     TodoWriteTool,
     WebSearchTool,
+    AndroidTool,
+    HiveCouncilTool,
+    HiveSenateTool,
+    HiveTeamTool,
+    CheckpointTool,
+    TrustedFoldersTool,
+    ShellModeTool,
+    MCPManageTool,
+    DeskDevTool,
     TaskStopTool,
     AskUserQuestionTool,
     SkillTool,

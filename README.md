@@ -1,244 +1,248 @@
-# OpenClaude
+# DuckHive
 
-OpenClaude is an open-source coding-agent CLI for cloud and local model providers.
+**The all-in-one AI coding agent harness — built from duck-cli, Agent Teams, AI Council, and OpenClaude.**
 
-Use OpenAI-compatible APIs, Gemini, GitHub Models, Codex OAuth, Codex, Ollama, Atomic Chat, and other supported backends while keeping one terminal-first workflow: prompts, tools, agents, MCP, slash commands, and streaming output.
+DuckHive is a next-generation coding-agent CLI that fuses the best ideas from duck-cli, Agent Teams (Hive Nation), OpenClaude, Crush, Kimi CLI, Gemini CLI, and Codex into a single cohesive harness. It runs natively as a CLI with full terminal-first workflows, integrates deeply with Android phone control, governance, multi-agent orchestration, and ships with a premium built-in dashboard.
 
-[![PR Checks](https://github.com/Gitlawb/openclaude/actions/workflows/pr-checks.yml/badge.svg?branch=main)](https://github.com/Gitlawb/openclaude/actions/workflows/pr-checks.yml)
-[![Release](https://img.shields.io/github/v/tag/Gitlawb/openclaude?label=release&color=0ea5e9)](https://github.com/Gitlawb/openclaude/tags)
-[![Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Gitlawb/openclaude/discussions)
-[![Security Policy](https://img.shields.io/badge/security-policy-0f766e)](SECURITY.md)
-[![License](https://img.shields.io/badge/license-MIT-2563eb)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2563eb.svg)](LICENSE)
+[![OpenClaude-based](https://img.shields.io/badge/base-OpenClaude%20v0.5.2-7c3aed.svg)](https://github.com/openclaw/openclaw)
 
-OpenClaude is also mirrored to GitLawb:
-[gitlawb.com/node/repos/z6MkqDnb/openclaude](https://gitlawb.com/node/repos/z6MkqDnb/openclaude)
+[Why DuckHive](#why-duckhive) · [Quick Start](#quick-start) · [Core Features](#core-features) · [Built-in Tools](#built-in-tools) · [Governance](#governance-hive-nation) · [Providers](#providers) · [Architecture](#architecture) · [Source Build](#source-build)
 
-[Quick Start](#quick-start) | [Setup Guides](#setup-guides) | [Providers](#supported-providers) | [Source Build](#source-build-and-local-development) | [VS Code Extension](#vs-code-extension) | [Community](#community)
+---
 
-## Star History
+## Why DuckHive
 
-[![Star History Chart](https://api.star-history.com/chart?repos=gitlawb/openclaude&type=date&legend=top-left)](https://www.star-history.com/?repos=gitlawb%2Fopenclaude&type=date&legend=top-left)
+DuckHive starts from OpenClaude's solid CLI foundation — 200+ LLM providers, streaming, MCP, agents, tasks — and layers on everything from your other systems:
 
-## Why OpenClaude
+| Feature | Source |
+|---------|--------|
+| Android phone control via ADB | duck-cli |
+| AI Council deliberation (46 councilors) | Agent Teams / Hive Nation |
+| Senate governance (94 senators, binding decrees) | Agent Teams / Hive Nation |
+| Team spawning (8 templates: research, code, swarm...) | Agent Teams |
+| Conversation checkpointing | Gemini CLI |
+| Trusted folder execution policies | Gemini CLI |
+| MCP server management | Crush / Kimi CLI |
+| Shell agent mode (Ctrl-X AI↔shell toggle) | Kimi CLI |
+| Desktop development tools (screenshot, click, type) | duck-cli |
+| 200+ model providers (MiniMax, Kimi, OpenRouter, Ollama...) | OpenClaude |
+| VS Code extension | OpenClaude |
+| Headless gRPC server | OpenClaude |
 
-- Use one CLI across cloud APIs and local model backends
-- Save provider profiles inside the app with `/provider`
-- Run with OpenAI-compatible services, Gemini, GitHub Models, Codex OAuth, Codex, Ollama, Atomic Chat, and other supported providers
-- Keep coding-agent workflows in one place: bash, file tools, grep, glob, agents, tasks, MCP, and web tools
-- Use the bundled VS Code extension for launch integration and theme support
+**One CLI. Every capability. No switching between tools.**
+
+---
 
 ## Quick Start
 
 ### Install
 
 ```bash
-npm install -g @gitlawb/openclaude
+git clone https://github.com/Franzferdinan51/openclaude.git
+cd openclaude
+npm install   # or: bun install
+npm run build # or: bun run build
 ```
 
-If the install later reports `ripgrep not found`, install ripgrep system-wide and confirm `rg --version` works in the same terminal before starting OpenClaude.
-
-### Start
+### Run
 
 ```bash
-openclaude
+node dist/cli.mjs
 ```
 
-Inside OpenClaude:
-
-- run `/provider` for guided provider setup and saved profiles
-- run `/onboard-github` for GitHub Models onboarding
-
-### Fastest OpenAI setup
-
-macOS / Linux:
+Or symlink for global access:
 
 ```bash
-export CLAUDE_CODE_USE_OPENAI=1
-export OPENAI_API_KEY=sk-your-key-here
-export OPENAI_MODEL=gpt-4o
-
-openclaude
+ln -s "$(pwd)/dist/cli.mjs" ~/.local/bin/duckhive
+duckhive
 ```
 
-Windows PowerShell:
+### First-Time Setup
 
-```powershell
-$env:CLAUDE_CODE_USE_OPENAI="1"
-$env:OPENAI_API_KEY="sk-your-key-here"
-$env:OPENAI_MODEL="gpt-4o"
+Inside DuckHive:
 
-openclaude
+```
+/provider              # Guided provider setup (MiniMax, Kimi, OpenRouter, Ollama, Gemini, Codex...)
+/onboard-github       # GitHub Models OAuth onboarding
 ```
 
-### Fastest local Ollama setup
-
-macOS / Linux:
+### Fastest Local Setup (Ollama)
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_MODEL=qwen2.5-coder:7b
-
-openclaude
+node dist/cli.mjs
 ```
-
-Windows PowerShell:
-
-```powershell
-$env:CLAUDE_CODE_USE_OPENAI="1"
-$env:OPENAI_BASE_URL="http://localhost:11434/v1"
-$env:OPENAI_MODEL="qwen2.5-coder:7b"
-
-openclaude
-```
-
-### Using Ollama's launch command
-
-If you have [Ollama](https://ollama.com) installed, you can skip the env var setup entirely:
-
-```bash
-ollama launch openclaude --model qwen2.5-coder:7b
-```
-
-This automatically sets `ANTHROPIC_BASE_URL`, model routing, and auth so all API traffic goes through your local Ollama instance. Works with any model you have pulled — local or cloud.
-
-## Setup Guides
-
-Beginner-friendly guides:
-
-- [Non-Technical Setup](docs/non-technical-setup.md)
-- [Windows Quick Start](docs/quick-start-windows.md)
-- [macOS / Linux Quick Start](docs/quick-start-mac-linux.md)
-
-Advanced and source-build guides:
-
-- [Advanced Setup](docs/advanced-setup.md)
-- [Android Install](ANDROID_INSTALL.md)
-
-## Supported Providers
-
-| Provider | Setup Path | Notes |
-| --- | --- | --- |
-| OpenAI-compatible | `/provider` or env vars | Works with OpenAI, OpenRouter, DeepSeek, Groq, Mistral, LM Studio, and other compatible `/v1` servers |
-| Gemini | `/provider` or env vars | Supports API key, access token, or local ADC workflow on current `main` |
-| GitHub Models | `/onboard-github` | Interactive onboarding with saved credentials |
-| Codex OAuth | `/provider` | Opens ChatGPT sign-in in your browser and stores Codex credentials securely |
-| Codex | `/provider` | Uses existing Codex CLI auth, OpenClaude secure storage, or env credentials |
-| Ollama | `/provider`, env vars, or `ollama launch` | Local inference with no API key |
-| Atomic Chat | `/provider`, env vars, or `bun run dev:atomic-chat` | Local Model Provider; auto-detects loaded models |
-| Bedrock / Vertex / Foundry | env vars | Additional provider integrations for supported environments |
-
-## What Works
-
-- **Tool-driven coding workflows**: Bash, file read/write/edit, grep, glob, agents, tasks, MCP, and slash commands
-- **Streaming responses**: Real-time token output and tool progress
-- **Tool calling**: Multi-step tool loops with model calls, tool execution, and follow-up responses
-- **Images**: URL and base64 image inputs for providers that support vision
-- **Provider profiles**: Guided setup plus saved `.openclaude-profile.json` support
-- **Local and remote model backends**: Cloud APIs, local servers, and Apple Silicon local inference
-
-## Provider Notes
-
-OpenClaude supports multiple providers, but behavior is not identical across all of them.
-
-- Anthropic-specific features may not exist on other providers
-- Tool quality depends heavily on the selected model
-- Smaller local models can struggle with long multi-step tool flows
-- Some providers impose lower output caps than the CLI defaults, and OpenClaude adapts where possible
-
-For best results, use models with strong tool/function calling support.
-
-## Agent Routing
-
-OpenClaude can route different agents to different models through settings-based routing. This is useful for cost optimization or splitting work by model strength.
-
-Add to `~/.claude/settings.json`:
-
-```json
-{
-  "agentModels": {
-    "deepseek-chat": {
-      "base_url": "https://api.deepseek.com/v1",
-      "api_key": "sk-your-key"
-    },
-    "gpt-4o": {
-      "base_url": "https://api.openai.com/v1",
-      "api_key": "sk-your-key"
-    }
-  },
-  "agentRouting": {
-    "Explore": "deepseek-chat",
-    "Plan": "gpt-4o",
-    "general-purpose": "gpt-4o",
-    "frontend-dev": "deepseek-chat",
-    "default": "gpt-4o"
-  }
-}
-```
-
-When no routing match is found, the global provider remains the fallback.
-
-> **Note:** `api_key` values in `settings.json` are stored in plaintext. Keep this file private and do not commit it to version control.
-
-## Web Search and Fetch
-
-By default, `WebSearch` works on non-Anthropic models using DuckDuckGo. This gives GPT-4o, DeepSeek, Gemini, Ollama, and other OpenAI-compatible providers a free web search path out of the box.
-
-> **Note:** DuckDuckGo fallback works by scraping search results and may be rate-limited, blocked, or subject to DuckDuckGo's Terms of Service. If you want a more reliable supported option, configure Firecrawl.
-
-For Anthropic-native backends and Codex responses, OpenClaude keeps the native provider web search behavior.
-
-`WebFetch` works, but its basic HTTP plus HTML-to-markdown path can still fail on JavaScript-rendered sites or sites that block plain HTTP requests.
-
-Set a [Firecrawl](https://firecrawl.dev) API key if you want Firecrawl-powered search/fetch behavior:
-
-```bash
-export FIRECRAWL_API_KEY=your-key-here
-```
-
-With Firecrawl enabled:
-
-- `WebSearch` can use Firecrawl's search API while DuckDuckGo remains the default free path for non-Claude models
-- `WebFetch` uses Firecrawl's scrape endpoint instead of raw HTTP, handling JS-rendered pages correctly
-
-Free tier at [firecrawl.dev](https://firecrawl.dev) includes 500 credits. The key is optional.
 
 ---
 
-## Headless gRPC Server
+## Core Features
 
-OpenClaude can be run as a headless gRPC service, allowing you to integrate its agentic capabilities (tools, bash, file editing) into other applications, CI/CD pipelines, or custom user interfaces. The server uses bidirectional streaming to send real-time text chunks, tool calls, and request permissions for sensitive commands.
+### 🦆 Android Phone Control
 
-### 1. Start the gRPC Server
+Full Android device control via ADB — no separate tool needed.
 
-Start the core engine as a gRPC service on `localhost:50051`:
-
-```bash
-npm run dev:grpc
+```
+/android screenshot                    # Screencap, pull to /tmp
+/android tap 540 960                   # Tap at coordinates
+/android swipe up                      # Swipe gestures
+/android type "hello world"           # Input text
+/android launch com.app.example        # Launch app
+/android battery                      # Battery status
+/android shell "ls /sdcard"           # Run shell command
 ```
 
-#### Configuration
+Works with any ADB-connected Android device. Default target: `192.168.1.251:40835` (Moto G Play 2026).
 
-| Variable | Default | Description |
-|-----------|-------------|------------------------------------------------|
-| `GRPC_PORT` | `50051` | Port the gRPC server listens on |
-| `GRPC_HOST` | `localhost` | Bind address. Use `0.0.0.0` to expose on all interfaces (not recommended without authentication) |
+### 🏛️ Governance (Hive Nation)
 
-### 2. Run the Test CLI Client
+Integrated 46-councilor deliberation + 94-senator governance system.
 
-We provide a lightweight CLI client that communicates exclusively over gRPC. It acts just like the main interactive CLI, rendering colors, streaming tokens, and prompting you for tool permissions (y/n) via the gRPC `action_required` event.
-
-In a separate terminal, run:
-
-```bash
-npm run dev:grpc:cli
+```
+/hive_council deliberate "Should we refactor the auth module?"
+/hive_senate list                        # View active decrees
+/hive_senate issue --title "Security Fix" --content "Patch CVE-2026..."
+/hive_team spawn --name "security-audit" --template security
 ```
 
-*Note: The gRPC definitions are located in `src/proto/openclaude.proto`. You can use this file to generate clients in Python, Go, Rust, or any other language.*
+**8 Team Templates:** `research`, `code`, `security`, `emergency`, `planning`, `analysis`, `devops`, `swarm`
+
+**9 Deliberation Modes:** `balanced`, `adversarial`, `consensus`, `brainstorm`, `swarm`, `devil-advocate`, `legislature`, `prediction`, `inspector`
+
+### 💾 Checkpointing
+
+Conversation checkpointing — save and restore session state (inspired by Gemini CLI).
+
+```
+/checkpoint save --name "auth-refactor" --note "Mid-way through token rewrite"
+/checkpoint list        # View all checkpoints
+/checkpoint load --id auth-refactor
+/checkpoint auto        # Auto-save during long tasks
+```
+
+Checkpoints saved to `~/.config/openclaude/checkpoints/` by default.
+
+### 🔒 Trusted Folders
+
+Execution policies that restrict file operations to approved paths only (inspired by Gemini CLI).
+
+```
+/trusted_folders list
+/trusted_folders add /workspace/myproject
+/trusted_folders check /workspace/myproject/src
+/trusted_folders enable
+/trusted_folders disable
+```
+
+Enforces safe execution boundaries for untrusted code or shared environments.
+
+### 🖥️ Desktop Development Tools
+
+macOS desktop automation — screenshot, click, type, open apps.
+
+```
+/desktop_dev screenshot           # Full screen capture → base64
+/desktop_dev click 540 960        # Click at coordinates
+/desktop_dev type "hello"         # Type text
+/desktop_dev open "Safari"        # Launch app by name
+/desktop_dev front "Xcode"         # Bring app to front
+/desktop_dev windows               # List open windows
+```
+
+### 🐚 Shell Mode
+
+Toggle between AI-assisted mode and direct shell execution with Ctrl-X (inspired by Kimi CLI).
+
+```
+/shell_mode switch --mode shell   # Direct shell — type commands directly
+/shell_mode switch --mode ai      # Back to AI assistance
+/shell_mode status               # Show current mode
+```
+
+### 🔌 MCP Server Management
+
+Manage MCP (Model Context Protocol) servers — add, remove, list, health-check.
+
+```
+/mcp_manage list                  # Show all configured servers
+/mcp_manage add --name filesystem --transport stdio --url "npx..."
+/mcp_manage remove --name old-server
+/mcp_manage health                # Check server health
+/mcp_manage reload               # Flag servers for reload on restart
+```
 
 ---
 
-## Source Build And Local Development
+## Built-in Tools
+
+| Tool | Name | Description |
+|------|------|-------------|
+| 🦆 Android | `/android` | Full Android device control via ADB |
+| 🏛️ Hive Council | `/hive_council` | 46-councilor AI deliberation |
+| 🏛️ Hive Senate | `/hive_senate` | Binding decree governance |
+| 🤖 Hive Team | `/hive_team` | Spawn multi-agent teams |
+| 💾 Checkpoint | `/checkpoint` | Session save/restore |
+| 🔒 Trusted Folders | `/trusted_folders` | Execution path policies |
+| 🖥️ Desktop Dev | `/desktop_dev` | macOS automation |
+| 🐚 Shell Mode | `/shell_mode` | AI↔shell toggle |
+| 🔌 MCP Manage | `/mcp_manage` | MCP server lifecycle |
+
+Plus all OpenClaude built-in tools: bash, file read/write/edit, grep, glob, agents, tasks, MCP, web search, web fetch, and more.
+
+---
+
+## Providers
+
+DuckHive supports 200+ models through OpenClaude's multi-provider stack:
+
+| Provider | Setup | Notes |
+|----------|-------|-------|
+| **MiniMax** (primary) | `/provider` or env | Generous quota, M2.7 reasoning model |
+| **Kimi/Moonshot** | `/provider` or env | Top-tier vision + coding |
+| **OpenAI** | `/provider` or env | GPT-4o, o3, o4 family |
+| **OpenRouter** | `/provider` or env | 28+ free tier models |
+| **Gemini** | `/provider` or env | Google AI models |
+| **GitHub Models** | `/onboard-github` | OAuth, no API key needed |
+| **Codex OAuth** | `/provider` | ChatGPT subscription tier |
+| **Ollama** | `ollama launch` or env | Local inference, free |
+| **LM Studio** | env vars | Local GPU inference |
+| **Atomic Chat** | `/provider` or env | Local model provider |
+
+---
+
+## Architecture
+
+```
+DuckHive
+├── OpenClaude Core (CLI, streaming, tools, MCP)
+├── 9 Native Tools
+│   ├── AndroidTool       — ADB phone control
+│   ├── HiveCouncilTool  — AI Council deliberation
+│   ├── HiveSenateTool   — Senate decree system
+│   ├── HiveTeamTool     — Team spawning
+│   ├── CheckpointTool   — Session checkpointing
+│   ├── TrustedFoldersTool — Execution policies
+│   ├── DeskDevTool      — macOS automation
+│   ├── ShellModeTool    — AI/shell toggle
+│   └── MCPManageTool    — MCP server management
+├── Hive Nation Bridge   — Connects to localhost:3131
+├── Provider Stack       — 200+ models via OpenAI-compatible APIs
+└── VS Code Extension    — Launch integration + theme
+```
+
+**Hive Nation Services** (run separately):
+
+```bash
+# Start Hive Nation API (port 3131)
+cd ~/Desktop/AgentTeam-GitHub
+node council-api-server.cjs
+```
+
+---
+
+## Source Build
 
 ```bash
 bun install
@@ -246,100 +250,57 @@ bun run build
 node dist/cli.mjs
 ```
 
-Helpful commands:
-
-- `bun run dev`
-- `bun test`
-- `bun run test:coverage`
-- `bun run security:pr-scan -- --base origin/main`
-- `bun run smoke`
-- `bun run doctor:runtime`
-- `bun run verify:privacy`
-- focused `bun test ...` runs for the areas you touch
-
-## Testing And Coverage
-
-OpenClaude uses Bun's built-in test runner for unit tests.
-
-Run the full unit suite:
+Development:
 
 ```bash
-bun test
+bun run dev           # Watch mode development
+bun test              # Run test suite
+bun run smoke         # Smoke tests
+bun run doctor:runtime # Diagnose runtime issues
 ```
 
-Generate unit test coverage:
+---
 
-```bash
-bun run test:coverage
-```
+## DuckHive vs. Other Systems
 
-Open the visual coverage report:
+| Feature | DuckHive | duck-cli | Agent Teams | Gemini CLI | Kimi CLI |
+|---------|----------|----------|-------------|------------|----------|
+| Multi-provider (200+) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Android phone control | ✅ | ✅ | ❌ | ❌ | ❌ |
+| AI Council (46 councilors) | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Senate governance | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Team spawning | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Checkpointing | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Trusted folders | ✅ | ❌ | ❌ | ✅ | ❌ |
+| MCP management | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Shell mode | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Desktop automation | ✅ | ✅ | ❌ | ❌ | ❌ |
+| VS Code extension | ✅ | ❌ | ❌ | ❌ | ✅ |
+| gRPC server | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Free local inference | ✅ | ✅ | ❌ | ❌ | ❌ |
 
-```bash
-open coverage/index.html
-```
+---
 
-If you already have `coverage/lcov.info` and only want to rebuild the UI:
+## Credit & Sources
 
-```bash
-bun run test:coverage:ui
-```
+DuckHive stands on the shoulders of giants:
 
-Use focused test runs when you only touch one area:
+- **[OpenClaude](https://github.com/openclaw/openclaw)** — Base CLI harness (MIT)
+- **[duck-cli](https://github.com/Franzferdinan51/duck-cli)** — Phone control, AI Council, agent mesh (MIT)
+- **[Agent Teams / Hive Nation](https://github.com/Franzferdinan51/Agent-Teams)** — Governance, Senate, team orchestration (MIT)
+- **[Crush](https://github.com/grantcull/ Crush)** — Glamourous CLI patterns, MCP support
+- **[Kimi CLI](https://github.com/MoonshotAI/kimi-switch)** — Shell agent mode inspiration
+- **[Gemini CLI](https://github.com/google-gemini)** — Checkpointing, trusted folders inspiration
+- **[Fantasy](https://charm.land/fantasy)** — Go agent library patterns (Apache-2.0)
 
-- `bun run test:provider`
-- `bun run test:provider-recommendation`
-- `bun test path/to/file.test.ts`
-
-Recommended contributor validation before opening a PR:
-
-- `bun run build`
-- `bun run smoke`
-- `bun run test:coverage` for broader unit coverage when your change affects shared runtime or provider logic
-- focused `bun test ...` runs for the files and flows you changed
-
-Coverage output is written to `coverage/lcov.info`, and OpenClaude also generates a git-activity-style heatmap at `coverage/index.html`.
-## Repository Structure
-
-- `src/` - core CLI/runtime
-- `scripts/` - build, verification, and maintenance scripts
-- `docs/` - setup, contributor, and project documentation
-- `python/` - standalone Python helpers and their tests
-- `vscode-extension/openclaude-vscode/` - VS Code extension
-- `.github/` - repo automation, templates, and CI configuration
-- `bin/` - CLI launcher entrypoints
-
-## VS Code Extension
-
-The repo includes a VS Code extension in [`vscode-extension/openclaude-vscode`](vscode-extension/openclaude-vscode) for OpenClaude launch integration, provider-aware control-center UI, and theme support.
-
-## Security
-
-If you believe you found a security issue, see [SECURITY.md](SECURITY.md).
-
-## Community
-
-- Use [GitHub Discussions](https://github.com/Gitlawb/openclaude/discussions) for Q&A, ideas, and community conversation
-- Use [GitHub Issues](https://github.com/Gitlawb/openclaude/issues) for confirmed bugs and actionable feature work
-
-## Contributing
-
-Contributions are welcome.
-
-For larger changes, open an issue first so the scope is clear before implementation. Helpful validation commands include:
-
-- `bun run build`
-- `bun run test:coverage`
-- `bun run smoke`
-- focused `bun test ...` runs for files and flows you changed
-
+---
 
 ## Disclaimer
 
-OpenClaude is an independent community project and is not affiliated with, endorsed by, or sponsored by Anthropic.
+DuckHive is an independent community project and is not affiliated with, endorsed by, or sponsored by Anthropic, MiniMax, Moonshot AI, or any other provider.
 
-OpenClaude originated from the Claude Code codebase and has since been substantially modified to support multiple providers and open use. "Claude" and "Claude Code" are trademarks of Anthropic PBC. See [LICENSE](LICENSE) for details.
+"Claude" and "Claude Code" are trademarks of Anthropic PBC. See [LICENSE](LICENSE) for details.
 
 ## License
 
-See [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE).

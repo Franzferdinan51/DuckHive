@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'AI Council deliberation — 46 councilors debating topics in modes: balanced, adversarial, creative, focused, formal, rapid, consensus, brainstorming, expert, ethical, developer'
