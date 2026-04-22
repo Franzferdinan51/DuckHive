@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'Smart task routing — analyzes complexity (1-10), selects optimal model, triggers AI Council for critical tasks, saves checkpoints for long tasks. Powered by Hybrid Orchestrator v1. Use analyze before complex tasks, route to see model recommendation, plan to see execution steps.'

@@ -11,6 +11,7 @@ import { TrustedFoldersTool } from './tools/TrustedFoldersTool/TrustedFoldersToo
 import { ShellModeTool } from './tools/ShellModeTool/ShellModeTool.js'
 import { MCPManageTool } from './tools/MCPManageTool/MCPManageTool.js'
 import { DeskDevTool } from './tools/DeskDevTool/DeskDevTool.js'
+import { OrchestrateTool } from './tools/OrchestrateTool/OrchestrateTool.js'
 import { BashTool } from './tools/BashTool/BashTool.js'
 import { FileEditTool } from './tools/FileEditTool/FileEditTool.js'
 import { FileReadTool } from './tools/FileReadTool/FileReadTool.js'
@@ -214,6 +215,7 @@ export function getAllBaseTools(): Tools {
     ShellModeTool,
     MCPManageTool,
     DeskDevTool,
+    OrchestrateTool,
     TaskStopTool,
     AskUserQuestionTool,
     SkillTool,
