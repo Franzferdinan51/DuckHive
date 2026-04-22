@@ -95,7 +95,7 @@ export const StatusBarTool = buildTool({
       case 'tokens':
         return { data: { success: true, action: 'tokens', output: tokens !== undefined ? styles.blue(`${tokens.toLocaleString()} tok`) : '0 tok' } }
       case 'session':
-        return { data: { success: true, action: 'session', output: styles.cyan('DuckHive v0.5.2') } }
+        return { data: { success: true, action: 'session', output: styles.cyan('DuckHive v0.8.0') } }
       case 'mode':
         return { data: { success: true, action: 'mode', output: mode ? styles.yellow(`[${mode.toUpperCase()}]`) : '[CHAT]' } }
       case 'clear':
