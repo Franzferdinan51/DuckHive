@@ -805,8 +805,7 @@ export async function main() {
   const hasInitOnlyFlag = cliArgs.includes('--init-only');
   const hasSdkUrl = cliArgs.some(arg => arg.startsWith('--sdk-url'));
   const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || hasSdkUrl || !process.stdout.isTTY;
-
-  // Stop capturing early input for non-interactive modes
+// Stop capturing early input for non-interactive modes
   if (isNonInteractive) {
     stopCapturingEarlyInput();
   }
@@ -4365,7 +4364,7 @@ async function run(): Promise<CommanderCommand> {
     await update();
   });
 
-  // duckhive tui — launch the Bubble Tea TUI
+  // duckhive tui — launch the Bubble Tea TUI (direct spawn, user explicitly asked)
   program.command('tui').description('Launch the DuckHive terminal UI').action(async () => {
     const started = await launchStandaloneTui(join(__dirname, '..'))
     if (!started) {
