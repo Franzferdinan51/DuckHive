@@ -40,7 +40,13 @@ DuckHive is an AI coding CLI built on top of [Gitlawb/openclaude](https://github
 
 DuckHive now includes an additive Go/Bubble Tea shell. Plain interactive `duckhive` auto-starts the Go TUI when `tui/duckhive-tui` is present, and `duckhive tui` remains available as an explicit launcher. Set `DUCKHIVE_NO_AUTO_TUI=1` if you want to stay in the legacy Ink REPL.
 
-This TUI is being shaped as a capability-first surface that can absorb features from Codex, Gemini CLI, Kimi CLI, OpenClaw, duck-cli, MiniMax Agent CLI, and mercury-agent without replacing the current harness.
+The TUI is only one surface of that work. The actual goal is to merge the useful parts of Codex, Gemini CLI, Kimi CLI, OpenClaw, duck-cli, MiniMax Agent CLI, and mercury-agent throughout the whole DuckHive harness: shared tools, orchestration, sessioning, model routing, permissions, media jobs, automation, and every major interaction surface.
+
+The rule going forward is:
+
+- land imported capabilities in shared harness layers first
+- surface them in `duckhive`, the Go TUI, the legacy REPL, print/headless flows, and backend services second
+- avoid TUI-only implementations for features that should exist across the product
 
 Current TUI foundations:
 
@@ -50,7 +56,7 @@ Current TUI foundations:
 - Session rail for bridge state, checkpoints, context files, and imported capability status
 - Transcript rail toggle and tracked TUI backlog files
 
-TUI tracking docs live in:
+Harness capability tracking currently lives in:
 
 - `tui/TODO.md`
 - `tui/KANBAN.md`

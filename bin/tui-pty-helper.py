@@ -23,6 +23,7 @@ def launch():
                 d = os.read(master, 4096)
                 if d:
                     sys.stdout.buffer.write(d)
+                    sys.stdout.buffer.flush()
                 else:
                     break
             if sys.stdin in r:
@@ -43,6 +44,7 @@ def launch():
                 d = os.read(master, 4096)
                 if not d: break
                 sys.stdout.buffer.write(d)
+                sys.stdout.buffer.flush()
         except: pass
 
         try: os.close(master)

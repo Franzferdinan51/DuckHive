@@ -1,6 +1,8 @@
-# DuckHive TUI Kanban
+# DuckHive Harness Kanban
 
 Last updated: 2026-04-22
+
+This board tracks harness-wide capability merging, with the Go TUI as one delivery surface.
 
 ## Backlog
 
@@ -10,6 +12,9 @@ Last updated: 2026-04-22
 - Multi-agent session view
 - Media generation jobs
 - Voice/channel/daemon controls
+- Shared harness checkpoint/session APIs
+- Shared budget/approval state
+- Shared media job orchestration
 
 ## Ready
 
@@ -17,9 +22,13 @@ Last updated: 2026-04-22
 - Checkpoint browser and resume flow
 - Council execution view
 - Media generation jobs panel
+- Shared harness session state extraction
+- Shared bridge fallback rules for non-bridge launches
 
 ## In Progress
 
+- PTY helper and TUI startup reliability
+- Harness-wide feature integration direction
 - Capability rail expansion
 - Session/status enrichment
 - README alignment with TUI direction
@@ -27,7 +36,7 @@ Last updated: 2026-04-22
 ## Review
 
 - Go TUI test/build verification
-- README update for the new TUI direction
+- README update for harness-wide feature merging
 
 ## Done
 
