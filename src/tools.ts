@@ -22,7 +22,6 @@ import { VisionTool } from './tools/VisionTool/VisionTool.js'
 import { StatusBarTool } from './tools/StatusBarTool/StatusBarTool.js'
 import { StreamTool } from './tools/StreamTool/StreamTool.js'
 import { REPLPanelTool } from './tools/REPLPanelTool/REPLPanelTool.js'
-import { ShadowGitTool } from './tools/ShadowGitTool/ShadowGitTool.js'
 import { MultiModelRouterTool } from './tools/MultiModelRouterTool/MultiModelRouterTool.js'
 import { ShadowGitTool } from './tools/ShadowGitTool/ShadowGitTool.js'
 import { ContextTool } from './tools/ContextTool/ContextTool.js'
@@ -239,7 +238,6 @@ export function getAllBaseTools(): Tools {
     REPLPanelTool,
     ShadowGitTool,
     MultiModelRouterTool,
-    ShadowGitTool,
     ContextTool,
     TaskStopTool,
     AskUserQuestionTool,
