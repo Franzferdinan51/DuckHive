@@ -9,6 +9,7 @@ import { isLocalProviderUrl, resolveProviderRequest } from '../services/api/prov
 import { getLocalOpenAICompatibleProviderLabel } from '../utils/providerDiscovery.js'
 import { getSettings_DEPRECATED } from '../utils/settings/settings.js'
 import { parseUserSpecifiedModel } from '../utils/model/model.js'
+import { getDuckContextFileCount } from '../utils/contextLoader.js'
 
 declare const MACRO: { VERSION: string; DISPLAY_VERSION?: string }
 
@@ -224,6 +225,12 @@ export function printStartupScreen(): void {
 
   out.push(`${rgb(...BORDER)}\u255a${'\u2550'.repeat(W - 2)}\u255d${RESET}`)
   out.push(`  ${DIM}${rgb(...DIMCOL)}DuckHive ${RESET}${rgb(...ACCENT)}v${MACRO.DISPLAY_VERSION ?? MACRO.VERSION}${RESET}`)
+
+  // DUCK.md context file count (gemini-cli style hierarchical context)
+  const ctxCount = getDuckContextFileCount()
+  if (ctxCount > 0) {
+    out.push(`  ${DIM}${rgb(...DIMCOL)}●${RESET} ${rgb(...CREAM)}${ctxCount} DUCK.md context file${ctxCount !== 1 ? 's' : ''} loaded${RESET}`)
+  }
   out.push('')
 
   process.stdout.write(out.join('\n') + '\n')

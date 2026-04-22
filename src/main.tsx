@@ -141,6 +141,7 @@ import { validateUuid } from './utils/uuid.js';
 
 import { registerMcpAddCommand } from 'src/commands/mcp/addCommand.js';
 import { registerMcpDoctorCommand } from 'src/commands/mcp/doctorCommand.js';
+import { registerDuckhiveMcpCommand } from 'src/commands/mcp/duckhiveMcpCommand.js';
 import { registerMcpXaaIdpCommand } from 'src/commands/mcp/xaaIdpCommand.js';
 import { fetchClaudeAIMcpConfigsIfEligible } from 'src/services/mcp/claudeai.js';
 import { clearServerCache } from 'src/services/mcp/client.js';
@@ -3941,6 +3942,11 @@ async function run(): Promise<CommanderCommand> {
     } = await import('./cli/handlers/mcp.js');
     await mcpResetChoicesHandler();
   });
+
+  // duckhive mcp — only register when running as the duckhive binary
+  if (process.argv[1]?.includes('duckhive')) {
+    registerDuckhiveMcpCommand(program);
+  }
 
   // claude server
   if (feature('DIRECT_CONNECT')) {

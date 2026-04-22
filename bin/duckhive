@@ -1,10 +1,41 @@
-#!/bin/bash
-# DuckHive launcher with MiniMax support
-MINIMAX_KEY=$(python3 -c "import os; print(os.environ.get('MINIMAX_API_KEY',''))" 2>/dev/null)
-if [ -n "$MINIMAX_KEY" ]; then
-    export CLAUDE_CODE_USE_OPENAI=1
-    export OPENAI_API_KEY="$MINIMAX_KEY"
-    export OPENAI_BASE_URL="https://api.minimax.io/v1"
-    export OPENAI_MODEL="MiniMax-M2.5"
-fi
-exec node "$HOME/.openclaw/workspace/openclaude-integration/dist/cli.mjs" "$@"
+#!/usr/bin/env node
+
+/**
+ * DuckHive — AI coding CLI harness
+ * Based on OpenClaude/Claude Code, powered by MiniMax M2.7
+ *
+ * Auto-configures MiniMax when MINIMAX_API_KEY is available,
+ * otherwise falls through to OpenAI compatibility layer.
+ */
+
+import { existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath, pathToFileURL } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const distPath = join(__dirname, '..', 'dist', 'cli.mjs')
+
+// Auto-configure MiniMax when MINIMAX_API_KEY is in the environment
+if (process.env.MINIMAX_API_KEY && !process.env.CLAUDE_CODE_USE_OPENAI) {
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_API_KEY = process.env.MINIMAX_API_KEY
+  process.env.OPENAI_BASE_URL = 'https://api.minimax.io/v1'
+  process.env.OPENAI_MODEL = process.env.OPENAI_MODEL || 'MiniMax-M2.5'
+}
+
+if (existsSync(distPath)) {
+  await import(pathToFileURL(distPath).href)
+} else {
+  console.error(`
+  duckhive: dist/cli.mjs not found.
+
+  Build first:
+    bun run build
+
+  Or run directly with Bun:
+    bun run dev
+
+  See README.md for setup instructions.
+`)
+  process.exit(1)
+}

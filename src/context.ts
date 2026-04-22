@@ -10,6 +10,7 @@ import {
   getClaudeMds,
   getMemoryFiles,
 } from './utils/claudemd.js'
+import { getCombinedDuckContext } from './utils/contextLoader.js'
 import { logForDiagnosticsNoPII } from './utils/diagLogs.js'
 import { isBareMode, isEnvTruthy } from './utils/envUtils.js'
 import { execFileNoThrow } from './utils/execFileNoThrow.js'
@@ -170,6 +171,10 @@ export const getUserContext = memoize(
     const claudeMd = shouldDisableClaudeMd
       ? null
       : getClaudeMds(filterInjectedMemoryFiles(await getMemoryFiles()))
+
+    // DuckHive DUCK.md hierarchical context (gemini-cli style)
+    const duckContext = getCombinedDuckContext()
+
     // Cache for the auto-mode classifier (yoloClassifier.ts reads this
     // instead of importing claudemd.ts directly, which would create a
     // cycle through permissions/filesystem → permissions → yoloClassifier).
@@ -183,6 +188,7 @@ export const getUserContext = memoize(
 
     return {
       ...(claudeMd && { claudeMd }),
+      ...(duckContext && { duckContext }),
       currentDate: `Today's date is ${getLocalISODate()}.`,
     }
   },
