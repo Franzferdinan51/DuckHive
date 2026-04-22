@@ -1000,6 +1000,17 @@ async function run(): Promise<CommanderCommand> {
   // top-level option. Single-value + collect accumulator means each
   // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
+    // Launch Go TUI by default when no prompt provided
+    if (!prompt) {
+      const path = join(__dirname, '..', 'tui', 'duckhive-tui')
+      const { spawn } = await import('child_process')
+      const child = spawn(path, [], {
+        stdio: 'inherit',
+        env: { ...process.env },
+      })
+      child.on('exit', (code) => process.exit(code ?? 0))
+      return
+    }
     profileCheckpoint('action_handler_start');
 
     // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
@@ -4359,6 +4370,17 @@ async function run(): Promise<CommanderCommand> {
       update
     } = await import('src/cli/update.js');
     await update();
+  });
+
+  // duckhive tui — launch the Bubble Tea TUI
+  program.command('tui').description('Launch the DuckHive terminal UI').action(async () => {
+    const path = join(__dirname, '..', 'tui', 'duckhive-tui')
+    const { spawn } = await import('child_process')
+    const child = spawn(path, [], {
+      stdio: 'inherit',
+      env: { ...process.env, DUCKHIVE_BRIDGE_SOCKET: process.env.DUCKHIVE_BRIDGE_SOCKET || '' },
+    })
+    child.on('exit', (code) => process.exit(code ?? 0))
   });
 
   // claude up — run the project's CLAUDE.md "# claude up" setup instructions.
