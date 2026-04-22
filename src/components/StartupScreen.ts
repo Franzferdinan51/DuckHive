@@ -179,21 +179,10 @@ export function printStartupScreen(): void {
 
   out.push('')
 
-  // Gradient logo
-  const allLogo = [...LOGO_DUCK, '', ...LOGO_HIVE]
-  const total = allLogo.length
-  for (let i = 0; i < total; i++) {
-    const t = total > 1 ? i / (total - 1) : 0
-    if (allLogo[i] === '') {
-      out.push('')
-    } else {
-      out.push(paintLine(allLogo[i], GOLD_GRAD, t))
-    }
-  }
-
+  // Minimal tagline header (no ASCII art blocks)
   out.push('')
-
-  // Tagline
+  out.push(`  ${rgb(...AMBER)}✦${RESET} ${rgb(...GOLD)}Any model. Every tool. One Hive.${RESET} ${rgb(...AMBER)}✦${RESET}`)
+  out.push('')
   out.push(`  ${rgb(...AMBER)}\u2726${RESET} ${rgb(...CREAM)}Any model. Every tool. One Hive.${RESET} ${rgb(...AMBER)}\u2726${RESET}`)
   out.push('')
 
