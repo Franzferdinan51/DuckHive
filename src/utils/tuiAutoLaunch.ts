@@ -30,11 +30,17 @@ async function spawnAndWaitForStart(
       env,
     })
 
-    const onError = () => resolve(false)
+    const onError = (e: Error) => {
+      console.error('[TUI spawn error]:', e.message)
+      resolve(false)
+    }
     child.once('error', onError)
     child.once('spawn', () => {
       child.off('error', onError)
-      child.on('exit', code => process.exit(code ?? 0))
+      child.on('exit', code => {
+        console.error('[TUI exit]:', code)
+        process.exit(code ?? 0)
+      })
       resolve(true)
     })
   })
@@ -52,10 +58,15 @@ export async function launchStandaloneTui(
   }
   const tuiPath = join(baseDir, 'tui', 'duckhive-tui')
 
+  console.error('[TUI] baseDir:', baseDir)
+  console.error('[TUI] tuiPath:', tuiPath, '| exists:', existsSync(tuiPath))
   if (!existsSync(tuiPath)) {
+    console.error('[TUI] tuiPath not found!')
     return false
   }
 
-  // Spawn Go TUI directly - works in real terminal, skips in non-TTY
-  return await spawnAndWaitForStart(tuiPath, args, env)
+  console.error('[TUI] launching:', tuiPath)
+  const result = await spawnAndWaitForStart(tuiPath, args, env)
+  console.error('[TUI] result:', result)
+  return result
 }
