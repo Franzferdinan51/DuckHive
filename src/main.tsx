@@ -1000,8 +1000,16 @@ async function run(): Promise<CommanderCommand> {
   // top-level option. Single-value + collect accumulator means each
   // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
-    if (!prompt && shouldAutoLaunchStandaloneTui(process.argv.slice(2)) && (await launchStandaloneTui(join(__dirname, '..')))) {
-      return;
+    const args = process.argv.slice(2)
+    const stdinTTY = process.stdin.isTTY
+    const stdoutTTY = process.stdout.isTTY
+    const autoTui = shouldAutoLaunchStandaloneTui(args)
+    console.error('[DEBUG duckhive] prompt:', prompt, 'stdinTTY:', stdinTTY, 'stdoutTTY:', stdoutTTY, 'args:', args.length, 'autoTui:', autoTui)
+    if (!prompt && autoTui) {
+      console.error('[DEBUG duckhive] launching TUI...')
+      const launched = await launchStandaloneTui(join(__dirname, '..'))
+      console.error('[DEBUG duckhive] TUI launched:', launched)
+      if (launched) return
     }
     profileCheckpoint('action_handler_start');
 

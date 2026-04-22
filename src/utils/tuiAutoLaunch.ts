@@ -56,17 +56,6 @@ export async function launchStandaloneTui(
     return false
   }
 
-  const helperPath = join(baseDir, 'bin', 'tui-pty-helper.py')
-  if (existsSync(helperPath)) {
-    const helperStarted = await spawnAndWaitForStart(
-      'python3',
-      [helperPath, ...args],
-      env,
-    )
-    if (helperStarted) {
-      return true
-    }
-  }
-
+  // Spawn Go TUI directly - works in real terminal, skips in non-TTY
   return await spawnAndWaitForStart(tuiPath, args, env)
 }
