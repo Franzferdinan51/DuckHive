@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'Multi-model router — Crush CLI style intelligent routing across MiniMax, Kimi, OpenAI, Anthropic, OpenRouter, LM Studio. Best model for task type, complexity, vision, cost.'

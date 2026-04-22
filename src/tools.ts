@@ -22,6 +22,8 @@ import { VisionTool } from './tools/VisionTool/VisionTool.js'
 import { StatusBarTool } from './tools/StatusBarTool/StatusBarTool.js'
 import { StreamTool } from './tools/StreamTool/StreamTool.js'
 import { REPLPanelTool } from './tools/REPLPanelTool/REPLPanelTool.js'
+import { ShadowGitTool } from './tools/ShadowGitTool/ShadowGitTool.js'
+import { MultiModelRouterTool } from './tools/MultiModelRouterTool/MultiModelRouterTool.js'
 import { BashTool } from './tools/BashTool/BashTool.js'
 import { FileEditTool } from './tools/FileEditTool/FileEditTool.js'
 import { FileReadTool } from './tools/FileReadTool/FileReadTool.js'
@@ -233,6 +235,8 @@ export function getAllBaseTools(): Tools {
     StatusBarTool,
     StreamTool,
     REPLPanelTool,
+    ShadowGitTool,
+    MultiModelRouterTool,
     TaskStopTool,
     AskUserQuestionTool,
     SkillTool,
