@@ -13,6 +13,9 @@ afterEach(() => {
 })
 
 async function importFreshInstallCommand() {
+  mock.module('../subagentSystem.js', () => ({
+    sessions_spawn: async () => '',
+  }))
   return import(`../commands/install.tsx?ts=${Date.now()}-${Math.random()}`)
 }
 
@@ -20,17 +23,17 @@ async function importFreshInstaller() {
   return import(`./nativeInstaller/installer.ts?ts=${Date.now()}-${Math.random()}`)
 }
 
-test('install command displays ~/.local/bin/openclaude on non-Windows', async () => {
+test('install command displays ~/.local/bin/duckhive on non-Windows', async () => {
   mock.module('../utils/env.js', () => ({
     env: { platform: 'darwin' },
   }))
 
   const { getInstallationPath } = await importFreshInstallCommand()
 
-  expect(getInstallationPath()).toBe('~/.local/bin/openclaude')
+  expect(getInstallationPath()).toBe('~/.local/bin/duckhive')
 })
 
-test('install command displays openclaude.exe path on Windows', async () => {
+test('install command displays duckhive.exe path on Windows', async () => {
   mock.module('../utils/env.js', () => ({
     env: { platform: 'win32' },
   }))
@@ -38,14 +41,14 @@ test('install command displays openclaude.exe path on Windows', async () => {
   const { getInstallationPath } = await importFreshInstallCommand()
 
   expect(getInstallationPath()).toBe(
-    join(homedir(), '.local', 'bin', 'openclaude.exe').replace(/\//g, '\\'),
+    join(homedir(), '.local', 'bin', 'duckhive.exe').replace(/\//g, '\\'),
   )
 })
 
 test('cleanupNpmInstallations removes both openclaude and legacy claude local install dirs', async () => {
   const removedPaths: string[] = []
   ;(globalThis as Record<string, unknown>).MACRO = {
-    PACKAGE_URL: '@gitlawb/openclaude',
+    PACKAGE_URL: 'duckhive',
   }
 
   mock.module('fs/promises', () => ({

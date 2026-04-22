@@ -38,6 +38,7 @@ export function getCandidateLocalInstallDirs(options?: {
 
 function getCandidateLocalBinaryPaths(localInstallDir: string): string[] {
   return [
+    join(localInstallDir, 'node_modules', '.bin', 'duckhive'),
     join(localInstallDir, 'node_modules', '.bin', 'openclaude'),
     join(localInstallDir, 'node_modules', '.bin', 'claude'),
   ]
@@ -52,7 +53,7 @@ export function isManagedLocalInstallationPath(execPath: string): boolean {
 }
 
 export function getLocalClaudePath(): string {
-  return join(getLocalInstallDir(), 'openclaude')
+  return join(getLocalInstallDir(), 'duckhive')
 }
 
 /**
@@ -95,7 +96,7 @@ export async function ensureLocalPackageEnvironment(): Promise<boolean> {
     await writeIfMissing(
       join(localInstallDir, 'package.json'),
       jsonStringify(
-        { name: 'openclaude-local', version: '0.0.1', private: true },
+        { name: 'duckhive-local', version: '0.0.1', private: true },
         null,
         2,
       ),
@@ -105,13 +106,19 @@ export async function ensureLocalPackageEnvironment(): Promise<boolean> {
     const wrapperPath = getLocalClaudePath()
     const created = await writeIfMissing(
       wrapperPath,
-      `#!/bin/sh\nexec "${localInstallDir}/node_modules/.bin/openclaude" "$@"`,
+      `#!/bin/sh\nexec "${localInstallDir}/node_modules/.bin/duckhive" "$@"`,
       0o755,
     )
     if (created) {
       // Mode in writeFile is masked by umask; chmod to ensure executable bit.
       await chmod(wrapperPath, 0o755)
     }
+
+    await writeIfMissing(
+      join(localInstallDir, 'openclaude'),
+      `#!/bin/sh\nexec "${localInstallDir}/duckhive" "$@"`,
+      0o755,
+    )
 
     return true
   } catch (error) {

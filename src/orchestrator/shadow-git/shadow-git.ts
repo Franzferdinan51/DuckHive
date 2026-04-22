@@ -4,7 +4,8 @@
  * Automatically creates Git snapshots BEFORE any file modification.
  * Stored in ~/.config/openclaude/shadow/ — separate from project Git.
  */
-import { execSync, existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
+import { execSync } from 'child_process'
 import { resolve, join } from 'path'
 import { homedir } from 'os'
 

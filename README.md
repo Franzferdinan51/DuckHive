@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?style=for-the-badge&logo=typescript)](package.json)
 [![Bun](https://img.shields.io/badge/Bun-1.1-yellow?style=for-the-badge&logo=bun)](package.json)
 
-**The Mega AI Coding Harness** — Built on OpenClaw, supercharged with MiniMax M2.7, Agent Teams, AI Council, and full MiniMax CLI integration.
+**The Mega AI Coding Harness** — Forked from [Gitlawb/openclaude](https://github.com/Gitlawb/openclaude) and extended with MiniMax M2.7, Agent Teams, AI Council, and full MiniMax CLI integration.
 
 [Features](#features) · [Quick Start](#getting-started) · [DuckHive mmx](#duckhive-mmx) · [Agent Teams](#agent-teams) · [Architecture](#architecture) · [Comparison](#what-duckhive-adds-over-openclaude)
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-DuckHive is an AI coding CLI agent harness built on [OpenClaw](https://github.com/openclaw/openclaw) by [GitLawB](https://github.com/Gitlawb). Think of it as OpenClaude supercharged: same harness architecture, but defaulting to **MiniMax M2.7**, integrating **Agent Teams** for multi-agent orchestration, **AI Council** for adversarial deliberation, and full **MiniMax CLI (mmx)** for image, speech, music, and video generation — all accessible from a single `duckhive` command.
+DuckHive is an AI coding CLI built on top of [Gitlawb/openclaude](https://github.com/Gitlawb/openclaude). That OpenClaude codebase is the direct upstream base for this fork. OpenClaw is a separate harness project that influenced parts of the broader ecosystem, but DuckHive itself extends the OpenClaude line directly. On top of that base, DuckHive swaps the default model to **MiniMax M2.7**, adds **Agent Teams** for multi-agent orchestration, layers in **AI Council** for adversarial deliberation, and integrates full **MiniMax CLI (mmx)** support for image, speech, music, and video generation — all from a single `duckhive` command.
 
 ### Key Differentiators from OpenClaude
 
@@ -38,7 +38,9 @@ DuckHive is an AI coding CLI agent harness built on [OpenClaw](https://github.co
 
 ### Experimental Bubble Tea TUI
 
-DuckHive now includes an additive Go/Bubble Tea shell under `duckhive tui`. This TUI is being shaped as a capability-first surface that can absorb features from Codex, Gemini CLI, Kimi CLI, OpenClaw, duck-cli, MiniMax Agent CLI, and mercury-agent without replacing the current harness.
+DuckHive now includes an additive Go/Bubble Tea shell. Plain interactive `duckhive` auto-starts the Go TUI when `tui/duckhive-tui` is present, and `duckhive tui` remains available as an explicit launcher. Set `DUCKHIVE_NO_AUTO_TUI=1` if you want to stay in the legacy Ink REPL.
+
+This TUI is being shaped as a capability-first surface that can absorb features from Codex, Gemini CLI, Kimi CLI, OpenClaw, duck-cli, MiniMax Agent CLI, and mercury-agent without replacing the current harness.
 
 Current TUI foundations:
 
@@ -63,9 +65,12 @@ go test ./...
 
 ### Getting Started
 
-**Option 1 — npm global install (recommended):**
+**Option 1 — npm install:**
 ```bash
-npm install -g openclaude  # then rename or alias to duckhive
+npm install -g github:Franzferdinan51/DuckHive
+# after publishing to npm:
+# npm install -g duckhive
+
 # OR clone and install locally
 git clone https://github.com/Franzferdinan51/DuckHive.git
 cd DuckHive && bun install && bun run build
@@ -75,6 +80,8 @@ cd DuckHive && bun install && bun run build
 ```bash
 ./bin/duckhive
 ```
+
+Interactive `duckhive` launches the Go TUI first. Use `DUCKHIVE_NO_AUTO_TUI=1 ./bin/duckhive` to stay in the legacy TypeScript REPL.
 
 **After setup:**
 ```bash
@@ -89,11 +96,12 @@ duckhive "Implement a REST API"
 
 ### Distribution
 
-DuckHive is distributed as a single `duckhive` binary (Go CLI wrapper around the TypeScript agent core):
+DuckHive is distributed as a `duckhive` launcher that boots the TypeScript agent core and, for interactive sessions, hands off to the checked-in Go TUI binary:
 
 | Method | Command |
 |--------|---------|  
-| npm global | `npm i -g openclaude` |
+| npm from GitHub | `npm i -g github:Franzferdinan51/DuckHive` |
+| npm after publish | `npm i -g duckhive` |
 | Homebrew | `brew install franzferdinan51/tap/duckhive` |
 | Git clone | `git clone && bun install && bun run build` |
 
@@ -351,7 +359,7 @@ duckhive dmcp health        # Check MCP server health
 
 ### Custom Tools
 
-DuckHive adds 24 custom tools on top of OpenClaw's base toolset:
+DuckHive adds 24 custom tools on top of the OpenClaude base:
 
 | Tool | Command | Description |
 |------|---------|-------------|
@@ -463,7 +471,7 @@ ln -s "$(pwd)/bin/duckhive" ~/.local/bin/duckhive
 
 ## Configuration
 
-DuckHive inherits OpenClaw's configuration. Set up your environment:
+DuckHive inherits the OpenClaude configuration model, while also carrying some compatibility paths from the upstream fork history. Set up your environment:
 
 ```bash
 # MiniMax API key (required for default model + mmx)
@@ -479,7 +487,7 @@ export LMSTUDIO_URL=http://localhost:1234
 export DUCK_CHAT_MODEL=MiniMax-M2.7
 ```
 
-See `~/.openclaw/` for full configuration options.
+See `~/.openclaude/`, project `.openclaude/`, and `~/.duckhive/config.json` for the current configuration surfaces carried by this fork.
 
 ### Meta-Agent Configuration
 
@@ -575,4 +583,4 @@ MIT License — see [LICENSE](LICENSE) file.
 
 ---
 
-*Built on [OpenClaw](https://github.com/openclaw/openclaw) by [GitLawB](https://github.com/Gitlawb) · Powered by [MiniMax](https://www.minimax.io/) · DuckHive DNA*
+*Forked from [Gitlawb/openclaude](https://github.com/Gitlawb/openclaude) · Powered by [MiniMax](https://www.minimax.io/) · DuckHive DNA*

@@ -75,14 +75,14 @@ describe('OpenClaude paths', () => {
     )
   })
 
-  test('local installer uses openclaude wrapper path', async () => {
+  test('local installer uses duckhive wrapper path', async () => {
     // Force .openclaude config home so the test doesn't fall back to
     // ~/.claude when ~/.openclaude doesn't exist on this machine.
     process.env.CLAUDE_CONFIG_DIR = join(homedir(), '.openclaude')
     const { getLocalClaudePath } = await importFreshLocalInstaller()
 
     expect(getLocalClaudePath()).toBe(
-      join(homedir(), '.openclaude', 'local', 'openclaude'),
+      join(homedir(), '.openclaude', 'local', 'duckhive'),
     )
   })
 
@@ -92,7 +92,7 @@ describe('OpenClaude paths', () => {
 
     expect(
       isManagedLocalInstallationPath(
-        `${join(homedir(), '.openclaude', 'local')}/node_modules/.bin/openclaude`,
+        `${join(homedir(), '.openclaude', 'local')}/node_modules/.bin/duckhive`,
       ),
     ).toBe(true)
   })

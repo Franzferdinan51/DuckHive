@@ -35,7 +35,7 @@ export async function sendNotification(
   })
 }
 
-const DEFAULT_TITLE = 'Open Claude'
+const DEFAULT_TITLE = 'DuckHive'
 
 async function sendToChannel(
   channel: string,

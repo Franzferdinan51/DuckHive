@@ -16,10 +16,50 @@
 import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { fork } from 'child_process'
+import { fork, spawn } from 'child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const distPath = join(__dirname, '..', 'dist', 'cli.mjs')
+
+function shouldAutoLaunchTui() {
+  return (
+    process.argv.slice(2).length === 0 &&
+    process.stdin.isTTY &&
+    process.stdout.isTTY &&
+    process.env.DUCKHIVE_NO_AUTO_TUI !== '1'
+  )
+}
+
+function spawnAndWaitForStart(command, args, env) {
+  return new Promise(resolve => {
+    const child = spawn(command, args, {
+      stdio: 'inherit',
+      env,
+    })
+
+    const onError = () => resolve(false)
+    child.once('error', onError)
+    child.once('spawn', () => {
+      child.off('error', onError)
+      child.on('exit', code => process.exit(code ?? 0))
+      resolve(true)
+    })
+  })
+}
+
+async function launchStandaloneTui() {
+  const tuiPath = join(__dirname, '..', 'tui', 'duckhive-tui')
+  if (!existsSync(tuiPath)) return false
+
+  const env = { ...process.env, DUCKHIVE_AUTO_TUI: '1' }
+  const helperPath = join(__dirname, 'tui-pty-helper.py')
+  if (existsSync(helperPath)) {
+    const helperStarted = await spawnAndWaitForStart('python3', [helperPath], env)
+    if (helperStarted) return true
+  }
+
+  return await spawnAndWaitForStart(tuiPath, [], env)
+}
 
 // ─── Auto-start Council daemon ────────────────────────────────────────────────
 // Starts council-api-server.cjs on port 3007 once; subsequent calls skip.
@@ -103,7 +143,9 @@ if (configApply?.providers?.default === 'kimi' && process.env.MINIMAX_API_KEY) {
 // ─── Launch ────────────────────────────────────────────────────────────────────────
 if (existsSync(distPath)) {
   await ensureCouncilDaemon()
-  await import(pathToFileURL(distPath).href)
+  if (!(shouldAutoLaunchTui() && (await launchStandaloneTui()))) {
+    await import(pathToFileURL(distPath).href)
+  }
 } else {
   console.error(`
   duckhive: dist/cli.mjs not found.

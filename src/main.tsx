@@ -63,6 +63,7 @@ import { settingsChangeDetector } from './utils/settings/changeDetector.js';
 import { skillChangeDetector } from './utils/skills/skillChangeDetector.js';
 import { jsonParse, writeFileSync_DEPRECATED } from './utils/slowOperations.js';
 import { computeInitialTeamContext } from './utils/swarm/reconnection.js';
+import { launchStandaloneTui, shouldAutoLaunchStandaloneTui } from './utils/tuiAutoLaunch.js';
 import { initializeWarningHandler } from './utils/warningHandler.js';
 import { isWorktreeModeEnabled } from './utils/worktreeModeEnabled.js';
 
@@ -80,7 +81,7 @@ const coordinatorModeModule = feature('COORDINATOR_MODE') ? require('./coordinat
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assistantModule = feature('KAIROS') ? require('./assistant/index.js') as typeof import('./assistant/index.js') : null;
 const kairosGate = feature('KAIROS') ? require('./assistant/gate.js') as typeof import('./assistant/gate.js') : null;
-import { relative, resolve } from 'path';
+import { join, relative, resolve } from 'path';
 import { isAnalyticsDisabled } from 'src/services/analytics/config.js';
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
@@ -1000,8 +1001,9 @@ async function run(): Promise<CommanderCommand> {
   // top-level option. Single-value + collect accumulator means each
   // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
-    // TUI launch disabled — falls through to REPL (use 'duckhive tui' to launch TUI)
-    // TODO: fix TTY /dev/tty issue on macOS — https://github.com/charmbracelet/bubbletea/issues/XXX
+    if (!prompt && shouldAutoLaunchStandaloneTui(process.argv.slice(2)) && (await launchStandaloneTui(join(__dirname, '..')))) {
+      return;
+    }
     profileCheckpoint('action_handler_start');
 
     // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
@@ -3793,7 +3795,7 @@ async function run(): Promise<CommanderCommand> {
         pendingHookMessages
       }, renderAndRun);
     }
-  }).version(`${MACRO.DISPLAY_VERSION ?? MACRO.VERSION} (Open Claude)`, '-v, --version', 'Output the version number');
+  }).version(`${MACRO.DISPLAY_VERSION ?? MACRO.VERSION} (DuckHive)`, '-v, --version', 'Output the version number');
 
   // Worktree flags
   program.option('-w, --worktree [name]', 'Create a new git worktree for this session (optionally specify a name)');
@@ -4365,13 +4367,11 @@ async function run(): Promise<CommanderCommand> {
 
   // duckhive tui — launch the Bubble Tea TUI
   program.command('tui').description('Launch the DuckHive terminal UI').action(async () => {
-    const tuiPath = join(__dirname, '..', 'tui', 'duckhive-tui')
-    const { spawn } = await import('child_process')
-    const child = spawn(tuiPath, [], {
-      stdio: 'inherit',
-      env: { ...process.env },
-    })
-    child.on('exit', (code) => process.exit(code ?? 0))
+    const started = await launchStandaloneTui(join(__dirname, '..'))
+    if (!started) {
+      console.error('duckhive tui: Go TUI binary not found. Rebuild the project to restore tui/duckhive-tui.')
+      process.exit(1)
+    }
   });
 
   // claude up — run the project's CLAUDE.md "# claude up" setup instructions.
