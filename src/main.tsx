@@ -1003,15 +1003,22 @@ async function run(): Promise<CommanderCommand> {
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
     // Launch Go TUI when no prompt AND we're in a real TTY
     if (!prompt && process.stdout.isTTY) {
+      console.error('[TUI] stdout.isTTY=true, no prompt — attempting TUI launch...')
       const { spawn } = await import('child_process')
-      // Use Python PTY helper for proper /dev/tty on macOS
       const helper = join(__dirname, 'bin', 'tui-pty-helper.py')
-      const child = spawn(process.execPath, [helper], {
-        stdio: 'inherit',
-        env: { ...process.env },
-      })
-      child.on('exit', (code) => process.exit(code ?? 0))
-      return
+      const { existsSync } = await import('fs')
+      console.error('[TUI] PTY helper path:', helper, '| exists:', existsSync(helper))
+      if (!existsSync(helper)) {
+        console.error('[TUI] PTY helper NOT FOUND at', helper)
+        console.error('[TUI] Fall through to REPL')
+      } else {
+        const child = spawn(process.execPath, [helper], {
+          stdio: 'inherit',
+          env: { ...process.env },
+        })
+        child.on('exit', (code) => { console.error('[TUI] PTY helper exited with code', code); process.exit(code ?? 0) })
+        return
+      }
     }
     profileCheckpoint('action_handler_start');
 
