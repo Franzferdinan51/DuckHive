@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'Gum-style interactive prompts — confirm yes/no, choose from list, text input, filter lists. Simulates Bubble Tea style dialogs for scripts. Returns what would be prompted rather than blocking.'

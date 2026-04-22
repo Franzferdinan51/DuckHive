@@ -17,6 +17,8 @@ import { DeskDevTool } from './tools/DeskDevTool/DeskDevTool.js'
 import { OrchestrateTool } from './tools/OrchestrateTool/OrchestrateTool.js'
 import { DecreeTool } from './tools/DecreeTool/DecreeTool.js'
 import { ConfirmTool } from './tools/ConfirmTool/ConfirmTool.js'
+import { MemoryTool } from './tools/MemoryTool/MemoryTool.js'
+import { VisionTool } from './tools/VisionTool/VisionTool.js'
 import { BashTool } from './tools/BashTool/BashTool.js'
 import { FileEditTool } from './tools/FileEditTool/FileEditTool.js'
 import { FileReadTool } from './tools/FileReadTool/FileReadTool.js'
@@ -223,6 +225,8 @@ export function getAllBaseTools(): Tools {
     OrchestrateTool,
     DecreeTool,
     ConfirmTool,
+    MemoryTool,
+    VisionTool,
     TaskStopTool,
     AskUserQuestionTool,
     SkillTool,

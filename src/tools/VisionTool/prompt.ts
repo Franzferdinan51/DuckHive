@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'Vision capture and analysis — capture Android screenshots via ADB, analyze with AI vision models (Kimi K2.5). Use for plant monitoring, phone screen reading, environment analysis.'

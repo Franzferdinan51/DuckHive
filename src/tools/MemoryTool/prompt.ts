@@ -1,0 +1,1 @@
+export const DESCRIPTION = 'Long-term memory system — remember facts and context, recall past conversations, search memories by tag or content. Backed by SQLite-style JSON store. Use /memory remember to store, /memory recall to retrieve.'
