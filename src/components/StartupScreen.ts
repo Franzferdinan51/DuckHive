@@ -1,15 +1,12 @@
 /**
- * DuckHive startup screen — filled-block text logo with gold/amber gradient.
+ * DuckHive startup screen — filled-block text logo with gold gradient.
  * Called once at CLI startup before the Ink UI renders.
- *
- * Addresses: https://github.com/Gitlawb/openclaude/issues/55
  */
 
 import { isLocalProviderUrl, resolveProviderRequest } from '../services/api/providerConfig.js'
 import { getLocalOpenAICompatibleProviderLabel } from '../utils/providerDiscovery.js'
 import { getSettings_DEPRECATED } from '../utils/settings/settings.js'
 import { parseUserSpecifiedModel } from '../utils/model/model.js'
-import { getDuckContextFileCount } from '../utils/contextLoader.js'
 
 declare const MACRO: { VERSION: string; DISPLAY_VERSION?: string }
 
@@ -48,24 +45,21 @@ function paintLine(text: string, stops: RGB[], lineT: number): string {
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
-// DuckHive brand palette — gold/amber on dark navy
-const DUCK_GRAD: RGB[] = [
-  [255, 215, 0],    // Gold #FFD700
-  [255, 185, 50],   // Light gold
-  [255, 165, 0],    // Amber #FFA500
-  [255, 140, 0],    // Dark amber
-  [218, 165, 32],   // Goldenrod
-  [184, 134, 11],   // Dark goldenrod
+const GOLD_GRAD: RGB[] = [
+  [255, 215, 0],
+  [255, 195, 30],
+  [255, 175, 60],
+  [255, 160, 90],
+  [255, 140, 60],
+  [255, 120, 0],
 ]
 
-// Accent matches brand gold
-const ACCENT: RGB = [255, 215, 0]     // Gold #FFD700
-// Cream text on dark background
-const CREAM: RGB = [224, 224, 224]    // Light text #e0e0e0
-// Subtle dim color
-const DIMCOL: RGB = [107, 114, 128]   // Muted gray #6b7280
-// Border color
-const BORDER: RGB = [80, 80, 80]       // Dark gray
+const GOLD: RGB = [255, 215, 0]
+const AMBER: RGB = [255, 170, 0]
+const ORANGE: RGB = [255, 140, 0]
+const CREAM: RGB = [220, 195, 170]
+const DIMCOL: RGB = [130, 110, 80]
+const BORDER: RGB = [100, 80, 40]
 
 // ─── Filled Block Text Logo ───────────────────────────────────────────────────
 
@@ -147,13 +141,13 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
       name = 'Meta Llama'
     else if (isLocal)
       name = getLocalOpenAICompatibleProviderLabel(baseUrl)
-    
+
     // Resolve model alias to actual model name + reasoning effort
     let displayModel = resolvedRequest.resolvedModel
     if (resolvedRequest.reasoning?.effort) {
       displayModel = `${displayModel} (${resolvedRequest.reasoning.effort})`
     }
-    
+
     return { name, model: displayModel, baseUrl, isLocal }
   }
 
@@ -193,14 +187,14 @@ export function printStartupScreen(): void {
     if (allLogo[i] === '') {
       out.push('')
     } else {
-      out.push(paintLine(allLogo[i], DUCK_GRAD, t))
+      out.push(paintLine(allLogo[i], GOLD_GRAD, t))
     }
   }
 
   out.push('')
 
   // Tagline
-  out.push(`  ${rgb(...ACCENT)}\u2726${RESET} ${rgb(...CREAM)}Any model. Every tool. Zero limits.${RESET} ${rgb(...ACCENT)}\u2726${RESET}`)
+  out.push(`  ${rgb(...AMBER)}\u2726${RESET} ${rgb(...CREAM)}Any model. Every tool. One Hive.${RESET} ${rgb(...AMBER)}\u2726${RESET}`)
   out.push('')
 
   // Provider info box
@@ -211,31 +205,28 @@ export function printStartupScreen(): void {
     return [` ${DIM}${rgb(...DIMCOL)}${padK}${RESET} ${rgb(...c)}${v}${RESET}`, ` ${padK} ${v}`.length]
   }
 
-  const provC: RGB = p.isLocal ? [130, 175, 130] : ACCENT
+  const provC: RGB = p.isLocal ? [130, 175, 130] : GOLD
   let [r, l] = lbl('Provider', p.name, provC)
   out.push(boxRow(r, W, l))
   ;[r, l] = lbl('Model', p.model)
   out.push(boxRow(r, W, l))
-  const ep = p.baseUrl.length > 38 ? p.baseUrl.slice(0, 35) + '...' : p.baseUrl
-  ;[r, l] = lbl('Endpoint', ep)
-  out.push(boxRow(r, W, l))
 
   out.push(`${rgb(...BORDER)}\u2560${'\u2550'.repeat(W - 2)}\u2563${RESET}`)
 
-  const sC: RGB = p.isLocal ? [130, 175, 130] : ACCENT
+  const sC: RGB = p.isLocal ? [130, 175, 130] : GOLD
   const sL = p.isLocal ? 'local' : 'cloud'
-  const sRow = ` ${rgb(...sC)}\u25cf${RESET} ${DIM}${rgb(...DIMCOL)}${sL}${RESET}    ${DIM}${rgb(...DIMCOL)}Ready \u2014 type ${RESET}${rgb(...ACCENT)}/help${RESET}${DIM}${rgb(...DIMCOL)} to begin${RESET}`
+  const sRow = ` ${rgb(...sC)}\u25cf${RESET} ${DIM}${rgb(...DIMCOL)}${sL}${RESET}    ${DIM}${rgb(...DIMCOL)}Ready \u2014 type ${RESET}${rgb(...GOLD)}/help${RESET}${DIM}${rgb(...DIMCOL)} to begin${RESET}`
   const sLen = ` \u25cf ${sL}    Ready \u2014 type /help to begin`.length
   out.push(boxRow(sRow, W, sLen))
 
   out.push(`${rgb(...BORDER)}\u255a${'\u2550'.repeat(W - 2)}\u255d${RESET}`)
-  out.push(`  ${DIM}${rgb(...DIMCOL)}DuckHive ${RESET}${rgb(...ACCENT)}v${MACRO.DISPLAY_VERSION ?? MACRO.VERSION}${RESET}`)
 
-  // DUCK.md context file count (gemini-cli style hierarchical context)
-  const ctxCount = getDuckContextFileCount()
-  if (ctxCount > 0) {
-    out.push(`  ${DIM}${rgb(...DIMCOL)}●${RESET} ${rgb(...CREAM)}${ctxCount} DUCK.md context file${ctxCount !== 1 ? 's' : ''} loaded${RESET}`)
-  }
+  // Powered by badge
+  out.push(`  ${DIM}${rgb(...DIMCOL)}\u25cf${RESET} ${rgb(...AMBER)}DuckHive${RESET} ${DIM}${rgb(...DIMCOL)}\u00b7${RESET} ${rgb(...ORANGE)}Powered by MiniMax M2.7${RESET}`)
+
+  // Version + model info
+  out.push(`  ${DIM}${rgb(...DIMCOL)}\u25cf${RESET} ${rgb(...ORANGE)}v${MACRO.DISPLAY_VERSION ?? MACRO.VERSION}${RESET} ${DIM}${rgb(...DIMCOL)}\u00b7${RESET} DuckHive   ${DIM}${rgb(...DIMCOL)}\u00b7${RESET} ${p.model}`)
+
   out.push('')
 
   process.stdout.write(out.join('\n') + '\n')
