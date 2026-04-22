@@ -804,6 +804,7 @@ export async function main() {
   const hasInitOnlyFlag = cliArgs.includes('--init-only');
   const hasSdkUrl = cliArgs.some(arg => arg.startsWith('--sdk-url'));
   const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || hasSdkUrl || !process.stdout.isTTY;
+  console.error('[DEBUG] isNonInteractive:', isNonInteractive, 'stdout.isTTY:', process.stdout.isTTY, 'hasPrintFlag:', hasPrintFlag);
 
   // Stop capturing early input for non-interactive modes
   if (isNonInteractive) {
