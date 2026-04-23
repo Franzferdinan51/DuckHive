@@ -875,11 +875,8 @@ async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json
     // without explicit stdin handling). 3s covers slow producers like curl,
     // jq on large files, python with import overhead. The warning makes
     // silent data loss visible for the rare producer that's slower still.
-    const timedOut = await peekForStdinData(process.stdin, 3000);
+    const timedOut = await peekForStdinData(process.stdin, 50);
     process.stdin.off('data', onData);
-    if (timedOut) {
-      process.stderr.write('Warning: no stdin data received in 3s, proceeding without it. ' + 'If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n');
-    }
     return [prompt, data].filter(Boolean).join('\n');
   }
   return prompt;
