@@ -373,7 +373,8 @@ DuckHive adds 24 custom tools on top of the OpenClaude base:
 | **HiveSenateTool** | `/senate` | 94 senators pass binding decrees |
 | **HiveTeamTool** | `/team` | Spawn specialized multi-agent crews |
 | **DecreeTool** | `/decree` | Issue and enforce binding laws |
-| **OrchestrateTool** | `/orchestrate` | Smart complexity-based routing (1–10) |
+| **OrchestrateTool** | `/orchestrate` | Smart complexity-based routing with parallel agent execution |
+| **ConnectTool** | `/connect` | Connect Telegram bots and external services |
 | **MultiModelRouterTool** | `/router` | Route across 9+ providers |
 | **ShadowGitTool** | `/shadow` | Git snapshots before changes (Gemini CLI style) |
 | **CheckpointTool** | `/checkpoint` | Save and restore long AI sessions |
