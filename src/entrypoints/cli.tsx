@@ -73,7 +73,25 @@ if (feature('ABLATION_BASELINE') && process.env.CLAUDE_CODE_ABLATION_BASELINE) {
  * All imports are dynamic to minimize module evaluation for fast paths.
  * Fast-path for --version has zero imports beyond this file.
  */
+function normalizeDeprecatedCliFlags(argv: string[] = process.argv): void {
+  let sawDoubleDash = false;
+  for (let i = 2; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--') {
+      sawDoubleDash = true;
+      continue;
+    }
+    if (sawDoubleDash) {
+      continue;
+    }
+    if (arg === '--yolo') {
+      argv[i] = '--dangerously-skip-permissions';
+    }
+  }
+}
+
 async function main(): Promise<void> {
+  normalizeDeprecatedCliFlags();
   const args = process.argv.slice(2);
 
   // Fast-path for --version/-v: zero module loading needed

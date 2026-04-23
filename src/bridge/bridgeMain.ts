@@ -1767,6 +1767,11 @@ export function parseArgs(args: string[]): ParsedArgs {
     } else if (arg.startsWith('--session-timeout=')) {
       sessionTimeoutMs =
         parseInt(arg.slice('--session-timeout='.length), 10) * 1000
+    } else if (
+      arg === '--dangerously-skip-permissions' ||
+      arg === '--yolo'
+    ) {
+      permissionMode = 'bypassPermissions'
     } else if (arg === '--permission-mode' && i + 1 < args.length) {
       permissionMode = args[++i]!
     } else if (arg.startsWith('--permission-mode=')) {
@@ -1933,6 +1938,8 @@ ${
     : ''
 }  --permission-mode <mode>         Permission mode for spawned sessions
                                    (${modes})
+  --dangerously-skip-permissions    Alias for --permission-mode bypassPermissions
+  --yolo                            Deprecated alias for --permission-mode bypassPermissions
   --debug-file <path>              Write debug logs to file
   -v, --verbose                    Enable verbose output
   -h, --help                       Show this help
