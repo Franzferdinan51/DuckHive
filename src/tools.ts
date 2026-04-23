@@ -23,6 +23,7 @@ import { ConfirmTool } from './tools/ConfirmTool/ConfirmTool.js'
 import { MemoryTool } from './tools/MemoryTool/MemoryTool.js'
 import { SessionSearchTool } from './tools/SessionSearchTool/SessionSearchTool.js'
 import { SkillManageTool } from './tools/SkillManageTool/SkillManageTool.js'
+import { SkillWorkshopTool } from './tools/SkillWorkshopTool/SkillWorkshopTool.js'
 import { VisionTool } from './tools/VisionTool/VisionTool.js'
 import { StatusBarTool } from './tools/StatusBarTool/StatusBarTool.js'
 import { StreamTool } from './tools/StreamTool/StreamTool.js'
@@ -245,6 +246,7 @@ export function getAllBaseTools(): Tools {
     MemoryTool,
     SessionSearchTool,
     SkillManageTool,
+    SkillWorkshopTool,
     VisionTool,
     StatusBarTool,
     StreamTool,
