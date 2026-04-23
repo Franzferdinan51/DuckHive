@@ -5,36 +5,36 @@ import (
 )
 
 // Style definitions for all DuckHive TUI components.
-// Uses a dark theme matching the original Ink/React look.
+// Uses a flatter terminal-first look closer to a coding shell than a chat app.
 
 var (
 	// Base
-	ColorBG       = lipgloss.Color("#16161E")
-	ColorSurface  = lipgloss.Color("#1E1E2E")
-	ColorSurface2 = lipgloss.Color("#252535")
-	ColorBorder   = lipgloss.Color("#3D3D5C")
-	ColorText     = lipgloss.Color("#E0E0E0")
-	ColorDim      = lipgloss.Color("#4A4A6A")
-	ColorMuted    = lipgloss.Color("#8792A6")
+	ColorBG       = lipgloss.Color("#111315")
+	ColorSurface  = lipgloss.Color("#171A1D")
+	ColorSurface2 = lipgloss.Color("#1E2227")
+	ColorBorder   = lipgloss.Color("#2E343B")
+	ColorText     = lipgloss.Color("#E6E8EA")
+	ColorDim      = lipgloss.Color("#5E6873")
+	ColorMuted    = lipgloss.Color("#98A2AD")
 
 	// Brand
-	ColorAccent = lipgloss.Color("#FFCB6B") // gold
-	ColorDuck   = lipgloss.Color("#4FC3F7") // blue
+	ColorAccent = lipgloss.Color("#F3B33D")
+	ColorDuck   = lipgloss.Color("#57B8FF")
 
 	// Semantic
-	ColorError    = lipgloss.Color("#FF5370")
-	ColorSuccess  = lipgloss.Color("#81C784")
-	ColorThinking = lipgloss.Color("#CE93D8")
-	ColorWarning  = lipgloss.Color("#FFCB6B")
+	ColorError    = lipgloss.Color("#F87171")
+	ColorSuccess  = lipgloss.Color("#6FD3A3")
+	ColorThinking = lipgloss.Color("#C8A7FF")
+	ColorWarning  = lipgloss.Color("#F3B33D")
 
 	// Header / footer
-	ColorHeaderBG = lipgloss.Color("#1A1A2E")
+	ColorHeaderBG = lipgloss.Color("#14181C")
 
 	// Message bubbles
-	ColorUserBubble  = lipgloss.Color("#2D5A8A")
-	ColorAssistantBG = lipgloss.Color("#1E1E2E")
-	ColorSystemBG    = lipgloss.Color("#1A1A2E")
-	ColorToolBG      = lipgloss.Color("#252535")
+	ColorUserBubble  = lipgloss.Color("#1A2733")
+	ColorAssistantBG = lipgloss.Color("#171A1D")
+	ColorSystemBG    = lipgloss.Color("#14181C")
+	ColorToolBG      = lipgloss.Color("#1B2025")
 )
 
 // Header renders the top bar with logo, session info, and model name.
@@ -53,34 +53,25 @@ var HeaderSubtitle = lipgloss.NewStyle().
 // MessageArea is the scrollable viewport background.
 var MessageArea = lipgloss.NewStyle().
 	Foreground(ColorText).
-	Padding(1, 2)
+	Padding(0, 1)
 
-// UserBubble renders user messages right-aligned.
+// UserBubble renders user messages.
 var UserBubble = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#FAFAFA")).
-	Background(ColorUserBubble).
-	Padding(0, 1).
-	MarginLeft(4)
+	Foreground(lipgloss.Color("#F3F4F6")).
+	Bold(true)
 
-// AssistantBubble renders assistant messages left-aligned.
+// AssistantBubble renders assistant messages.
 var AssistantBubble = lipgloss.NewStyle().
-	Foreground(ColorText).
-	Background(ColorAssistantBG).
-	Padding(0, 1).
-	MarginRight(4)
+	Foreground(ColorText)
 
 // SystemBubble renders system messages centered/italic.
 var SystemBubble = lipgloss.NewStyle().
 	Foreground(ColorMuted).
-	Background(ColorSystemBG).
-	Padding(0, 1).
 	Italic(true)
 
 // ToolBubble renders tool call messages.
 var ToolBubble = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#A6ACCD")).
-	Background(ColorToolBG).
-	Padding(0, 1)
+	Foreground(lipgloss.Color("#B8C0C8"))
 
 // ProgressLine renders inline progress text.
 var ProgressLine = lipgloss.NewStyle().
@@ -89,9 +80,8 @@ var ProgressLine = lipgloss.NewStyle().
 
 // InputArea is the background behind the text input.
 var InputArea = lipgloss.NewStyle().
-	Background(ColorSurface).
 	Foreground(ColorText).
-	Padding(1, 2)
+	Padding(0, 0)
 
 // InputField is the actual text input border/prompt area.
 var InputField = lipgloss.NewStyle().
@@ -105,7 +95,7 @@ var InputField = lipgloss.NewStyle().
 var StatusBar = lipgloss.NewStyle().
 	Background(ColorHeaderBG).
 	Foreground(ColorMuted).
-	Padding(0, 2)
+	Padding(0, 1)
 
 var Card = lipgloss.NewStyle().
 	Background(ColorSurface).
@@ -136,6 +126,113 @@ var SoftBadge = lipgloss.NewStyle().
 	Foreground(ColorAccent).
 	Background(ColorHeaderBG).
 	Padding(0, 1)
+
+var MainPane = lipgloss.NewStyle().
+	Background(ColorBG).
+	Border(lipgloss.NormalBorder(), false, false, true, false).
+	BorderForeground(ColorBorder).
+	Padding(0, 1, 1, 1)
+
+var ComposerFrame = lipgloss.NewStyle().
+	Background(ColorSurface).
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(ColorBorder).
+	Padding(0, 1)
+
+var ModePill = lipgloss.NewStyle().
+	Foreground(ColorBG).
+	Background(ColorAccent).
+	Padding(0, 1).
+	Bold(true)
+
+var MetaPill = lipgloss.NewStyle().
+	Foreground(ColorMuted).
+	Background(ColorHeaderBG).
+	Padding(0, 1)
+
+var PillActive = lipgloss.NewStyle().
+	Foreground(ColorBG).
+	Background(ColorDuck).
+	Padding(0, 1).
+	Bold(true)
+
+var PillOk = lipgloss.NewStyle().
+	Foreground(ColorBG).
+	Background(ColorSuccess).
+	Padding(0, 1).
+	Bold(true)
+
+var PillWarn = lipgloss.NewStyle().
+	Foreground(ColorBG).
+	Background(ColorWarning).
+	Padding(0, 1).
+	Bold(true)
+
+var PillMuted = lipgloss.NewStyle().
+	Foreground(ColorMuted).
+	Background(ColorSurface).
+	Border(lipgloss.NormalBorder()).
+	BorderForeground(ColorBorder).
+	Padding(0, 1)
+
+var EmptyCard = lipgloss.NewStyle().
+	Background(ColorSurface).
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(ColorBorder).
+	Padding(1, 2)
+
+var SideCard = lipgloss.NewStyle().
+	Background(ColorSurface).
+	Border(lipgloss.NormalBorder()).
+	BorderForeground(ColorBorder).
+	Padding(1, 1)
+
+var EmptyTitle = lipgloss.NewStyle().
+	Foreground(ColorText).
+	Bold(true)
+
+var EmptyBody = lipgloss.NewStyle().
+	Foreground(ColorMuted)
+
+var SectionTitle = lipgloss.NewStyle().
+	Foreground(ColorAccent).
+	Bold(true)
+
+var EmptyItem = lipgloss.NewStyle().
+	Foreground(ColorText)
+
+var MessageLabelUser = lipgloss.NewStyle().
+	Foreground(ColorAccent).
+	Bold(true)
+
+var MessageLabelAssistant = lipgloss.NewStyle().
+	Foreground(ColorDuck).
+	Bold(true)
+
+var MessageLabelSystem = lipgloss.NewStyle().
+	Foreground(ColorMuted)
+
+var MessageBody = lipgloss.NewStyle().
+	Foreground(ColorText).
+	PaddingLeft(2)
+
+var ToolHeaderPending = lipgloss.NewStyle().
+	Foreground(ColorWarning).
+	Bold(true)
+
+var ToolHeaderSuccess = lipgloss.NewStyle().
+	Foreground(ColorSuccess).
+	Bold(true)
+
+var ToolHeaderError = lipgloss.NewStyle().
+	Foreground(ColorError).
+	Bold(true)
+
+var ToolBody = lipgloss.NewStyle().
+	Foreground(ColorMuted).
+	Border(lipgloss.NormalBorder(), false, false, false, true).
+	BorderForeground(ColorBorder).
+	PaddingLeft(1)
 
 var SpinnerStyle = lipgloss.NewStyle().
 	Foreground(ColorAccent)

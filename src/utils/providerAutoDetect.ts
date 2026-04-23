@@ -12,12 +12,13 @@
  *   1. ANTHROPIC_API_KEY → first-party Claude (most capable default)
  *   2. Codex: CODEX_API_KEY, CHATGPT_ACCOUNT_ID, or valid ~/.codex/auth.json
  *   3. GitHub Copilot: GITHUB_TOKEN or GH_TOKEN
- *   4. OPENAI_API_KEY / OPENAI_API_KEYS
- *   5. GEMINI_API_KEY or GOOGLE_API_KEY
- *   6. MISTRAL_API_KEY
- *   7. MINIMAX_API_KEY
- *   8. Local Ollama reachable (default localhost:11434)
- *   9. Local LM Studio reachable (default localhost:1234)
+ *   4. KIMI_API_KEY or MOONSHOT_API_KEY
+ *   5. OPENAI_API_KEY / OPENAI_API_KEYS
+ *   6. GEMINI_API_KEY or GOOGLE_API_KEY
+ *   7. MISTRAL_API_KEY
+ *   8. MINIMAX_API_KEY
+ *   9. Local Ollama reachable (default localhost:11434)
+ *   10. Local LM Studio reachable (default localhost:1234)
  *
  * Local-service probes are parallelized and cheap (short timeout, no
  * request body). Env scans are synchronous and run first so we don't make
@@ -134,6 +135,26 @@ export function detectProviderFromEnv(
     return {
       kind: 'github',
       source: `${githubKey} set (GitHub Copilot)`,
+    }
+  }
+
+  const kimiKey = firstSet(env, ['KIMI_API_KEY'])
+  if (kimiKey) {
+    return {
+      kind: 'openai',
+      source: `${kimiKey} set`,
+      baseUrl: env.KIMI_BASE_URL ?? env.MOONSHOT_BASE_URL ?? 'https://api.moonshot.ai/v1',
+      model: env.OPENAI_MODEL ?? 'kimi-k2.6',
+    }
+  }
+
+  const moonshotKey = firstSet(env, ['MOONSHOT_API_KEY'])
+  if (moonshotKey) {
+    return {
+      kind: 'openai',
+      source: `${moonshotKey} set`,
+      baseUrl: env.MOONSHOT_BASE_URL ?? 'https://api.moonshot.ai/v1',
+      model: env.OPENAI_MODEL ?? 'moonshot-v1-32k',
     }
   }
 

@@ -17,6 +17,7 @@ import { readGeminiAccessToken } from './geminiCredentials.js'
 import { getOllamaChatBaseUrl } from './providerDiscovery.js'
 import { getProviderValidationError } from './providerValidation.js'
 import {
+  resolveOpenAICompatibleApiKey,
   maskSecretForDisplay,
   redactSecretValueForDisplay,
   sanitizeApiKey,
@@ -50,6 +51,8 @@ const PROFILE_ENV_KEYS = [
   'OPENAI_BASE_URL',
   'OPENAI_MODEL',
   'OPENAI_API_KEY',
+  'KIMI_API_KEY',
+  'MOONSHOT_API_KEY',
   'CODEX_API_KEY',
   'CODEX_CREDENTIAL_SOURCE',
   'CHATGPT_ACCOUNT_ID',
@@ -73,6 +76,8 @@ const PROFILE_ENV_KEYS = [
 
 const SECRET_ENV_KEYS = [
   'OPENAI_API_KEY',
+  'KIMI_API_KEY',
+  'MOONSHOT_API_KEY',
   'CODEX_API_KEY',
   'GEMINI_API_KEY',
   'GOOGLE_API_KEY',
@@ -87,6 +92,8 @@ export type ProfileEnv = {
   OPENAI_BASE_URL?: string
   OPENAI_MODEL?: string
   OPENAI_API_KEY?: string
+  KIMI_API_KEY?: string
+  MOONSHOT_API_KEY?: string
   CODEX_API_KEY?: string
   CODEX_CREDENTIAL_SOURCE?: 'oauth' | 'existing'
   CHATGPT_ACCOUNT_ID?: string
@@ -115,6 +122,8 @@ export type ProfileFile = {
 type SecretValueSource = Partial<
   Record<
     | 'OPENAI_API_KEY'
+    | 'KIMI_API_KEY'
+    | 'MOONSHOT_API_KEY'
     | 'CODEX_API_KEY'
     | 'GEMINI_API_KEY'
     | 'GOOGLE_API_KEY'
@@ -823,7 +832,11 @@ export async function buildLaunchEnv(options: {
     (useShellOpenAIConfig ? shellOpenAIModel : undefined) ||
     (usePersistedOpenAIConfig ? persistedOpenAIModel : undefined) ||
     defaultOpenAIModel
-  env.OPENAI_API_KEY = processEnv.OPENAI_API_KEY || persistedEnv.OPENAI_API_KEY
+  env.OPENAI_API_KEY =
+    resolveOpenAICompatibleApiKey(env.OPENAI_BASE_URL, processEnv) ||
+    resolveOpenAICompatibleApiKey(env.OPENAI_BASE_URL, persistedEnv) ||
+    processEnv.OPENAI_API_KEY ||
+    persistedEnv.OPENAI_API_KEY
   delete env.CODEX_API_KEY
   delete env.CHATGPT_ACCOUNT_ID
   delete env.CODEX_ACCOUNT_ID

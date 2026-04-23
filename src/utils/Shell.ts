@@ -319,6 +319,10 @@ export async function exec(
         SHELL: shellType === 'bash' ? binShell : undefined,
         GIT_EDITOR: 'true',
         CLAUDECODE: '1',
+        // Allow tools and subprocesses to detect DuckHive execution context
+        DUCKHIVE: '1',
+        AGENT: 'duckhive',
+        AI_AGENT: 'duckhive',
         ...envOverrides,
         ...(process.env.USER_TYPE === 'ant'
           ? {

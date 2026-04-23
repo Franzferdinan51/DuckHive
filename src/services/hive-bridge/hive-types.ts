@@ -45,6 +45,9 @@ export type DeliberationMode =
   | 'consensus'     // Consensus building
   | 'brainstorm'    // Creative ideation
   | 'swarm'         // Parallel specialist opinions
+  | 'swarm_coding'  // Multi-agent code development with quality gates
+  | 'deep_research' // Comprehensive research with source verification
+  | 'collaborative' // Collaborative building with shared state
   | 'devil-advocate'
   | 'legislature'
   | 'prediction'

@@ -2,7 +2,7 @@
 
 /**
  * DuckHive — AI coding CLI harness
- * Auto-starts Council daemon, configures MiniMax/OpenAI, launches REPL TUI.
+ * Auto-starts Council daemon, configures providers, launches Go TUI when available.
  */
 
 import { existsSync } from 'fs'
@@ -13,7 +13,7 @@ import { fork, spawn } from 'child_process'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const distPath = join(__dirname, '..', 'dist', 'cli.mjs')
 
-function shouldAutoLaunchRepl() {
+function shouldAutoLaunchTui() {
   return (
     process.argv.slice(2).length === 0 &&
     process.stdin.isTTY &&
@@ -21,6 +21,55 @@ function shouldAutoLaunchRepl() {
     process.env.DUCKHIVE_NO_AUTO_TUI !== '1'
   )
 }
+
+function spawnAndWaitForStart(command, args, env) {
+  return new Promise(resolve => {
+    const child = spawn(command, args, {
+      stdio: 'inherit',
+      env,
+    })
+
+    const onError = () => resolve(false)
+    child.once('error', onError)
+    child.once('spawn', () => {
+      child.off('error', onError)
+      child.on('exit', code => process.exit(code ?? 0))
+      resolve(true)
+    })
+  })
+}
+
+async function launchStandaloneTui() {
+  const tuiPath = join(__dirname, '..', 'tui', 'duckhive-tui')
+  if (!existsSync(tuiPath)) return false
+
+  const env = {
+    ...process.env,
+    DUCKHIVE_AUTO_TUI: '1',
+    DUCKHIVE_BRIDGE_CMD: process.execPath,
+    DUCKHIVE_BRIDGE_ARGS: [
+      distPath,
+      '--print',
+      '--verbose',
+      '--output-format=stream-json',
+      '--input-format=stream-json',
+    ].join(' '),
+  }
+
+  const helperPath = join(__dirname, 'tui-pty-helper.py')
+  if (existsSync(helperPath)) {
+    const helperStarted = await spawnAndWaitForStart('python3', [helperPath], env)
+    if (helperStarted) return true
+  }
+
+  return await spawnAndWaitForStart(tuiPath, [], env)
+}
+
+process.env.COUNCIL_PORT ??= '3007'
+process.env.HIVE_API_BASE ??= `http://localhost:${process.env.COUNCIL_PORT}`
+process.env.DUCKHIVE_COUNCIL_URL ??= process.env.HIVE_API_BASE
+process.env.DUCKHIVE_AGENT_TEAMS_ENABLED ??= '1'
+process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS ??= '1'
 
 // ─── Auto-start Council daemon ────────────────────────────────────────────────
 async function ensureCouncilDaemon() {
@@ -69,12 +118,29 @@ if (process.env.MINIMAX_API_KEY && !process.env.CLAUDE_CODE_USE_OPENAI) {
   process.env.OPENAI_BASE_URL = 'https://api.minimax.io/v1'
   process.env.OPENAI_MODEL = process.env.OPENAI_MODEL || 'MiniMax-M2.7'
 }
+const moonshotKey = process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY
+if (
+  moonshotKey &&
+  (!process.env.OPENAI_API_KEY ||
+    /moonshot/i.test(process.env.OPENAI_BASE_URL || ''))
+) {
+  process.env.OPENAI_API_KEY = moonshotKey
+}
 if (!process.env.ANTHROPIC_SMALL_FAST_MODEL) {
   process.env.ANTHROPIC_SMALL_FAST_MODEL = 'gpt-4o-mini'
 }
-if (configApply?.providers?.default === 'kimi' && process.env.MINIMAX_API_KEY) {
-  process.env.OPENAI_BASE_URL = 'https://api.moonshot.cn/v1'
-  process.env.OPENAI_MODEL = process.env.OPENAI_MODEL || 'moonshot-v1-128k'
+if (
+  configApply?.providers?.default === 'kimi' &&
+  (process.env.KIMI_API_KEY ||
+    process.env.MOONSHOT_API_KEY ||
+    /moonshot/i.test(process.env.OPENAI_BASE_URL || ''))
+) {
+  process.env.CLAUDE_CODE_USE_OPENAI ??= '1'
+  process.env.OPENAI_BASE_URL =
+    process.env.OPENAI_BASE_URL ||
+    process.env.MOONSHOT_BASE_URL ||
+    'https://api.moonshot.ai/v1'
+  process.env.OPENAI_MODEL = process.env.OPENAI_MODEL || 'kimi-k2.6'
 } else if (configApply?.providers?.default === 'openrouter') {
   process.env.OPENAI_BASE_URL = 'https://openrouter.ai/api/v1'
   process.env.OPENAI_MODEL = process.env.OPENAI_MODEL || 'minimax/minimax-m2.5:free'
@@ -83,13 +149,7 @@ if (configApply?.providers?.default === 'kimi' && process.env.MINIMAX_API_KEY) {
 // ─── Launch ────────────────────────────────────────────────────────────────────────
 if (existsSync(distPath)) {
   await ensureCouncilDaemon()
-  
-  // Auto-launch REPL TUI when run from a real terminal (TTY stdin + stdout)
-  if (shouldAutoLaunchRepl()) {
-    // Launch REPL directly — the Ink REPL IS the TUI
-    await import(pathToFileURL(distPath).href)
-  } else {
-    // Headless mode: run with a prompt argument or --print
+  if (!(shouldAutoLaunchTui() && (await launchStandaloneTui()))) {
     await import(pathToFileURL(distPath).href)
   }
 } else {

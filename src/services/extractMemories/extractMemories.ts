@@ -56,6 +56,7 @@ import {
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 import { logEvent } from '../analytics/index.js'
 import { sanitizeToolNameForAnalytics } from '../analytics/metadata.js'
+import { containsSecrets, redactSecrets } from '../../utils/secretScanner.js'
 import {
   buildExtractAutoOnlyPrompt,
   buildExtractCombinedPrompt,
@@ -225,6 +226,11 @@ export function createAutoMemCanUseTool(memoryDir: string): CanUseToolFn {
 // Extract file paths from agent output
 // ============================================================================
 
+export interface WrittenFile {
+  filePath: string
+  content: unknown
+}
+
 /**
  * Extract file_path from a tool_use block's input, if present.
  * Returns undefined when the block is not an Edit/Write tool use or has no file_path.
@@ -246,6 +252,63 @@ function getWrittenFilePath(block: {
     return typeof fp === 'string' ? fp : undefined
   }
   return undefined
+}
+
+/**
+ * Returns file_path and content from an Edit/Write tool use block.
+ */
+function getWrittenFile(block: {
+  type: string
+  name?: string
+  input?: unknown
+}): WrittenFile | undefined {
+  if (
+    block.type !== 'tool_use' ||
+    (block.name !== FILE_EDIT_TOOL_NAME && block.name !== FILE_WRITE_TOOL_NAME)
+  ) {
+    return undefined
+  }
+  const input = block.input
+  if (typeof input === 'object' && input !== null && 'file_path' in input) {
+    const fp = (input as { file_path: unknown }).file_path
+    if (typeof fp !== 'string') return undefined
+    return { filePath: fp, content: input }
+  }
+  return undefined
+}
+
+/**
+ * Redact secrets from a WrittenFile's content field.
+ */
+function redactFileContent(file: WrittenFile): WrittenFile {
+  const input = file.content as Record<string, unknown>
+  if (!input.content) return file
+  const contentStr = String(input.content)
+  if (!containsSecrets(contentStr)) return file
+  return {
+    ...file,
+    content: { ...input, content: redactSecrets(contentStr) },
+  }
+}
+
+/**
+ * Extract all file writes from agent messages, with secrets redacted before
+ * they are passed to the forked extraction agent (prevents secrets leakage).
+ */
+function extractWrittenFiles(agentMessages: Message[]): WrittenFile[] {
+  const files: WrittenFile[] = []
+  for (const message of agentMessages) {
+    if (message.type !== 'assistant') continue
+    const content = (message as AssistantMessage).message.content
+    if (!Array.isArray(content)) continue
+    for (const block of content) {
+      const file = getWrittenFile(block)
+      if (file !== undefined) {
+        files.push(redactFileContent(file))
+      }
+    }
+  }
+  return files
 }
 
 function extractWrittenPaths(agentMessages: Message[]): string[] {

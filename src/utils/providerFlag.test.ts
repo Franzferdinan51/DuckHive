@@ -16,6 +16,8 @@ const ENV_KEYS = [
   'OPENAI_API_KEY',
   'OPENAI_MODEL',
   'GEMINI_MODEL',
+  'KIMI_API_KEY',
+  'MOONSHOT_API_KEY',
 ]
 
 const originalEnv: Record<string, string | undefined> = {}
@@ -37,6 +39,8 @@ const RESET_KEYS = [
   'OPENAI_API_KEY',
   'OPENAI_MODEL',
   'GEMINI_MODEL',
+  'KIMI_API_KEY',
+  'MOONSHOT_API_KEY',
 ] as const
 
 beforeEach(() => {
@@ -104,6 +108,22 @@ describe('applyProviderFlag - openai', () => {
   test('sets OPENAI_MODEL when --model is provided', () => {
     applyProviderFlag('openai', ['--model', 'gpt-4o'])
     expect(process.env.OPENAI_MODEL).toBe('gpt-4o')
+  })
+})
+
+describe('applyProviderFlag - kimi', () => {
+  test('sets Moonshot OpenAI-compatible defaults', () => {
+    const result = applyProviderFlag('kimi', [])
+    expect(result.error).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
+    expect(process.env.OPENAI_BASE_URL).toBe('https://api.moonshot.ai/v1')
+    expect(process.env.OPENAI_MODEL).toBe('kimi-k2.6')
+  })
+
+  test('hydrates OPENAI_API_KEY from KIMI_API_KEY when present', () => {
+    process.env.KIMI_API_KEY = 'sk-kimi-test'
+    applyProviderFlag('kimi', [])
+    expect(process.env.OPENAI_API_KEY).toBe('sk-kimi-test')
   })
 })
 

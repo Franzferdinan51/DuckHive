@@ -5,6 +5,7 @@ import { spawnSync } from 'child_process';
 import { snapshotOutputTokensForTurn, getCurrentTurnTokenBudget, getTurnOutputTokens, getBudgetContinuationCount, getTotalInputTokens } from '../bootstrap/state.js';
 import { parseTokenBudget } from '../utils/tokenBudget.js';
 import { count } from '../utils/array.js';
+import { checkAndFireCouncil } from '../orchestrator/hybrid/index.js';
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 import figures from 'figures';
@@ -2823,6 +2824,18 @@ export function REPL({
     resetTurnHookDuration();
     resetTurnToolDuration();
     resetTurnClassifierDuration();
+
+    // Auto-council: check if task complexity warrants AI council deliberation
+    // Fire-and-forget — council results are advisory; query proceeds in parallel
+    const latestMessages = messagesRef.current;
+    const historyForCouncil = latestMessages
+      .filter((m: any) => m.type === 'user' || m.type === 'assistant')
+      .map((m: any) => ({ role: m.type === 'user' ? 'user' : 'assistant', content: getContentText(m.message.content) }));
+    const userText = newMessages.find((m: any) => m.type === 'user' && !m.isMeta);
+    const promptText = userText ? getContentText(userText.message.content) : '';
+    void checkAndFireCouncil(promptText, historyForCouncil, freshTools.map((t: any) => t.name))
+      .catch(() => {}); // non-blocking — council failure doesn't halt query
+
     for await (const event of query({
       messages: messagesIncludingNewMessages,
       systemPrompt,

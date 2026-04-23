@@ -1,6 +1,8 @@
 package model
 
 import (
+	"os"
+	"strings"
 	"time"
 )
 
@@ -191,7 +193,7 @@ func NewAppState() AppState {
 	return AppState{
 		ActiveScreen:    ScreenREPL,
 		PermissionMode:  PermModeReviewTools,
-		Model:           "claude-opus-4.6",
+		Model:           detectInitialModel(),
 		Messages:        []Message{},
 		InputHistory:    []string{},
 		FooterItems:     []FooterItem{},
@@ -205,4 +207,20 @@ func NewAppState() AppState {
 		DialogOpen:      false,
 		IsCancelled:     false,
 	}
+}
+
+func detectInitialModel() string {
+	for _, key := range []string{
+		"DUCKHIVE_MODEL",
+		"OPENAI_MODEL",
+		"GEMINI_MODEL",
+		"ANTHROPIC_MODEL",
+		"CLAUDE_MODEL",
+		"MINIMAX_MODEL",
+	} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return "auto"
 }

@@ -28,16 +28,20 @@ import help from './commands/help/index.js'
 import ide from './commands/ide/index.js'
 import init from './commands/init.js'
 import initVerifiers from './commands/init-verifiers.js'
+import inspect from './commands/introspect/index.js'
+import instruct from './commands/instruct/index.js'
 import keybindings from './commands/keybindings/index.js'
 import login from './commands/login/index.js'
 import logout from './commands/logout/index.js'
 import installGitHubApp from './commands/install-github-app/index.js'
 import installSlackApp from './commands/install-slack-app/index.js'
 import breakCache from './commands/break-cache/index.js'
+import changelog from './commands/changelog/index.js'
 import cacheProbe from './commands/cache-probe/index.js'
 import mcp from './commands/mcp/index.js'
 import mobile from './commands/mobile/index.js'
 import onboarding from './commands/onboarding/index.js'
+import prSize from './commands/pr-size/index.js'
 import pr_comments from './commands/pr_comments/index.js'
 import releaseNotes from './commands/release-notes/index.js'
 import rename from './commands/rename/index.js'
@@ -147,6 +151,7 @@ import hiveTeam from './commands/hive-team/index.js'
 import lmstudioInit from './commands/lmstudio-init/index.js'
 import hiveDecree from './commands/hive-decree/index.js'
 import hiveOrchestrate from './commands/hive-orchestrate/index.js'
+import hiveSwarm from './commands/hive-swarm/index.js'
 import shellMode from './commands/shell-mode/index.js'
 import checkpoint from './commands/checkpoint/index.js'
 import trustedFolders from './commands/trusted-folders/index.js'
@@ -247,6 +252,7 @@ export { getCommandName, isCommandEnabled } from './types/command.js'
 export const INTERNAL_ONLY_COMMANDS = [
   backfillSessions,
   breakCache,
+  changelog,
   bughunter,
   commit,
   commitPushPr,
@@ -310,6 +316,7 @@ const COMMANDS = memoize((): Command[] => [
   hiveCouncil,
   hiveDecree,
   hiveOrchestrate,
+  hiveSwarm,
   hiveSenate,
   hiveTeam,
   checkpoint,
@@ -321,6 +328,8 @@ const COMMANDS = memoize((): Command[] => [
 
   ide,
   init,
+  inspect,
+  instruct,
   lmstudioInit,
   keybindings,
   installGitHubApp,
@@ -334,6 +343,7 @@ const COMMANDS = memoize((): Command[] => [
   remoteEnv,
   plugin,
   provider,
+  prSize,
   pr_comments,
   releaseNotes,
   reloadPlugins,

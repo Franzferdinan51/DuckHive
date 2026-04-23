@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -155,65 +156,74 @@ func (m *MessageListModel) View() string {
 
 // formatMessage renders a single message as a string.
 func formatMessage(msg model.Message, width int, selected bool) string {
-	var prefix string
-	var style lipgloss.Style
-	var label string
+	maxContentWidth := width - 8
+	if maxContentWidth < 24 {
+		maxContentWidth = 24
+	}
 
 	switch msg.Type {
 	case model.MsgTypeUser:
-		prefix = ">"
-		style = tui.UserBubble
-		label = tui.DimText.Render("you")
+		return formatLabeledMessage(tui.MessageLabelUser.Render("YOU"), msg.Content, tui.UserBubble, maxContentWidth, msg.IsStreaming, selected)
 	case model.MsgTypeAssistant:
-		prefix = "<"
-		style = tui.AssistantBubble
-		label = tui.HeaderSubtitle.Render("duck")
+		return formatLabeledMessage(tui.MessageLabelAssistant.Render("DUCKHIVE"), msg.Content, tui.AssistantBubble, maxContentWidth, msg.IsStreaming, selected)
 	case model.MsgTypeSystem:
-		prefix = "!"
-		style = tui.SystemBubble
-		label = ""
+		return formatLabeledMessage(tui.MessageLabelSystem.Render("SYSTEM"), msg.Content, tui.SystemBubble, maxContentWidth, msg.IsStreaming, selected)
 	case model.MsgTypeToolUse, model.MsgTypeToolResult:
-		prefix = "#"
-		style = tui.ToolBubble
-		if len(msg.ToolCalls) > 0 {
-			label = tui.ModeIndicator.Render(msg.ToolCalls[0].Name)
-		}
+		return formatToolMessage(msg, maxContentWidth, selected)
 	case model.MsgTypeProgress:
-		prefix = "..."
-		style = tui.ProgressLine
-		label = ""
-	default:
-		prefix = "|"
-		style = tui.DimText
-		label = ""
+		return tui.ProgressLine.MaxWidth(maxContentWidth).Render(msg.Content)
+	}
+
+	return tui.DimText.MaxWidth(maxContentWidth).Render(msg.Content)
+}
+
+func formatLabeledMessage(label, content string, style lipgloss.Style, width int, streaming, selected bool) string {
+	if streaming {
+		content += "▌"
+	}
+	body := style.MaxWidth(width).Render(content)
+	body = tui.MessageBody.Width(width).Render(body)
+	if selected {
+		label = fmt.Sprintf("%s %s", label, tui.Accent.Render("[selected]"))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, label, body)
+}
+
+func formatToolMessage(msg model.Message, width int, selected bool) string {
+	toolName := "tool"
+	status := model.ToolStatusPending
+	if len(msg.ToolCalls) > 0 {
+		toolName = msg.ToolCalls[0].Name
+		status = msg.ToolCalls[0].Status
+	}
+
+	headerStyle := tui.ToolHeaderPending
+	headerIcon := ">"
+	headerState := "running"
+	switch status {
+	case model.ToolStatusCompleted:
+		headerStyle = tui.ToolHeaderSuccess
+		headerIcon = "+"
+		headerState = "done"
+	case model.ToolStatusFailed:
+		headerStyle = tui.ToolHeaderError
+		headerIcon = "!"
+		headerState = "failed"
+	}
+
+	header := headerStyle.Render(fmt.Sprintf("%s %s %s", headerIcon, strings.ToUpper(toolName), headerState))
+	if selected {
+		header = header + " " + tui.Accent.Render("[selected]")
 	}
 
 	content := msg.Content
 	if msg.IsStreaming {
 		content += "▌"
 	}
+	bodyStyle := tui.ToolBody
 	if msg.IsError {
-		style = tui.ErrorText
+		bodyStyle = tui.ErrorText.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(tui.ColorBorder).PaddingLeft(1)
 	}
-
-	maxContentWidth := width - 10
-	if maxContentWidth < 20 {
-		maxContentWidth = 20
-	}
-
-	var sb strings.Builder
-	if label != "" {
-		sb.WriteString(label)
-		sb.WriteString("  ")
-	}
-	sb.WriteString(prefix)
-	sb.WriteString(" ")
-	sb.WriteString(content)
-
-	if selected {
-		sb.WriteString(" ")
-		sb.WriteString(tui.Accent.Render("◀"))
-	}
-
-	return style.MaxWidth(maxContentWidth).Render(sb.String())
+	body := bodyStyle.MaxWidth(width).Render(content)
+	return lipgloss.JoinVertical(lipgloss.Left, header, body)
 }

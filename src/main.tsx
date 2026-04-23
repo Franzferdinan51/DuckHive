@@ -958,7 +958,7 @@ async function run(): Promise<CommanderCommand> {
     }
     profileCheckpoint('preAction_after_settings_sync');
   });
-  program.name('duckhive').description(`DuckHive - AI coding CLI powered by MiniMax M2.7, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
+  program.name('duckhive').description(`DuckHive - OpenClaude-based AI coding CLI with multi-provider support, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
   // Subcommands inherit helpOption via commander's copyInheritedSettings —
   // setting it once here covers mcp, plugin, auth, and all other subcommands.
   .helpOption('-h, --help', 'Display help for command').option('-d, --debug [filter]', 'Enable debug mode with optional category filtering (e.g., "api,hooks" or "!1p,!file")', (_value: string | true) => {
@@ -983,7 +983,7 @@ async function run(): Promise<CommanderCommand> {
     return Number.isFinite(n) ? n : undefined;
   }).hideHelp()).option('--from-pr [value]', 'Resume a session linked to a PR by PR number/URL, or open interactive picker with optional search term', value => value || true).option('--no-session-persistence', 'Disable session persistence - sessions will not be saved to disk and cannot be resumed (only works with --print)').addOption(new Option('--resume-session-at <message id>', 'When resuming, only messages up to and including the assistant message with <message.id> (use with --resume in print mode)').argParser(String).hideHelp()).addOption(new Option('--rewind-files <user-message-id>', 'Restore files to state at the specified user message and exit (requires --resume)').hideHelp())
   // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
-  .option('--model <model>', `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`).option('--provider <provider>', `AI provider to use (anthropic, openai, gemini, github, bedrock, vertex, ollama). Reads API keys from environment variables.`).addOption(new Option('--effort <level>', `Effort level for the current session (low, medium, high, max)`).argParser((rawValue: string) => {
+  .option('--model <model>', `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`).option('--provider <provider>', `AI provider to use (anthropic, openai, kimi, moonshotai, gemini, mistral, github, bedrock, vertex, ollama, nvidia-nim, minimax). Reads API keys from environment variables or active provider settings.`).addOption(new Option('--effort <level>', `Effort level for the current session (low, medium, high, max)`).argParser((rawValue: string) => {
     const value = rawValue.toLowerCase();
     const allowed = ['low', 'medium', 'high', 'max'];
     if (!allowed.includes(value)) {
@@ -4145,7 +4145,7 @@ async function run(): Promise<CommanderCommand> {
   const coworkOption = () => new Option('--cowork', 'Use cowork_plugins directory').hideHelp();
 
   // Plugin validate command
-  const pluginCmd = program.command('plugin').alias('plugins').description('Manage Claude Code plugins').configureHelp(createSortedHelpConfig());
+  const pluginCmd = program.command('plugin').alias('plugins').description('Manage DuckHive plugins').configureHelp(createSortedHelpConfig());
   pluginCmd.command('validate <path>').description('Validate a plugin or marketplace manifest').addOption(coworkOption()).action(async (manifestPath: string, options: {
     cowork?: boolean;
   }) => {
@@ -4168,7 +4168,7 @@ async function run(): Promise<CommanderCommand> {
   });
 
   // Marketplace subcommands
-  const marketplaceCmd = pluginCmd.command('marketplace').description('Manage Claude Code marketplaces').configureHelp(createSortedHelpConfig());
+  const marketplaceCmd = pluginCmd.command('marketplace').description('Manage DuckHive marketplaces').configureHelp(createSortedHelpConfig());
   marketplaceCmd.command('add <source>').description('Add a marketplace from a URL, path, or GitHub repo').addOption(coworkOption()).option('--sparse <paths...>', 'Limit checkout to specific directories via git sparse-checkout (for monorepos). Example: --sparse .claude-plugin plugins').option('--scope <scope>', 'Where to declare the marketplace: user (default), project, or local').action(async (source: string, options: {
     cowork?: boolean;
     sparse?: string[];
@@ -4343,7 +4343,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // Doctor command - check installation health
-  program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
+  program.command('doctor').description('Check the health of your DuckHive installation and runtime. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
     const [{
       doctorHandler
     }, {
@@ -4401,7 +4401,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // claude install
-  program.command('install [target]').description('Install Claude Code native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
+  program.command('install [target]').description('Install or repair the DuckHive native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
     force?: boolean;
   }) => {
     const {

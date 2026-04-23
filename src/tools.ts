@@ -21,6 +21,8 @@ import { OrchestrateTool } from './tools/OrchestrateTool/OrchestrateTool.js'
 import { DecreeTool } from './tools/DecreeTool/DecreeTool.js'
 import { ConfirmTool } from './tools/ConfirmTool/ConfirmTool.js'
 import { MemoryTool } from './tools/MemoryTool/MemoryTool.js'
+import { SessionSearchTool } from './tools/SessionSearchTool/SessionSearchTool.js'
+import { SkillManageTool } from './tools/SkillManageTool/SkillManageTool.js'
 import { VisionTool } from './tools/VisionTool/VisionTool.js'
 import { StatusBarTool } from './tools/StatusBarTool/StatusBarTool.js'
 import { StreamTool } from './tools/StreamTool/StreamTool.js'
@@ -49,6 +51,7 @@ const cronTools = [
   require('./tools/ScheduleCronTool/CronCreateTool.js').CronCreateTool,
   require('./tools/ScheduleCronTool/CronDeleteTool.js').CronDeleteTool,
   require('./tools/ScheduleCronTool/CronListTool.js').CronListTool,
+  require('./tools/ScheduleCronTool/CronRunTool.js').CronRunTool,
 ]
 const RemoteTriggerTool = feature('AGENT_TRIGGERS_REMOTE')
   ? require('./tools/RemoteTriggerTool/RemoteTriggerTool.js').RemoteTriggerTool
@@ -240,6 +243,8 @@ export function getAllBaseTools(): Tools {
     DecreeTool,
     ConfirmTool,
     MemoryTool,
+    SessionSearchTool,
+    SkillManageTool,
     VisionTool,
     StatusBarTool,
     StreamTool,

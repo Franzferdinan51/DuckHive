@@ -35,9 +35,12 @@ type workspaceCapabilities struct {
 	hasACP              bool
 	hasMCP              bool
 	hasCouncil          bool
+	hasTeams            bool
 	hasVoice            bool
 	hasMedia            bool
 	hasMercury          bool
+	activeProvider      string
+	configuredProviders []string
 }
 
 type featurePillar struct {
@@ -77,7 +80,7 @@ func main() {
 	if socketPath := os.Getenv("DUCKHIVE_BRIDGE_SOCKET"); socketPath != "" {
 		adapter = bridge.NewAdapter(socketPath)
 	} else if bridgeCmd := os.Getenv("DUCKHIVE_BRIDGE_CMD"); bridgeCmd != "" {
-		adapter = bridge.NewSubprocessAdapter(bridgeCmd)
+		adapter = bridge.NewSubprocessAdapter(bridgeCmd, strings.Fields(os.Getenv("DUCKHIVE_BRIDGE_ARGS"))...)
 	} else {
 		fmt.Println("warning: no DUCKHIVE_BRIDGE_SOCKET or DUCKHIVE_BRIDGE_CMD set")
 	}
@@ -90,7 +93,7 @@ func main() {
 		keys:          tui.DefaultKeyMap(),
 		welcome:       screens.NewWelcomeModel(),
 		transcript:    screens.NewTranscriptPanel(),
-		showInspector: true,
+		showInspector: false,
 	}
 	m.settings = screens.NewSettingsScreen(&m.state)
 	m.updateComposer()
@@ -112,7 +115,7 @@ func (m *MainModel) Init() tea.Cmd {
 	wd, _ := os.Getwd()
 	m.state.WorkingDir = wd
 	m.state.ProjectRoot = wd
-	m.state.ActiveScreen = model.ScreenWelcome
+	m.state.ActiveScreen = model.ScreenREPL
 	m.cap = detectWorkspaceCapabilities(wd)
 	m.updateComposer()
 
@@ -214,10 +217,15 @@ func (m *MainModel) replView() string {
 		railWidth = m.railWidth()
 	}
 
-	conversation := renderCard("Conversation", m.msgList.View(), mainWidth)
-	composerTitle := fmt.Sprintf("Composer [%s]", m.state.InputMode.String())
-	composer := renderCard(composerTitle, m.input.View(), mainWidth)
-	body := lipgloss.JoinVertical(lipgloss.Left, conversation, composer)
+	conversation := m.renderConversationPane(mainWidth)
+	pills := m.renderPillBar(mainWidth)
+	composer := m.renderComposerPane(mainWidth)
+	parts := []string{conversation}
+	if pills != "" {
+		parts = append(parts, pills)
+	}
+	parts = append(parts, composer)
+	body := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	if railWidth > 0 {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, body, m.renderRail(railWidth))
@@ -228,6 +236,142 @@ func (m *MainModel) replView() string {
 		m.renderHeader(),
 		body,
 		m.renderFooter(),
+	) + m.renderPermissionOverlay()
+}
+
+func (m *MainModel) renderConversationPane(width int) string {
+	var content string
+	if len(m.state.Messages) == 0 {
+		content = m.renderEmptyState(width)
+	} else {
+		content = m.msgList.View()
+	}
+
+	return tui.MainPane.Width(width).Render(content)
+}
+
+func (m *MainModel) renderComposerPane(width int) string {
+	modeLabel := tui.ModePill.Render(m.state.InputMode.String())
+	metaParts := []string{modeLabel}
+	if m.state.IsFastMode {
+		metaParts = append(metaParts, tui.MetaPill.Render("FAST"))
+	}
+	if m.state.IsThinking {
+		metaParts = append(metaParts, tui.MetaPill.Render("THINK"))
+	}
+	if m.state.BridgeConnected {
+		metaParts = append(metaParts, tui.MetaPill.Render("BRIDGE"))
+	}
+
+	label := lipgloss.JoinHorizontal(lipgloss.Left, metaParts...)
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		label,
+		tui.ComposerFrame.Width(width).Render(m.input.View()),
+	)
+
+	return lipgloss.NewStyle().Width(width).Render(content)
+}
+
+func (m *MainModel) renderPillBar(width int) string {
+	pills := []string{
+		tui.PillActive.Render(strings.ToUpper(m.displayProvider())),
+		tui.PillMuted.Render(truncate(m.displayModel(), maxInt(14, width/5))),
+	}
+
+	if m.state.BridgeConnected {
+		pills = append(pills, tui.PillOk.Render("BRIDGE"))
+	} else {
+		pills = append(pills, tui.PillWarn.Render("LOCAL"))
+	}
+	if m.cap.hasCouncil {
+		pills = append(pills, tui.PillOk.Render("COUNCIL"))
+	}
+	if m.cap.hasTeams {
+		pills = append(pills, tui.PillOk.Render("TEAMS"))
+	}
+	if m.cap.hasMCP {
+		pills = append(pills, tui.PillMuted.Render("MCP"))
+	}
+	if m.state.ActiveTaskCount > 0 {
+		pills = append(pills, tui.PillMuted.Render(fmt.Sprintf("%d TASKS", m.state.ActiveTaskCount)))
+	}
+	if len(m.cap.configuredProviders) > 0 {
+		pills = append(pills, tui.PillMuted.Render(fmt.Sprintf("%d KEYS", len(m.cap.configuredProviders))))
+	}
+
+	return lipgloss.NewStyle().Width(width).Render(strings.Join(pills, " "))
+}
+
+func (m *MainModel) renderEmptyState(width int) string {
+	title := tui.EmptyTitle.Render("DuckHive shell")
+	subtitle := tui.EmptyBody.Render("OpenClaude core, DuckHive routing, local tooling, council flows, agent teams, and provider switching without leaving the session.")
+
+	quickStart := lipgloss.JoinVertical(
+		lipgloss.Left,
+		tui.SectionTitle.Render("Quick start"),
+		tui.EmptyItem.Render("Ask for a code change, bug fix, or repo audit"),
+		tui.EmptyItem.Render("Switch providers with /provider and models with /models"),
+		tui.EmptyItem.Render("Use /status and /doctor to inspect the harness"),
+		tui.EmptyItem.Render("Use /team, /council, and /orchestrate for heavier work"),
+		tui.EmptyItem.Render("Use ctrl+x to run local shell commands without leaving DuckHive"),
+	)
+
+	commandDeck := lipgloss.JoinVertical(
+		lipgloss.Left,
+		tui.SectionTitle.Render("Command deck"),
+		tui.EmptyItem.Render("/status   /doctor   /provider   /models"),
+		tui.EmptyItem.Render("/mcp      /memory   /team       /council"),
+		tui.EmptyItem.Render("/orchestrate   /desktop   /voice   /review"),
+	)
+
+	workspaceInfo := []string{
+		fmt.Sprintf("workspace  %s", filepath.Base(m.state.WorkingDir)),
+		fmt.Sprintf("provider   %s", m.displayProvider()),
+		fmt.Sprintf("model      %s", truncate(m.displayModel(), maxInt(18, width/3))),
+		fmt.Sprintf("bridge     %s", boolLabel(m.state.BridgeConnected, "connected", "local")),
+		fmt.Sprintf("council    %s", boolLabel(m.cap.hasCouncil, "ready", "later")),
+		fmt.Sprintf("teams      %s", boolLabel(m.cap.hasTeams, "ready", "later")),
+		fmt.Sprintf("mcp        %s", boolLabel(m.cap.hasMCP, "ready", "later")),
+	}
+	if len(m.cap.configuredProviders) > 0 {
+		workspaceInfo = append(workspaceInfo, fmt.Sprintf("keys       %s", strings.Join(m.cap.configuredProviders, ", ")))
+	}
+	status := lipgloss.JoinVertical(lipgloss.Left, renderMutedLines(workspaceInfo)...)
+
+	shortcuts := lipgloss.JoinVertical(
+		lipgloss.Left,
+		tui.SectionTitle.Render("Keys"),
+		tui.EmptyItem.Render("enter send"),
+		tui.EmptyItem.Render("shift+tab cycle mode"),
+		tui.EmptyItem.Render("ctrl+p models"),
+		tui.EmptyItem.Render("ctrl+o transcript"),
+		tui.EmptyItem.Render("ctrl+t deck"),
+		tui.EmptyItem.Render("ctrl+x shell"),
+	)
+
+	rightCol := lipgloss.JoinVertical(
+		lipgloss.Left,
+		tui.SideCard.Render(status),
+		"",
+		tui.SideCard.Render(shortcuts),
+	)
+
+	main := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		tui.EmptyCard.Width(maxInt(36, width-30)).Render(
+			lipgloss.JoinVertical(lipgloss.Left, title, subtitle, "", quickStart, "", commandDeck),
+		),
+		"  ",
+		rightCol,
+	)
+
+	return lipgloss.Place(
+		width,
+		maxInt(10, m.msgListHeight()),
+		lipgloss.Center,
+		lipgloss.Center,
+		main,
 	)
 }
 
@@ -278,9 +422,17 @@ func (m *MainModel) handleBridgeMessage(msg model.InMsg) (tea.Model, tea.Cmd) {
 	case model.MsgPermissionRequest:
 		m.state.PendingPermission = &msg.Request
 		m.state.DialogOpen = true
-		d := components.NewPermissionDialog(msg.Request)
-		m.dialog = &d
 		m.state.StatusMsg = "permission required"
+
+	case model.MsgStatusUpdate:
+		if strings.TrimSpace(msg.Message) != "" {
+			m.state.StatusMsg = msg.Message
+		}
+
+	case model.MsgModelChanged:
+		if strings.TrimSpace(msg.Model) != "" {
+			m.state.Model = msg.Model
+		}
 
 	case model.MsgCostReceived:
 		m.state.TotalCostUSD += msg.Cost
@@ -375,9 +527,23 @@ func (m *MainModel) handleOutbound(msg model.OutMsg) (tea.Model, tea.Cmd) {
 		m.input.Reset()
 
 	case model.MsgConfirmYes, model.MsgConfirmNo:
+		var cmd tea.Cmd
+		if m.bridge != nil && m.state.PendingPermission != nil {
+			approved := true
+			if _, ok := msg.(model.MsgConfirmNo); ok {
+				approved = false
+			}
+			cmd = bridge.SendPermissionResponseCmd(m.bridge, *m.state.PendingPermission, approved)
+			if approved {
+				m.state.StatusMsg = "permission granted"
+			} else {
+				m.state.StatusMsg = "permission denied"
+			}
+		}
 		m.dialog = nil
 		m.state.DialogOpen = false
 		m.state.PendingPermission = nil
+		return m, cmd
 
 	case model.MsgPopDialog:
 		m.dialog = nil
@@ -662,19 +828,23 @@ func (m *MainModel) resizeLayout() {
 }
 
 func (m *MainModel) renderHeader() string {
-	title := lipgloss.JoinHorizontal(
-		lipgloss.Left,
+	leftParts := []string{
 		tui.HeaderTitle.Render("DuckHive"),
-		" ",
-		tui.SoftBadge.Render(m.state.InputMode.String()),
-	)
-
-	rightParts := []string{
-		tui.CardMuted.Render(filepath.Base(m.state.WorkingDir)),
-		tui.CardMuted.Render(m.state.Model),
+		tui.HeaderSubtitle.Render("//"),
+		tui.HeaderSubtitle.Render(filepath.Base(m.state.WorkingDir)),
+		tui.HeaderSubtitle.Render("•"),
+		tui.HeaderSubtitle.Render(m.displayProvider()),
+		tui.HeaderSubtitle.Render("•"),
+		tui.HeaderSubtitle.Render(truncate(m.displayModel(), 28)),
 	}
+	left := strings.Join(leftParts, " ")
+
+	rightParts := []string{}
 	if m.state.TotalCostUSD > 0 {
 		rightParts = append(rightParts, tui.CardMuted.Render(fmt.Sprintf("$%.4f", m.state.TotalCostUSD)))
+	}
+	if m.state.ActiveTaskCount > 0 {
+		rightParts = append(rightParts, tui.CardMuted.Render(fmt.Sprintf("%d tasks", m.state.ActiveTaskCount)))
 	}
 	if m.state.BridgeConnected {
 		rightParts = append(rightParts, tui.GoodBadge.Render("BRIDGE"))
@@ -683,10 +853,8 @@ func (m *MainModel) renderHeader() string {
 	}
 	right := strings.Join(rightParts, "  ")
 
-	spacer := strings.Repeat(" ", maxInt(1, m.width-lipgloss.Width(title)-lipgloss.Width(right)-2))
-	headline := tui.Header.Width(m.width).Render(title + spacer + right)
-	subtitle := tui.CardMuted.Render("Codex + Gemini + Kimi + OpenClaw + duck-cli + MiniMax + Mercury")
-	return lipgloss.JoinVertical(lipgloss.Left, headline, subtitle)
+	spacer := strings.Repeat(" ", maxInt(1, m.width-lipgloss.Width(left)-lipgloss.Width(right)-2))
+	return tui.Header.Width(m.width).Render(left + spacer + right)
 }
 
 func (m *MainModel) renderRail(width int) string {
@@ -696,10 +864,10 @@ func (m *MainModel) renderRail(width int) string {
 		sections = append(sections, renderCard("Transcript", m.transcript.View(), width))
 	}
 
-	sections = append(sections, renderCard("Session", m.renderSessionCard(width), width))
-	sections = append(sections, renderCard("Feature Merge", m.renderFeatureCard(width), width))
 	if m.showInspector {
-		sections = append(sections, renderCard("Tracking", m.renderTrackingCard(), width))
+		sections = append(sections, renderCard("Status", m.renderSessionCard(width), width))
+		sections = append(sections, renderCard("Capabilities", m.renderFeatureCard(width), width))
+		sections = append(sections, renderCard("Roadmap", m.renderTrackingCard(), width))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -722,13 +890,15 @@ func (m *MainModel) renderSessionCard(width int) string {
 
 	lines := []string{
 		fmt.Sprintf("workspace  %s", filepath.Base(m.state.WorkingDir)),
+		fmt.Sprintf("provider   %s", m.displayProvider()),
+		fmt.Sprintf("model      %s", truncate(m.displayModel(), width-12)),
 		fmt.Sprintf("mode       %s", m.state.InputMode.String()),
-		fmt.Sprintf("fast       %t", m.state.IsFastMode),
-		fmt.Sprintf("thinking   %t", m.state.IsThinking),
-		fmt.Sprintf("bridge     %t", m.state.BridgeConnected),
+		fmt.Sprintf("fast       %s", boolLabel(m.state.IsFastMode, "on", "off")),
+		fmt.Sprintf("bridge     %s", boolLabel(m.state.BridgeConnected, "up", "local")),
 		fmt.Sprintf("tasks      %d", m.state.ActiveTaskCount),
 		fmt.Sprintf("checkpts   %d", m.cap.checkpointCount),
 		fmt.Sprintf("docs       %s", strings.Join(instructions, ", ")),
+		fmt.Sprintf("keys       %s", strings.Join(m.cap.configuredProviders, ", ")),
 	}
 
 	if m.state.StatusMsg != "" {
@@ -766,12 +936,37 @@ func (m *MainModel) renderTrackingCard() string {
 func (m *MainModel) renderFooter() string {
 	status := m.state.StatusMsg
 	if status == "" {
-		status = "agent shell ready"
+		status = "ready"
 	}
 
 	help := formatHelp(tui.ActiveBindings(m.keys, m.currentContext()))
 	spacer := strings.Repeat(" ", maxInt(1, m.width-len(stripANSI(status))-len(stripANSI(help))-4))
 	return tui.StatusBar.Width(m.width).Render(status + spacer + help)
+}
+
+func (m *MainModel) renderPermissionOverlay() string {
+	if !m.state.DialogOpen || m.state.PendingPermission == nil {
+		return ""
+	}
+
+	req := m.state.PendingPermission
+	body := lipgloss.JoinVertical(
+		lipgloss.Left,
+		tui.DialogTitle.Render("Permission request"),
+		"",
+		tui.DialogBody.Render(fmt.Sprintf("Tool: %s", req.ToolName)),
+		tui.DialogBody.Render(truncate(req.Meta, maxInt(30, m.width-18))),
+		"",
+		tui.DimText.Render("y allow  n deny"),
+	)
+
+	return "\n" + lipgloss.Place(
+		m.width,
+		8,
+		lipgloss.Center,
+		lipgloss.Center,
+		tui.Dialog.Render(body),
+	)
 }
 
 func (m *MainModel) featurePillars() []featurePillar {
@@ -798,8 +993,8 @@ func (m *MainModel) featurePillars() []featurePillar {
 		},
 		{
 			Source:  "duck-cli",
-			Status:  statusFromBool(m.cap.hasCouncil),
-			Summary: "council-style routing, orchestration, and Android/vision specialist posture",
+			Status:  statusFromBool(m.cap.hasCouncil || m.cap.hasTeams),
+			Summary: "status-first orchestration, council routing, and multi-agent team posture across the harness",
 		},
 		{
 			Source:  "MiniMax",
@@ -824,10 +1019,28 @@ func detectWorkspaceCapabilities(root string) workspaceCapabilities {
 		hasACP:              fileExists(filepath.Join(root, "src/orchestrator/acp/acp-bridge.ts")),
 		hasMCP:              dirExists(filepath.Join(root, "src/services/mcp")),
 		hasCouncil:          fileExists(filepath.Join(root, "src/orchestrator/hybrid/hybrid-orchestrator.ts")),
+		hasTeams:            fileExists(filepath.Join(root, "src/utils/agentSwarmsEnabled.ts")) || fileExists(filepath.Join(root, "src/commands/hive-team/index.ts")),
 		hasVoice:            fileExists(filepath.Join(root, "src/services/voice.ts")),
 		hasMedia:            fileExists(filepath.Join(root, "src/orchestrator/multi-model/multi-model-router.ts")),
 		hasMercury:          true,
+		activeProvider:      detectActiveProvider(),
+		configuredProviders: detectConfiguredProviders(),
 	}
+}
+
+func (m *MainModel) displayModel() string {
+	model := strings.TrimSpace(m.state.Model)
+	if model == "" {
+		return "auto"
+	}
+	return model
+}
+
+func (m *MainModel) displayProvider() string {
+	if provider := strings.TrimSpace(m.cap.activeProvider); provider != "" {
+		return provider
+	}
+	return "auto"
 }
 
 func nearestFileExists(root, name string) bool {
@@ -906,11 +1119,80 @@ func renderStatusBadge(status string) string {
 	}
 }
 
+func boolLabel(ok bool, yes, no string) string {
+	if ok {
+		return yes
+	}
+	return no
+}
+
 func statusFromBool(ok bool) string {
 	if ok {
 		return "ready"
 	}
 	return "later"
+}
+
+func detectConfiguredProviders() []string {
+	checks := []struct {
+		name string
+		envs []string
+	}{
+		{name: "anthropic", envs: []string{"ANTHROPIC_API_KEY"}},
+		{name: "openai", envs: []string{"OPENAI_API_KEY"}},
+		{name: "openrouter", envs: []string{"OPENROUTER_API_KEY"}},
+		{name: "gemini", envs: []string{"GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"}},
+		{name: "kimi", envs: []string{"KIMI_API_KEY", "MOONSHOT_API_KEY"}},
+		{name: "minimax", envs: []string{"MINIMAX_API_KEY"}},
+	}
+
+	providers := make([]string, 0, len(checks))
+	for _, check := range checks {
+		if envAnySet(check.envs...) {
+			providers = append(providers, check.name)
+		}
+	}
+	return providers
+}
+
+func detectActiveProvider() string {
+	if provider := strings.TrimSpace(os.Getenv("DUCKHIVE_PROVIDER")); provider != "" {
+		return provider
+	}
+	if provider := strings.TrimSpace(os.Getenv("DUCK_PROVIDER")); provider != "" {
+		return provider
+	}
+
+	baseURL := strings.ToLower(strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")))
+	openAIModel := strings.ToLower(strings.TrimSpace(os.Getenv("OPENAI_MODEL")))
+
+	switch {
+	case strings.TrimSpace(os.Getenv("GEMINI_MODEL")) != "" || envAnySet("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"):
+		return "gemini"
+	case strings.Contains(baseURL, "moonshot") || envAnySet("KIMI_API_KEY", "MOONSHOT_API_KEY"):
+		return "kimi"
+	case strings.TrimSpace(os.Getenv("MINIMAX_MODEL")) != "" || strings.Contains(openAIModel, "minimax") || envAnySet("MINIMAX_API_KEY"):
+		return "minimax"
+	case strings.Contains(openAIModel, "codex"):
+		return "codex"
+	case strings.HasPrefix(openAIModel, "github:copilot") || os.Getenv("CLAUDE_CODE_USE_GITHUB") == "1":
+		return "github"
+	case strings.TrimSpace(os.Getenv("OPENAI_MODEL")) != "" || envAnySet("OPENAI_API_KEY"):
+		return "openai"
+	case strings.TrimSpace(os.Getenv("ANTHROPIC_MODEL")) != "" || envAnySet("ANTHROPIC_API_KEY"):
+		return "anthropic"
+	default:
+		return "auto"
+	}
+}
+
+func envAnySet(keys ...string) bool {
+	for _, key := range keys {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func formatHelp(bindings []key.Binding) string {

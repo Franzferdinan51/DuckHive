@@ -15,6 +15,8 @@
 export const VALID_PROVIDERS = [
   'anthropic',
   'openai',
+  'kimi',
+  'moonshotai',
   'gemini',
   'mistral',
   'github',
@@ -99,6 +101,37 @@ export function applyProviderFlag(
       process.env.CLAUDE_CODE_USE_OPENAI = '1'
       if (model) process.env.OPENAI_MODEL = model
       break
+
+    case 'kimi': {
+      process.env.CLAUDE_CODE_USE_OPENAI = '1'
+      process.env.OPENAI_BASE_URL ??=
+        process.env.KIMI_BASE_URL ?? process.env.MOONSHOT_BASE_URL ?? 'https://api.moonshot.ai/v1'
+      process.env.OPENAI_MODEL ??= 'kimi-k2.6'
+      // Kimi API key takes priority for kimi provider; fall back to moonshot key
+      const kimiKey =
+        process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY
+      if (kimiKey && !process.env.OPENAI_API_KEY) {
+        process.env.OPENAI_API_KEY = kimiKey
+      }
+      if (model) process.env.OPENAI_MODEL = model
+      break
+    }
+
+    case 'moonshotai': {
+      process.env.CLAUDE_CODE_USE_OPENAI = '1'
+      // Moonshot uses moonshot-v1-* model family at api.moonshot.ai
+      process.env.OPENAI_BASE_URL ??=
+        process.env.MOONSHOT_BASE_URL ?? 'https://api.moonshot.ai/v1'
+      process.env.OPENAI_MODEL ??= 'moonshot-v1-32k'
+      // Moonshot API key takes priority for moonshotai provider; fall back to kimi key
+      const moonshotKey =
+        process.env.MOONSHOT_API_KEY ?? process.env.KIMI_API_KEY
+      if (moonshotKey && !process.env.OPENAI_API_KEY) {
+        process.env.OPENAI_API_KEY = moonshotKey
+      }
+      if (model) process.env.OPENAI_MODEL = model
+      break
+    }
 
     case 'gemini':
       process.env.CLAUDE_CODE_USE_GEMINI = '1'

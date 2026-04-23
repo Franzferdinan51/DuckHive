@@ -5,6 +5,7 @@ import { truncate } from '../../utils/format.js';
 import type { CreateOutput } from './CronCreateTool.js';
 import type { DeleteOutput } from './CronDeleteTool.js';
 import type { ListOutput } from './CronListTool.js';
+import type { RunOutput } from './CronRunTool.js';
 
 // --- CronCreate -------------------------------------------------------------
 
@@ -53,6 +54,22 @@ export function renderListResultMessage(output: ListOutput): React.ReactNode {
       {output.jobs.map(j => <Text key={j.id}>
           <Text bold>{j.id}</Text> <Text dimColor>{j.humanSchedule}</Text>
         </Text>)}
+    </MessageResponse>;
+}
+
+// --- CronRun ----------------------------------------------------------------
+
+export function renderRunToolUseMessage(input: Partial<{
+  id: string;
+  prompt?: string;
+}>): React.ReactNode {
+  return input.id ?? '';
+}
+export function renderRunResultMessage(output: RunOutput): React.ReactNode {
+  return <MessageResponse>
+      <Text>
+        Fired job <Text bold>{output.id}</Text> immediately
+      </Text>
     </MessageResponse>;
 }
 

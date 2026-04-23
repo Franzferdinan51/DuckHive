@@ -22,6 +22,10 @@ function isAgentTeamsFlagSet(): boolean {
  * 2. GrowthBook gate 'tengu_amber_flint' enabled (killswitch)
  */
 export function isAgentSwarmsEnabled(): boolean {
+  if (isEnvTruthy(process.env.DUCKHIVE_AGENT_TEAMS_ENABLED)) {
+    return true
+  }
+
   // Ant: always on
   if (process.env.USER_TYPE === 'ant') {
     return true

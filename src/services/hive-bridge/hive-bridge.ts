@@ -21,14 +21,23 @@ import type {
   IntegrationOptions,
 } from './hive-types.js'
 
+const DEFAULT_COUNCIL_PORT = process.env.COUNCIL_PORT || '3007'
+const DEFAULT_HIVE_API_BASE =
+  process.env.DUCKHIVE_COUNCIL_URL ||
+  process.env.HIVE_API_BASE ||
+  `http://localhost:${DEFAULT_COUNCIL_PORT}`
+
 const DEFAULT_CONFIG: HiveConfig = {
-  apiBase: 'http://localhost:3131',
-  enabled: true,
+  apiBase: DEFAULT_HIVE_API_BASE,
+  enabled: process.env.DUCKHIVE_COUNCIL_ENABLED !== 'false',
 }
 
 const DEFAULT_OPTIONS: IntegrationOptions = {
-  autoConsultCouncil: true,
-  councilThreshold: 6,
+  autoConsultCouncil: process.env.DUCKHIVE_COUNCIL_ENABLED !== 'false',
+  councilThreshold: Number.parseInt(
+    process.env.DUCKHIVE_COUNCIL_THRESHOLD || '4',
+    10,
+  ) || 4,
   showCouncilInRepl: true,
   cacheCouncilResults: true,
 }

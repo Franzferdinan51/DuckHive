@@ -442,6 +442,43 @@ export function buildAPIProviderProperties(): Property[] {
   }
   return properties;
 }
+
+export function buildDuckHiveProperties(): Property[] {
+  const properties: Property[] = [];
+  const councilUrl = process.env.DUCKHIVE_COUNCIL_URL || process.env.HIVE_API_BASE;
+  const councilEnabled = (process.env.DUCKHIVE_COUNCIL_ENABLED || 'true') !== 'false';
+  const teamsEnabled = process.env.DUCKHIVE_AGENT_TEAMS_ENABLED === '1' || process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1';
+  const bridgeSocket = process.env.DUCKHIVE_BRIDGE_SOCKET;
+  const bridgeCommand = process.env.DUCKHIVE_BRIDGE_CMD;
+  const councilThreshold = process.env.DUCKHIVE_COUNCIL_THRESHOLD;
+
+  if (councilEnabled || councilUrl || teamsEnabled || bridgeSocket || bridgeCommand) {
+    properties.push({
+      label: 'DuckHive council',
+      value: councilEnabled
+        ? `${councilUrl || 'enabled'}${councilThreshold ? ` (threshold ${councilThreshold})` : ''}`
+        : 'disabled'
+    });
+    properties.push({
+      label: 'Agent teams',
+      value: teamsEnabled ? 'enabled' : 'disabled'
+    });
+  }
+
+  if (bridgeSocket) {
+    properties.push({
+      label: 'Bridge socket',
+      value: bridgeSocket
+    });
+  } else if (bridgeCommand) {
+    properties.push({
+      label: 'Bridge command',
+      value: bridgeCommand
+    });
+  }
+
+  return properties;
+}
 export function getModelDisplayLabel(mainLoopModel: string | null): string {
   let modelLabel = modelDisplayString(mainLoopModel);
   if (mainLoopModel === null && isClaudeAISubscriber()) {

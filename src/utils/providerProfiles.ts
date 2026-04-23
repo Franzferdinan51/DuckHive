@@ -162,7 +162,7 @@ export function getProviderPresetDefaults(
         provider: 'openai',
         name: 'Moonshot AI',
         baseUrl: 'https://api.moonshot.ai/v1',
-        model: 'kimi-k2.5',
+        model: 'kimi-k2.6',
         apiKey: '',
         requiresApiKey: true,
       }

@@ -84,6 +84,15 @@ describe('detectProviderFromEnv — priority order', () => {
     })
   })
 
+  test('KIMI_API_KEY detects Moonshot-compatible OpenAI profile', () => {
+    expect(scan({ KIMI_API_KEY: 'sk-kimi-x' })).toEqual({
+      kind: 'openai',
+      source: 'KIMI_API_KEY set',
+      baseUrl: 'https://api.moonshot.ai/v1',
+      model: 'kimi-k2.6',
+    })
+  })
+
   test('GEMINI_API_KEY detected', () => {
     expect(scan({ GEMINI_API_KEY: 'gem-x' })).toEqual({
       kind: 'gemini',

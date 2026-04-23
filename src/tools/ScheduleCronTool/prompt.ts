@@ -60,6 +60,9 @@ export function isDurableCronEnabled(): boolean {
 export const CRON_CREATE_TOOL_NAME = 'CronCreate'
 export const CRON_DELETE_TOOL_NAME = 'CronDelete'
 export const CRON_LIST_TOOL_NAME = 'CronList'
+export const CRON_RUN_TOOL_NAME = 'CronRun'
+
+export const CRON_RUN_DESCRIPTION = 'Fire a scheduled cron job immediately without waiting for its next scheduled time'
 
 export function buildCronCreateDescription(durableEnabled: boolean): string {
   return durableEnabled

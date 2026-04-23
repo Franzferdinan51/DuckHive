@@ -12,7 +12,11 @@ import {
   resolveGeminiCredential,
 } from './geminiAuth.js'
 import { PROFILE_FILE_NAME } from './providerProfile.js'
-import { redactSecretValueForDisplay } from './providerSecrets.js'
+import {
+  getOpenAICompatibleApiKeyEnvVars,
+  redactSecretValueForDisplay,
+  resolveOpenAICompatibleApiKey,
+} from './providerSecrets.js'
 
 function isEnvTruthy(value: string | undefined): boolean {
   if (!value) return false
@@ -65,12 +69,13 @@ function checkGithubTokenStatus(
   return 'valid'
 }
 
-function getOpenAIMissingKeyMessage(): string {
+function getOpenAIMissingKeyMessage(keyNames: string[]): string {
   const globalConfigPath = getGlobalClaudeFile()
   const profilePath = resolve(process.cwd(), PROFILE_FILE_NAME)
+  const keyHint = keyNames.join(', ')
 
   return [
-    'OPENAI_API_KEY is required when CLAUDE_CODE_USE_OPENAI=1 and OPENAI_BASE_URL is not local.',
+    `${keyHint} is required when CLAUDE_CODE_USE_OPENAI=1 and OPENAI_BASE_URL is not local.`,
     `To recover, run /provider and switch provider, or set CLAUDE_CODE_USE_OPENAI=0 in your shell environment.`,
     `Saved startup settings can come from ${globalConfigPath} or ${profilePath}.`,
   ].join('\n')
@@ -126,9 +131,13 @@ export async function getProviderValidationError(
     model: env.OPENAI_MODEL,
     baseUrl: env.OPENAI_BASE_URL,
   })
+  const keyNames = getOpenAICompatibleApiKeyEnvVars(request.baseUrl)
+  const resolvedApiKey = resolveOpenAICompatibleApiKey(request.baseUrl, env)
 
-  if (env.OPENAI_API_KEY === 'SUA_CHAVE') {
-    return 'Invalid OPENAI_API_KEY: placeholder value SUA_CHAVE detected. Set a real key or unset for local providers.'
+  for (const keyName of keyNames) {
+    if (env[keyName] === 'SUA_CHAVE') {
+      return `Invalid ${keyName}: placeholder value SUA_CHAVE detected. Set a real key or unset for local providers.`
+    }
   }
 
   if (request.transport === 'codex_responses') {
@@ -149,12 +158,12 @@ export async function getProviderValidationError(
     return null
   }
 
-  if (!env.OPENAI_API_KEY && !isLocalProviderUrl(request.baseUrl)) {
+  if (!resolvedApiKey && !isLocalProviderUrl(request.baseUrl)) {
     const hasGithubToken = !!(env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim())
     if (useGithub && hasGithubToken) {
       return null
     }
-    return getOpenAIMissingKeyMessage()
+    return getOpenAIMissingKeyMessage(keyNames)
   }
 
   return null
@@ -207,6 +216,6 @@ export async function validateProviderEnvForStartupOrExit(
   }
 
   console.error(
-    `Warning: provider configuration is incomplete.\n${error}\nOpenClaude will continue starting so you can run /provider and repair the saved provider settings.`,
+    `Warning: provider configuration is incomplete.\n${error}\nDuckHive will continue starting so you can run /provider and repair the saved provider settings.`,
   )
 }

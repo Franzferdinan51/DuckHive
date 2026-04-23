@@ -64,6 +64,10 @@ import {
 import { sanitizeSchemaForOpenAICompat } from '../../utils/schemaSanitizer.js'
 import { redactSecretValueForDisplay } from '../../utils/providerProfile.js'
 import {
+  isMoonshotApiBaseUrl,
+  resolveOpenAICompatibleApiKey,
+} from '../../utils/providerSecrets.js'
+import {
   normalizeToolArguments,
   hasToolFieldMapping,
 } from './toolArgumentNormalization.js'
@@ -84,10 +88,6 @@ const GITHUB_429_MAX_RETRIES = 3
 const GITHUB_429_BASE_DELAY_SEC = 1
 const GITHUB_429_MAX_DELAY_SEC = 32
 const GEMINI_API_HOST = 'generativelanguage.googleapis.com'
-const MOONSHOT_API_HOSTS = new Set([
-  'api.moonshot.ai',
-  'api.moonshot.cn',
-])
 
 const COPILOT_HEADERS: Record<string, string> = {
   'User-Agent': 'GitHubCopilotChat/0.26.7',
@@ -154,12 +154,7 @@ function hasGeminiApiHost(baseUrl: string | undefined): boolean {
 }
 
 function isMoonshotBaseUrl(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return false
-  try {
-    return MOONSHOT_API_HOSTS.has(new URL(baseUrl).hostname.toLowerCase())
-  } catch {
-    return false
-  }
+  return isMoonshotApiBaseUrl(baseUrl)
 }
 
 function formatRetryAfterHint(response: Response): string {
@@ -1580,11 +1575,10 @@ class OpenAIShimMessages {
     }
 
     const isGemini = isGeminiMode()
-    const isMiniMax = !!process.env.MINIMAX_API_KEY
     const apiKey =
       this.providerOverride?.apiKey ??
-      process.env.OPENAI_API_KEY ??
-      (isMiniMax ? process.env.MINIMAX_API_KEY : '')
+      resolveOpenAICompatibleApiKey(request.baseUrl, process.env) ??
+      ''
     // Detect Azure endpoints by hostname (not raw URL) to prevent bypass via
     // path segments like https://evil.com/cognitiveservices.azure.com/
     let isAzure = false
@@ -2150,6 +2144,14 @@ export function createOpenAIShimClient(options: {
     process.env.OPENAI_BASE_URL ??= GITHUB_COPILOT_BASE
     process.env.OPENAI_API_KEY ??=
       process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''
+  } else {
+    const resolvedOpenAICompatibleKey = resolveOpenAICompatibleApiKey(
+      process.env.OPENAI_BASE_URL ?? process.env.OPENAI_API_BASE,
+      process.env,
+    )
+    if (resolvedOpenAICompatibleKey) {
+      process.env.OPENAI_API_KEY = resolvedOpenAICompatibleKey
+    }
   }
 
   const beta = new OpenAIShimBeta({

@@ -65,7 +65,7 @@ func DefaultKeyMap() KeyMap {
 		),
 		ToggleTodos: key.NewBinding(
 			key.WithKeys("ctrl+t"),
-			key.WithHelp("ctrl+t", "todos"),
+			key.WithHelp("ctrl+t", "deck"),
 		),
 		GlobalSearch: key.NewBinding(
 			key.WithKeys("ctrl+r"),
@@ -165,14 +165,16 @@ func ActiveBindings(km KeyMap, ctx string) []key.Binding {
 	switch ctx {
 	case "Chat":
 		return []key.Binding{
+			km.Interrupt, km.Exit, km.Redraw,
+			km.ToggleTranscript, km.ToggleTodos, km.GlobalSearch,
 			km.Submit, km.HistoryUp, km.HistoryDown, km.Cancel,
-			km.CycleMode, km.ToggleShellMode, km.FastMode, km.ThinkingToggle,
+			km.CycleMode, km.ToggleShellMode, km.FastMode,
 			km.ExternalEditor, km.Undo, km.Stash,
 		}
 	case "Confirmation":
-		return []key.Binding{km.ConfirmYes, km.ConfirmNo}
+		return []key.Binding{km.Interrupt, km.Exit, km.Redraw, km.ConfirmYes, km.ConfirmNo}
 	case "Settings":
-		return []key.Binding{km.Cancel, km.Submit}
+		return []key.Binding{km.Interrupt, km.Exit, km.Redraw, km.Cancel, km.Submit}
 	default:
 		return []key.Binding{
 			km.Interrupt, km.Exit, km.Redraw,

@@ -167,6 +167,11 @@ type MsgStatusUpdate struct {
 	Message string
 }
 
+// MsgModelChanged updates the active model label from the backend.
+type MsgModelChanged struct {
+	Model string
+}
+
 // MsgError surfaces an error to the UI.
 type MsgError struct {
 	Err error
@@ -233,6 +238,7 @@ func (MsgThinkingStarted) inMsg()    {}
 func (MsgThinkingEnded) inMsg()      {}
 func (MsgPermissionRequest) inMsg()  {}
 func (MsgStatusUpdate) inMsg()       {}
+func (MsgModelChanged) inMsg()       {}
 func (MsgError) inMsg()              {}
 func (MsgTaskStarted) inMsg()        {}
 func (MsgTaskEnded) inMsg()          {}

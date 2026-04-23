@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -32,6 +33,7 @@ type Adapter struct {
 	// For subprocess mode
 	bridgeCmd  string
 	bridgeArgs []string
+	stdin      io.WriteCloser
 	proc       *os.Process
 }
 
@@ -88,6 +90,10 @@ func (a *Adapter) startSubprocess() error {
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	cmd := exec.CommandContext(a.ctx, a.bridgeCmd, a.bridgeArgs...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("stdin pipe: %w", err)
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("stdout pipe: %w", err)
@@ -101,9 +107,11 @@ func (a *Adapter) startSubprocess() error {
 		return fmt.Errorf("start bridge: %w", err)
 	}
 	a.proc = cmd.Process
+	a.stdin = stdin
 
 	go a.readFrom(stdout)
 	go a.readErrors(stderr)
+	go a.writeLoop()
 
 	go func() {
 		cmd.Wait()
@@ -148,6 +156,9 @@ func (a *Adapter) Close() error {
 	if a.proc != nil {
 		a.proc.Signal(syscall.SIGTERM)
 	}
+	if a.stdin != nil {
+		a.stdin.Close()
+	}
 	return nil
 }
 
@@ -178,6 +189,7 @@ func (a *Adapter) readLoop() {
 // readFrom pumps JSON messages from a reader (subprocess stdout).
 func (a *Adapter) readFrom(r io.Reader) {
 	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
 	for sc.Scan() {
 		raw := sc.Bytes()
 		a.handleFrame(raw)
@@ -187,6 +199,7 @@ func (a *Adapter) readFrom(r io.Reader) {
 // readErrors pumps stderr lines as error messages.
 func (a *Adapter) readErrors(r io.Reader) {
 	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 8*1024), 512*1024)
 	for sc.Scan() {
 		select {
 		case a.inbound <- model.MsgError{Err: fmt.Errorf("bridge: %s", sc.Text())}:
@@ -206,11 +219,19 @@ func (a *Adapter) writeLoop() {
 			return
 		}
 
-		select {
+	select {
 		case payload := <-a.outbound:
 			data := append(payload, '\n')
-			if _, err := conn.Write(data); err != nil {
-				return
+			if a.bridgeCmd != "" && a.stdin != nil {
+				if _, err := a.stdin.Write(data); err != nil {
+					return
+				}
+				continue
+			}
+			if conn != nil {
+				if _, err := conn.Write(data); err != nil {
+					return
+				}
 			}
 		default:
 			time.Sleep(10 * time.Millisecond)
@@ -228,12 +249,11 @@ func (a *Adapter) handleFrame(raw []byte) {
 		return
 	}
 
-	var msg model.InMsg
 	switch f.Type {
 	case "message":
 		var m model.Message
 		if err := json.Unmarshal(raw, &m); err == nil {
-			msg = model.MsgMessageReceived{Message: m}
+			a.publish(model.MsgMessageReceived{Message: m})
 		}
 	case "stream_delta":
 		var d struct {
@@ -241,63 +261,273 @@ func (a *Adapter) handleFrame(raw []byte) {
 			Delta string `json:"delta"`
 		}
 		if err := json.Unmarshal(raw, &d); err == nil {
-			msg = model.MsgStreamDelta{MessageID: d.ID, Delta: d.Delta}
+			a.publish(model.MsgStreamDelta{MessageID: d.ID, Delta: d.Delta})
 		}
 	case "stream_end":
 		var d struct {
 			ID string `json:"id"`
 		}
 		if err := json.Unmarshal(raw, &d); err == nil {
-			msg = model.MsgStreamEnd{MessageID: d.ID}
+			a.publish(model.MsgStreamEnd{MessageID: d.ID})
 		}
 	case "thinking_start":
-		msg = model.MsgThinkingStarted{}
+		a.publish(model.MsgThinkingStarted{})
 	case "thinking_end":
-		msg = model.MsgThinkingEnded{}
+		a.publish(model.MsgThinkingEnded{})
 	case "permission_request":
 		var req model.PermissionRequest
 		if err := json.Unmarshal(raw, &req); err == nil {
-			msg = model.MsgPermissionRequest{Request: req}
+			a.publish(model.MsgPermissionRequest{Request: req})
 		}
 	case "error":
 		var e struct {
 			Err string `json:"error"`
 		}
 		if err := json.Unmarshal(raw, &e); err == nil {
-			msg = model.MsgError{Err: fmt.Errorf("%s", e.Err)}
+			a.publish(model.MsgError{Err: fmt.Errorf("%s", e.Err)})
 		}
 	case "cost":
 		var c struct {
 			Cost float64 `json:"cost"`
 		}
 		if err := json.Unmarshal(raw, &c); err == nil {
-			msg = model.MsgCostReceived{Cost: c.Cost}
+			a.publish(model.MsgCostReceived{Cost: c.Cost})
 		}
 	case "tokens":
 		var t model.TokenUsage
 		if err := json.Unmarshal(raw, &t); err == nil {
-			msg = model.MsgTokensReceived{Usage: t}
+			a.publish(model.MsgTokensReceived{Usage: t})
 		}
+	case "assistant":
+		var m struct {
+			UUID    string          `json:"uuid"`
+			Message json.RawMessage `json:"message"`
+		}
+		if err := json.Unmarshal(raw, &m); err == nil {
+			content := strings.TrimSpace(extractStructuredText(m.Message))
+			if content != "" {
+				a.publish(model.MsgMessageReceived{Message: model.Message{
+					ID:        m.UUID,
+					Type:      model.MsgTypeAssistant,
+					Content:   content,
+					Timestamp: time.Now(),
+				}})
+			}
+		}
+	case "streamlined_text":
+		var m struct {
+			UUID string `json:"uuid"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(raw, &m); err == nil && strings.TrimSpace(m.Text) != "" {
+			a.publish(model.MsgMessageReceived{Message: model.Message{
+				ID:        m.UUID,
+				Type:      model.MsgTypeAssistant,
+				Content:   m.Text,
+				Timestamp: time.Now(),
+			}})
+		}
+	case "system":
+		var m struct {
+			UUID    string `json:"uuid"`
+			Subtype string `json:"subtype"`
+			Content string `json:"content"`
+			Status  string `json:"status"`
+			Model   string `json:"model"`
+		}
+		if err := json.Unmarshal(raw, &m); err == nil {
+			switch m.Subtype {
+			case "init":
+				if strings.TrimSpace(m.Model) != "" {
+					a.publish(model.MsgModelChanged{Model: m.Model})
+				}
+				a.publish(model.MsgStatusUpdate{Message: "backend ready"})
+			case "status":
+				if strings.TrimSpace(m.Status) != "" {
+					a.publish(model.MsgStatusUpdate{Message: m.Status})
+				}
+			case "local_command_output":
+				if strings.TrimSpace(m.Content) != "" {
+					a.publish(model.MsgMessageReceived{Message: model.Message{
+						ID:        m.UUID,
+						Type:      model.MsgTypeSystem,
+						Content:   m.Content,
+						Timestamp: time.Now(),
+					}})
+				}
+			default:
+				if strings.TrimSpace(m.Content) != "" {
+					a.publish(model.MsgMessageReceived{Message: model.Message{
+						ID:        m.UUID,
+						Type:      model.MsgTypeSystem,
+						Content:   m.Content,
+						Timestamp: time.Now(),
+					}})
+				}
+			}
+		}
+	case "result":
+		var r struct {
+			Subtype string   `json:"subtype"`
+			IsError bool     `json:"is_error"`
+			Result  string   `json:"result"`
+			Errors  []string `json:"errors"`
+		}
+		if err := json.Unmarshal(raw, &r); err == nil {
+			a.publish(model.MsgThinkingEnded{})
+			if r.IsError {
+				errText := strings.TrimSpace(strings.Join(r.Errors, "\n"))
+				if errText == "" {
+					errText = strings.TrimSpace(r.Result)
+				}
+				if errText != "" {
+					a.publish(model.MsgError{Err: fmt.Errorf("%s", errText)})
+				}
+			}
+		}
+	case "control_request":
+		var req struct {
+			RequestID string `json:"request_id"`
+			Request   struct {
+				Subtype     string         `json:"subtype"`
+				ToolName    string         `json:"tool_name"`
+				Input       map[string]any `json:"input"`
+				Description string         `json:"description"`
+			} `json:"request"`
+		}
+		if err := json.Unmarshal(raw, &req); err == nil && req.Request.Subtype == "can_use_tool" {
+			a.publish(model.MsgPermissionRequest{Request: model.PermissionRequest{
+				ID:       req.RequestID,
+				ToolName: req.Request.ToolName,
+				Input:    req.Request.Input,
+				Meta:     req.Request.Description,
+			}})
+		}
+	case "control_response":
+		return
 	default:
 		return
 	}
+}
 
-	if msg != nil {
-		select {
-		case a.inbound <- msg:
-		default:
+func (a *Adapter) publish(msg model.InMsg) {
+	if msg == nil {
+		return
+	}
+	select {
+	case a.inbound <- msg:
+	default:
+	}
+}
+
+func extractStructuredText(raw json.RawMessage) string {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return extractStructuredValue(value)
+}
+
+func extractStructuredValue(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			text := strings.TrimSpace(extractStructuredValue(item))
+			if text != "" {
+				parts = append(parts, text)
+			}
 		}
+		return strings.Join(parts, "\n")
+	case map[string]any:
+		if content, ok := v["content"]; ok {
+			return extractStructuredValue(content)
+		}
+		if text, ok := v["text"].(string); ok {
+			return text
+		}
+		if thinking, ok := v["thinking"].(string); ok {
+			return thinking
+		}
+		if result, ok := v["result"].(string); ok {
+			return result
+		}
+		}
+	}
+	return ""
+}
+
+func SendPermissionResponseCmd(bridge *Adapter, req model.PermissionRequest, approved bool) tea.Cmd {
+	return func() tea.Msg {
+		if bridge == nil {
+			return nil
+		}
+
+		var payload any
+		if bridge.bridgeCmd != "" {
+			response := map[string]any{
+				"type": "control_response",
+				"response": map[string]any{
+					"subtype":    "success",
+					"request_id": req.ID,
+					"response": map[string]any{
+						"toolUseID": req.ID,
+					},
+				},
+			}
+			if approved {
+				response["response"].(map[string]any)["response"] = map[string]any{
+					"behavior":    "allow",
+					"updatedInput": req.Input,
+					"toolUseID":   req.ID,
+				}
+			} else {
+				response["response"].(map[string]any)["response"] = map[string]any{
+					"behavior":  "deny",
+					"message":   "Denied from DuckHive TUI",
+					"toolUseID": req.ID,
+				}
+			}
+			payload = response
+		} else {
+			payload = map[string]any{
+				"type":     "permission_response",
+				"approved": approved,
+				"id":       req.ID,
+			}
+		}
+
+		raw, _ := json.Marshal(payload)
+		if err := bridge.Send(raw); err != nil {
+			return model.MsgError{Err: err}
+		}
+		return nil
 	}
 }
 
 // SendUserMessageCmd creates a command to send a user message.
 func SendUserMessageCmd(bridge *Adapter, text string) tea.Cmd {
 	return func() tea.Msg {
-		payload, _ := json.Marshal(map[string]any{
-			"type": "user_message",
-			"text": text,
-			"time": time.Now().Unix(),
-		})
+		var payload []byte
+		if bridge.bridgeCmd != "" {
+			payload, _ = json.Marshal(map[string]any{
+				"type": "user",
+				"message": map[string]any{
+					"role":    "user",
+					"content": text,
+				},
+				"parent_tool_use_id": nil,
+				"timestamp":          time.Now().Format(time.RFC3339),
+			})
+		} else {
+			payload, _ = json.Marshal(map[string]any{
+				"type": "user_message",
+				"text": text,
+				"time": time.Now().Unix(),
+			})
+		}
 		if err := bridge.Send(payload); err != nil {
 			return model.MsgError{Err: err}
 		}
@@ -308,7 +538,18 @@ func SendUserMessageCmd(bridge *Adapter, text string) tea.Cmd {
 // SendInterruptCmd creates a command to interrupt the backend.
 func SendInterruptCmd(bridge *Adapter) tea.Cmd {
 	return func() tea.Msg {
-		payload, _ := json.Marshal(map[string]any{"type": "interrupt"})
+		var payload []byte
+		if bridge.bridgeCmd != "" {
+			payload, _ = json.Marshal(map[string]any{
+				"type":       "control_request",
+				"request_id": fmt.Sprintf("interrupt-%d", time.Now().UnixNano()),
+				"request": map[string]any{
+					"subtype": "interrupt",
+				},
+			})
+		} else {
+			payload, _ = json.Marshal(map[string]any{"type": "interrupt"})
+		}
 		if err := bridge.Send(payload); err != nil {
 			return model.MsgError{Err: err}
 		}

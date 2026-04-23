@@ -6,6 +6,10 @@ type FetchType = typeof globalThis.fetch
 const originalEnv = {
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  KIMI_API_KEY: process.env.KIMI_API_KEY,
+  MOONSHOT_API_KEY: process.env.MOONSHOT_API_KEY,
+  MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
+  NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
   CLAUDE_CODE_USE_GITHUB: process.env.CLAUDE_CODE_USE_GITHUB,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
@@ -74,6 +78,10 @@ function makeStreamChunks(chunks: unknown[]): string[] {
 beforeEach(() => {
   process.env.OPENAI_BASE_URL = 'http://example.test/v1'
   process.env.OPENAI_API_KEY = 'test-key'
+  delete process.env.KIMI_API_KEY
+  delete process.env.MOONSHOT_API_KEY
+  delete process.env.MINIMAX_API_KEY
+  delete process.env.NVIDIA_API_KEY
   delete process.env.OPENAI_MODEL
   delete process.env.CLAUDE_CODE_USE_GITHUB
   delete process.env.GITHUB_TOKEN
@@ -93,6 +101,10 @@ beforeEach(() => {
 afterEach(() => {
   restoreEnv('OPENAI_BASE_URL', originalEnv.OPENAI_BASE_URL)
   restoreEnv('OPENAI_API_KEY', originalEnv.OPENAI_API_KEY)
+  restoreEnv('KIMI_API_KEY', originalEnv.KIMI_API_KEY)
+  restoreEnv('MOONSHOT_API_KEY', originalEnv.MOONSHOT_API_KEY)
+  restoreEnv('MINIMAX_API_KEY', originalEnv.MINIMAX_API_KEY)
+  restoreEnv('NVIDIA_API_KEY', originalEnv.NVIDIA_API_KEY)
   restoreEnv('OPENAI_MODEL', originalEnv.OPENAI_MODEL)
   restoreEnv('CLAUDE_CODE_USE_GITHUB', originalEnv.CLAUDE_CODE_USE_GITHUB)
   restoreEnv('GITHUB_TOKEN', originalEnv.GITHUB_TOKEN)
@@ -3506,6 +3518,41 @@ test('Moonshot: cn host is also detected', async () => {
   })
 
   expect(requestBody?.store).toBeUndefined()
+})
+
+test('Moonshot: provider-specific key overrides stale OPENAI_API_KEY', async () => {
+  process.env.OPENAI_BASE_URL = 'https://api.moonshot.ai/v1'
+  process.env.OPENAI_API_KEY = 'sk-stale-openai'
+  process.env.KIMI_API_KEY = 'sk-kimi-correct'
+
+  let capturedHeaders: Headers | undefined
+  globalThis.fetch = (async (_input, init) => {
+    capturedHeaders = new Headers(init?.headers)
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-1',
+        model: 'kimi-k2.5',
+        choices: [
+          { message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' },
+        ],
+        usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }) as FetchType
+
+  const client = createOpenAIShimClient({}) as OpenAIShimClient
+  await client.beta.messages.create({
+    model: 'kimi-k2.5',
+    system: 'you are kimi',
+    messages: [{ role: 'user', content: 'hi' }],
+    max_tokens: 64,
+    stream: false,
+  })
+
+  expect(capturedHeaders?.get('authorization')).toBe(
+    'Bearer sk-kimi-correct',
+  )
 })
 
 

@@ -9,6 +9,8 @@ const originalEnv = {
   CLAUDE_CODE_USE_OPENAI: process.env.CLAUDE_CODE_USE_OPENAI,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+  KIMI_API_KEY: process.env.KIMI_API_KEY,
+  MOONSHOT_API_KEY: process.env.MOONSHOT_API_KEY,
   CLAUDE_CODE_USE_GEMINI: process.env.CLAUDE_CODE_USE_GEMINI,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
@@ -29,6 +31,8 @@ afterEach(() => {
   restoreEnv('CLAUDE_CODE_USE_OPENAI', originalEnv.CLAUDE_CODE_USE_OPENAI)
   restoreEnv('OPENAI_API_KEY', originalEnv.OPENAI_API_KEY)
   restoreEnv('OPENAI_BASE_URL', originalEnv.OPENAI_BASE_URL)
+  restoreEnv('KIMI_API_KEY', originalEnv.KIMI_API_KEY)
+  restoreEnv('MOONSHOT_API_KEY', originalEnv.MOONSHOT_API_KEY)
   restoreEnv('CLAUDE_CODE_USE_GEMINI', originalEnv.CLAUDE_CODE_USE_GEMINI)
   restoreEnv('GEMINI_API_KEY', originalEnv.GEMINI_API_KEY)
   restoreEnv('GOOGLE_API_KEY', originalEnv.GOOGLE_API_KEY)
@@ -95,6 +99,15 @@ test('openai missing key error includes recovery guidance and config locations',
   )
   expect(message).toContain('Saved startup settings can come from')
   expect(message).toContain('.openclaude-profile.json')
+})
+
+test('accepts KIMI_API_KEY for Moonshot-compatible provider auth', async () => {
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL = 'https://api.moonshot.ai/v1'
+  delete process.env.OPENAI_API_KEY
+  process.env.KIMI_API_KEY = 'sk-kimi-test'
+
+  await expect(getProviderValidationError(process.env)).resolves.toBeNull()
 })
 
 test('startup provider validation allows interactive recovery', () => {

@@ -84,6 +84,7 @@ const BUILT_IN_PROVIDERS: Record<string, ProviderPreset> = {
     urlTemplate: 'https://api.search.brave.com/res/v1/web/search',
     queryParam: 'q',
     authHeader: 'X-Subscription-Token',
+    authScheme: '',
     responseAdapter(data: any) {
       return (data.web?.results ?? []).map((r: any) => ({
         title: r.title ?? '',
