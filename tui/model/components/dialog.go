@@ -45,7 +45,7 @@ func (m *DialogModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected--
 			}
 		case "down", "j":
-			if m.selected < len(m.choices)-1 {
+			if len(m.choices) > 0 && m.selected < len(m.choices)-1 {
 				m.selected++
 			}
 		case "enter":

@@ -497,41 +497,37 @@ func SendPermissionResponseCmd(bridge *Adapter, req model.PermissionRequest, app
 			return nil
 		}
 
-		var payload any
+		var response map[string]any
 		if bridge.bridgeCmd != "" {
-			response := map[string]any{
-				"type": "control_response",
-				"response": map[string]any{
-					"subtype":    "success",
-					"request_id": req.ID,
-					"response": map[string]any{
-						"toolUseID": req.ID,
-					},
-				},
+			response = map[string]any{
+				"type":     "control_response",
+				"request_id": req.ID,
 			}
 			if approved {
-				response["response"].(map[string]any)["response"] = map[string]any{
+				response["response"] = map[string]any{
 					"behavior":     "allow",
 					"updatedInput": req.Input,
 					"toolUseID":    req.ID,
 				}
 			} else {
-				response["response"].(map[string]any)["response"] = map[string]any{
+				response["response"] = map[string]any{
 					"behavior":  "deny",
 					"message":   "Denied from DuckHive TUI",
 					"toolUseID": req.ID,
 				}
 			}
-			payload = response
 		} else {
-			payload = map[string]any{
+			response = map[string]any{
 				"type":     "permission_response",
 				"approved": approved,
 				"id":       req.ID,
 			}
 		}
 
-		raw, _ := json.Marshal(payload)
+		raw, err := json.Marshal(response)
+		if err != nil {
+			return model.MsgError{Err: fmt.Errorf("marshal permission response: %w", err)}
+		}
 		if err := bridge.Send(raw); err != nil {
 			return model.MsgError{Err: err}
 		}
@@ -543,8 +539,9 @@ func SendPermissionResponseCmd(bridge *Adapter, req model.PermissionRequest, app
 func SendUserMessageCmd(bridge *Adapter, text string) tea.Cmd {
 	return func() tea.Msg {
 		var payload []byte
+		var err error
 		if bridge.bridgeCmd != "" {
-			payload, _ = json.Marshal(map[string]any{
+			payload, err = json.Marshal(map[string]any{
 				"type": "user",
 				"message": map[string]any{
 					"role":    "user",
@@ -554,11 +551,14 @@ func SendUserMessageCmd(bridge *Adapter, text string) tea.Cmd {
 				"timestamp":          time.Now().Format(time.RFC3339),
 			})
 		} else {
-			payload, _ = json.Marshal(map[string]any{
+			payload, err = json.Marshal(map[string]any{
 				"type": "user_message",
 				"text": text,
 				"time": time.Now().Unix(),
 			})
+		}
+		if err != nil {
+			return model.MsgError{Err: fmt.Errorf("marshal user message: %w", err)}
 		}
 		if err := bridge.Send(payload); err != nil {
 			return model.MsgError{Err: err}
@@ -571,8 +571,9 @@ func SendUserMessageCmd(bridge *Adapter, text string) tea.Cmd {
 func SendInterruptCmd(bridge *Adapter) tea.Cmd {
 	return func() tea.Msg {
 		var payload []byte
+		var err error
 		if bridge.bridgeCmd != "" {
-			payload, _ = json.Marshal(map[string]any{
+			payload, err = json.Marshal(map[string]any{
 				"type":       "control_request",
 				"request_id": fmt.Sprintf("interrupt-%d", time.Now().UnixNano()),
 				"request": map[string]any{
@@ -580,7 +581,10 @@ func SendInterruptCmd(bridge *Adapter) tea.Cmd {
 				},
 			})
 		} else {
-			payload, _ = json.Marshal(map[string]any{"type": "interrupt"})
+			payload, err = json.Marshal(map[string]any{"type": "interrupt"})
+		}
+		if err != nil {
+			return model.MsgError{Err: fmt.Errorf("marshal interrupt: %w", err)}
 		}
 		if err := bridge.Send(payload); err != nil {
 			return model.MsgError{Err: err}

@@ -539,6 +539,9 @@ func (m *MainModel) handleOutbound(msg model.OutMsg) (tea.Model, tea.Cmd) {
 		if msg.Screen != model.ScreenREPL {
 			m.state.StatusMsg = ""
 		}
+		// Clear any pending permission when navigating away
+		m.state.DialogOpen = false
+		m.state.PendingPermission = nil
 
 	case model.MsgPushDialog:
 		m.state.DialogOpen = true
@@ -1693,10 +1696,15 @@ func stripANSI(s string) string {
 }
 
 func truncate(s string, max int) string {
-	if max < 8 || len(s) <= max {
+	if max < 8 {
 		return s
 	}
-	return s[:max-3] + "..."
+	// Use rune count for proper multi-byte character handling (CJK, emoji)
+	rs := []rune(s)
+	if len(rs) <= max {
+		return s
+	}
+	return string(rs[:max-3]) + "..."
 }
 
 func messageID(prefix string) string {
