@@ -101,7 +101,7 @@ export function HistorySearchDialog({
     const shown = wrapped.slice(0, overflow ? PREVIEW_ROWS - 1 : PREVIEW_ROWS);
     const more = wrapped.length - shown.length;
     return <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} height={PREVIEW_ROWS + 2}>
-            {shown.map((row, i) => <Text key={i} dimColor>
+            {shown.map((row, idx) => <Text key={`${row.slice(0, 20)}-${idx}`} dimColor>
                 {row}
               </Text>)}
             {more > 0 && <Text dimColor>{`… +${more} more lines`}</Text>}

@@ -53,7 +53,7 @@ export const HiveSenateTool = buildTool({
     switch (action) {
       case 'list': {
         const decrees = await hive.getActiveDecrees()
-        return { data: { success: true, action: 'list', decrees: decrees.map(d => ({ id: d.id, title: d.title, status: d.status, priority: (d as any).priority ?? 'medium', votes: { yeas: 0, nays: 0 } })) } }
+        return { data: { success: true, action: 'list', decrees: decrees.map(d => ({ id: d.id, title: d.title, status: d.status, priority: d.priority, votes: { yeas: 0, nays: 0 } })) } }
       }
       case 'issue': {
         if (!title || !content) return { data: { success: false, action: 'issue', error: 'title and content required' } }

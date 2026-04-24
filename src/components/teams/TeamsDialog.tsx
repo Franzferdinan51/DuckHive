@@ -74,9 +74,10 @@ export function TeamsDialog({
   }, [dialogLevel.teamName, refreshKey]);
 
   // Periodically refresh to pick up mode changes from teammates
+  // Refresh teammate statuses every 5s — balance between responsiveness and performance
   useInterval(() => {
     setRefreshKey(k => k + 1);
-  }, 1000);
+  }, 5000);
   const currentTeammate = useMemo(() => {
     if (dialogLevel.type !== 'teammateDetail') return null;
     return teammateStatuses.find(t => t.name === dialogLevel.memberName) ?? null;

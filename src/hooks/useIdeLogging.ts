@@ -24,18 +24,22 @@ export function useIdeLogging(mcpClients: MCPServerConnection[]): void {
 
     // Find the IDE client from the MCP clients list
     const ideClient = getConnectedIdeClient(mcpClients)
-    if (ideClient) {
-      // Register the log event handler
-      ideClient.client.setNotificationHandler(
-        LogEventSchema(),
-        notification => {
-          const { eventName, eventData } = notification.params
-          logEvent(
-            `tengu_ide_${eventName}`,
-            eventData as { [key: string]: boolean | number | undefined },
-          )
-        },
-      )
+    if (!ideClient) return
+
+    // Register the log event handler with cleanup
+    const handler = ideClient.client.setNotificationHandler(
+      LogEventSchema(),
+      notification => {
+        const { eventName, eventData } = notification.params
+        logEvent(
+          `tengu_ide_${eventName}`,
+          eventData as { [key: string]: boolean | number | undefined },
+        )
+      },
+    )
+
+    return () => {
+      ideClient.client.removeNotificationHandler(LogEventSchema(), handler)
     }
   }, [mcpClients])
 }

@@ -34,11 +34,5 @@ export function useMergedTools(
       assembled,
       toolPermissionContext.mode,
     )
-  }, [
-    initialTools,
-    mcpTools,
-    toolPermissionContext,
-    replBridgeEnabled,
-    replBridgeOutboundOnly,
-  ])
+  }, [initialTools, mcpTools, toolPermissionContext])
 }

@@ -60,6 +60,17 @@ func NewSubprocessAdapter(bridgeCmd string, args ...string) *Adapter {
 // Start initiates the bridge connection. Returns a Bubble Tea command.
 func (a *Adapter) Start() tea.Cmd {
 	return func() tea.Msg {
+		a.mu.Lock()
+		if a.closed {
+			a.mu.Unlock()
+			return model.MsgBridgeDisconnected{Err: fmt.Errorf("adapter already closed")}
+		}
+		if a.conn != nil || a.stdin != nil {
+			a.mu.Unlock()
+			return model.MsgBridgeConnected{} // already running
+		}
+		a.mu.Unlock()
+
 		if a.bridgeCmd != "" {
 			if err := a.startSubprocess(); err != nil {
 				return model.MsgBridgeDisconnected{Err: err}
@@ -122,6 +133,7 @@ func (a *Adapter) startSubprocess() error {
 		case a.inbound <- model.MsgBridgeDisconnected{Err: fmt.Errorf("bridge process exited")}:
 		default:
 		}
+		return
 	}()
 
 	return nil
@@ -191,6 +203,12 @@ func (a *Adapter) readFrom(r io.Reader) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
 	for sc.Scan() {
+		a.mu.RLock()
+		closed := a.closed
+		a.mu.RUnlock()
+		if closed {
+			return
+		}
 		raw := sc.Bytes()
 		a.handleFrame(raw)
 	}
@@ -201,6 +219,12 @@ func (a *Adapter) readErrors(r io.Reader) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 8*1024), 512*1024)
 	for sc.Scan() {
+		a.mu.RLock()
+		closed := a.closed
+		a.mu.RUnlock()
+		if closed {
+			return
+		}
 		select {
 		case a.inbound <- model.MsgError{Err: fmt.Errorf("bridge: %s", sc.Text())}:
 		default:
@@ -214,16 +238,25 @@ func (a *Adapter) writeLoop() {
 		a.mu.RLock()
 		closed := a.closed
 		conn := a.conn
+		stdin := a.stdin
+		isSubprocess := a.bridgeCmd != ""
 		a.mu.RUnlock()
-		if closed || conn == nil {
+		if closed {
+			return
+		}
+		if isSubprocess {
+			if stdin == nil {
+				return
+			}
+		} else if conn == nil {
 			return
 		}
 
-	select {
+		select {
 		case payload := <-a.outbound:
 			data := append(payload, '\n')
-			if a.bridgeCmd != "" && a.stdin != nil {
-				if _, err := a.stdin.Write(data); err != nil {
+			if isSubprocess {
+				if _, err := stdin.Write(data); err != nil {
 					return
 				}
 				continue
@@ -454,7 +487,6 @@ func extractStructuredValue(value any) string {
 		if result, ok := v["result"].(string); ok {
 			return result
 		}
-		}
 	}
 	return ""
 }
@@ -479,9 +511,9 @@ func SendPermissionResponseCmd(bridge *Adapter, req model.PermissionRequest, app
 			}
 			if approved {
 				response["response"].(map[string]any)["response"] = map[string]any{
-					"behavior":    "allow",
+					"behavior":     "allow",
 					"updatedInput": req.Input,
-					"toolUseID":   req.ID,
+					"toolUseID":    req.ID,
 				}
 			} else {
 				response["response"].(map[string]any)["response"] = map[string]any{

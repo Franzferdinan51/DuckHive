@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,6 +42,8 @@ type workspaceCapabilities struct {
 	hasMercury          bool
 	activeProvider      string
 	configuredProviders []string
+	searchProvider      string
+	configuredSearch    []string
 }
 
 type featurePillar struct {
@@ -73,7 +76,30 @@ type MainModel struct {
 	cap           workspaceCapabilities
 	shellCancel   context.CancelFunc
 	shellRunning  bool
+	handoff       *uiHandoff
 }
+
+type uiSurface string
+
+const (
+	uiSurfaceTUI    uiSurface = "tui"
+	uiSurfaceLegacy uiSurface = "legacy"
+)
+
+type uiHandoff struct {
+	target uiSurface
+}
+
+type localTUICommand string
+
+const (
+	localTUICommandDeck       localTUICommand = "deck"
+	localTUICommandStatus     localTUICommand = "status"
+	localTUICommandSuperAgent localTUICommand = "super-agent"
+	localTUICommandCouncil    localTUICommand = "council"
+	localTUICommandProvider   localTUICommand = "provider"
+	localTUICommandSearch     localTUICommand = "search"
+)
 
 func main() {
 	var adapter *bridge.Adapter
@@ -107,6 +133,15 @@ func main() {
 	if err := p.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "TUI error: %v\n", err)
 		os.Exit(1)
+	}
+
+	if m.handoff != nil {
+		exitCode, err := m.handoff.Execute()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "UI handoff error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(exitCode)
 	}
 }
 
@@ -163,7 +198,11 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.dialog != nil {
-			_, _ = m.dialog.Update(msg)
+			updated, cmd := m.dialog.Update(msg)
+			if cmd != nil {
+				m.dialog = updated.(*components.DialogModel)
+				return m, cmd
+			}
 		}
 
 		if out, consumed := tui.HandleKey(msg, m.keys, m.currentContext()); consumed {
@@ -218,14 +257,8 @@ func (m *MainModel) replView() string {
 	}
 
 	conversation := m.renderConversationPane(mainWidth)
-	pills := m.renderPillBar(mainWidth)
 	composer := m.renderComposerPane(mainWidth)
-	parts := []string{conversation}
-	if pills != "" {
-		parts = append(parts, pills)
-	}
-	parts = append(parts, composer)
-	body := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	body := lipgloss.JoinVertical(lipgloss.Left, conversation, composer)
 
 	if railWidth > 0 {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, body, m.renderRail(railWidth))
@@ -251,19 +284,22 @@ func (m *MainModel) renderConversationPane(width int) string {
 }
 
 func (m *MainModel) renderComposerPane(width int) string {
-	modeLabel := tui.ModePill.Render(m.state.InputMode.String())
-	metaParts := []string{modeLabel}
+	metaParts := []string{
+		tui.CardMuted.Render("mode " + m.state.InputMode.String()),
+	}
 	if m.state.IsFastMode {
-		metaParts = append(metaParts, tui.MetaPill.Render("FAST"))
+		metaParts = append(metaParts, tui.CardMuted.Render("fast"))
 	}
 	if m.state.IsThinking {
-		metaParts = append(metaParts, tui.MetaPill.Render("THINK"))
+		metaParts = append(metaParts, tui.CardMuted.Render("thinking"))
 	}
 	if m.state.BridgeConnected {
-		metaParts = append(metaParts, tui.MetaPill.Render("BRIDGE"))
+		metaParts = append(metaParts, tui.CardMuted.Render("bridge"))
+	} else {
+		metaParts = append(metaParts, tui.CardMuted.Render("local"))
 	}
 
-	label := lipgloss.JoinHorizontal(lipgloss.Left, metaParts...)
+	label := strings.Join(metaParts, "  ")
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		label,
@@ -273,97 +309,37 @@ func (m *MainModel) renderComposerPane(width int) string {
 	return lipgloss.NewStyle().Width(width).Render(content)
 }
 
-func (m *MainModel) renderPillBar(width int) string {
-	pills := []string{
-		tui.PillActive.Render(strings.ToUpper(m.displayProvider())),
-		tui.PillMuted.Render(truncate(m.displayModel(), maxInt(14, width/5))),
-	}
-
-	if m.state.BridgeConnected {
-		pills = append(pills, tui.PillOk.Render("BRIDGE"))
-	} else {
-		pills = append(pills, tui.PillWarn.Render("LOCAL"))
-	}
-	if m.cap.hasCouncil {
-		pills = append(pills, tui.PillOk.Render("COUNCIL"))
-	}
-	if m.cap.hasTeams {
-		pills = append(pills, tui.PillOk.Render("TEAMS"))
-	}
-	if m.cap.hasMCP {
-		pills = append(pills, tui.PillMuted.Render("MCP"))
-	}
-	if m.state.ActiveTaskCount > 0 {
-		pills = append(pills, tui.PillMuted.Render(fmt.Sprintf("%d TASKS", m.state.ActiveTaskCount)))
-	}
-	if len(m.cap.configuredProviders) > 0 {
-		pills = append(pills, tui.PillMuted.Render(fmt.Sprintf("%d KEYS", len(m.cap.configuredProviders))))
-	}
-
-	return lipgloss.NewStyle().Width(width).Render(strings.Join(pills, " "))
-}
-
 func (m *MainModel) renderEmptyState(width int) string {
-	title := tui.EmptyTitle.Render("DuckHive shell")
-	subtitle := tui.EmptyBody.Render("OpenClaude core, DuckHive routing, local tooling, council flows, agent teams, and provider switching without leaving the session.")
-
-	quickStart := lipgloss.JoinVertical(
-		lipgloss.Left,
-		tui.SectionTitle.Render("Quick start"),
-		tui.EmptyItem.Render("Ask for a code change, bug fix, or repo audit"),
-		tui.EmptyItem.Render("Switch providers with /provider and models with /models"),
-		tui.EmptyItem.Render("Use /status and /doctor to inspect the harness"),
-		tui.EmptyItem.Render("Use /team, /council, and /orchestrate for heavier work"),
-		tui.EmptyItem.Render("Use ctrl+x to run local shell commands without leaving DuckHive"),
-	)
-
-	commandDeck := lipgloss.JoinVertical(
-		lipgloss.Left,
-		tui.SectionTitle.Render("Command deck"),
-		tui.EmptyItem.Render("/status   /doctor   /provider   /models"),
-		tui.EmptyItem.Render("/mcp      /memory   /team       /council"),
-		tui.EmptyItem.Render("/orchestrate   /desktop   /voice   /review"),
-	)
-
-	workspaceInfo := []string{
-		fmt.Sprintf("workspace  %s", filepath.Base(m.state.WorkingDir)),
-		fmt.Sprintf("provider   %s", m.displayProvider()),
-		fmt.Sprintf("model      %s", truncate(m.displayModel(), maxInt(18, width/3))),
-		fmt.Sprintf("bridge     %s", boolLabel(m.state.BridgeConnected, "connected", "local")),
-		fmt.Sprintf("council    %s", boolLabel(m.cap.hasCouncil, "ready", "later")),
-		fmt.Sprintf("teams      %s", boolLabel(m.cap.hasTeams, "ready", "later")),
-		fmt.Sprintf("mcp        %s", boolLabel(m.cap.hasMCP, "ready", "later")),
+	cardWidth := maxInt(48, width-8)
+	innerWidth := maxInt(40, cardWidth-8)
+	quickStart := []string{
+		"Ask for a code change, bug fix, repo review, or plan.",
+		"/help opens this deck. /status shows bridge/provider state.",
+		"/repl returns to the classic REPL without changing your default.",
 	}
-	if len(m.cap.configuredProviders) > 0 {
-		workspaceInfo = append(workspaceInfo, fmt.Sprintf("keys       %s", strings.Join(m.cap.configuredProviders, ", ")))
+	superAgent := []string{
+		"Super Agent: meta agents + teams + council + subagents.",
+		"/orchestrate <task> --dry-run previews routing.",
+		"/team templates and /council expose Hive Nation.",
 	}
-	status := lipgloss.JoinVertical(lipgloss.Left, renderMutedLines(workspaceInfo)...)
+	system := []string{
+		fmt.Sprintf("Provider: %s / %s", m.displayProvider(), truncate(m.displayModel(), 28)),
+		fmt.Sprintf("Search: %s", m.displaySearchProvider()),
+		fmt.Sprintf("Bridge: %s", boolLabel(m.state.BridgeConnected, "connected", "local safe mode")),
+	}
 
-	shortcuts := lipgloss.JoinVertical(
-		lipgloss.Left,
-		tui.SectionTitle.Render("Keys"),
-		tui.EmptyItem.Render("enter send"),
-		tui.EmptyItem.Render("shift+tab cycle mode"),
-		tui.EmptyItem.Render("ctrl+p models"),
-		tui.EmptyItem.Render("ctrl+o transcript"),
-		tui.EmptyItem.Render("ctrl+t deck"),
-		tui.EmptyItem.Render("ctrl+x shell"),
-	)
-
-	rightCol := lipgloss.JoinVertical(
-		lipgloss.Left,
-		tui.SideCard.Render(status),
-		"",
-		tui.SideCard.Render(shortcuts),
-	)
-
-	main := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		tui.EmptyCard.Width(maxInt(36, width-30)).Render(
-			lipgloss.JoinVertical(lipgloss.Left, title, subtitle, "", quickStart, "", commandDeck),
+	main := tui.EmptyCard.Width(cardWidth).Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			tui.HeroTitle.Render("DuckHive Super Agent"),
+			tui.EmptyBody.Render("One operator shell for coding, local tools, AI Council, Agent Teams, search, media, MCP, and provider routing."),
+			"",
+			m.renderMiniDeck(innerWidth, "Start", quickStart),
+			"",
+			m.renderMiniDeck(innerWidth, "Operate", superAgent),
+			"",
+			m.renderMiniDeck(innerWidth, "Session", system),
 		),
-		"  ",
-		rightCol,
 	)
 
 	return lipgloss.Place(
@@ -373,6 +349,14 @@ func (m *MainModel) renderEmptyState(width int) string {
 		lipgloss.Center,
 		main,
 	)
+}
+
+func (m *MainModel) renderMiniDeck(width int, title string, lines []string) string {
+	rendered := []string{tui.SectionTitle.Render(title)}
+	for _, line := range lines {
+		rendered = append(rendered, tui.EmptyItem.Width(width).Render("• "+line))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rendered...)
 }
 
 func (m *MainModel) handleBridgeMessage(msg model.InMsg) (tea.Model, tea.Cmd) {
@@ -616,6 +600,14 @@ func (m *MainModel) submitInput() tea.Cmd {
 		return m.runShellCommand(text)
 	}
 
+	if handled, cmd := m.handleUISwitchCommand(text); handled {
+		return cmd
+	}
+
+	if handled, cmd := m.handleLocalTUICommand(text); handled {
+		return cmd
+	}
+
 	if m.bridge == nil {
 		m.appendMessage(model.Message{
 			ID:        messageID("system"),
@@ -630,6 +622,292 @@ func (m *MainModel) submitInput() tea.Cmd {
 	m.state.IsLoading = true
 	m.state.StatusMsg = "dispatching request"
 	return bridge.SendUserMessageCmd(m.bridge, payload)
+}
+
+func (m *MainModel) handleUISwitchCommand(text string) (bool, tea.Cmd) {
+	target, handled, err := parseUISwitchCommand(text)
+	if !handled {
+		return false, nil
+	}
+
+	if err != nil {
+		m.appendMessage(model.Message{
+			ID:        messageID("system"),
+			Type:      model.MsgTypeSystem,
+			Content:   err.Error(),
+			IsError:   true,
+			Timestamp: time.Now(),
+		})
+		m.state.StatusMsg = err.Error()
+		return true, nil
+	}
+
+	if target == uiSurfaceTUI {
+		if err := setDuckHiveUISurfacePreference(target); err != nil {
+			msg := fmt.Sprintf("Failed to save default UI: %v", err)
+			m.appendMessage(model.Message{
+				ID:        messageID("system"),
+				Type:      model.MsgTypeSystem,
+				Content:   msg,
+				IsError:   true,
+				Timestamp: time.Now(),
+			})
+			m.state.StatusMsg = msg
+			return true, nil
+		}
+
+		msg := "Default UI set to Go TUI. Already using it in this session. Use /repl or /tui legacy to switch back."
+		m.appendMessage(model.Message{
+			ID:        messageID("system"),
+			Type:      model.MsgTypeSystem,
+			Content:   msg,
+			Timestamp: time.Now(),
+		})
+		m.state.StatusMsg = msg
+		return true, nil
+	}
+
+	m.handoff = &uiHandoff{target: target}
+	m.state.StatusMsg = "switching to classic REPL"
+	return true, tea.Quit
+}
+
+func parseUISwitchCommand(text string) (uiSurface, bool, error) {
+	fields := strings.Fields(strings.TrimSpace(text))
+	if len(fields) == 0 {
+		return "", false, nil
+	}
+
+	switch strings.ToLower(fields[0]) {
+	case "/repl":
+		if len(fields) > 1 {
+			return "", true, fmt.Errorf("Usage: /repl")
+		}
+		return uiSurfaceLegacy, true, nil
+	case "/tui", "/ui":
+		if len(fields) == 1 {
+			return uiSurfaceTUI, true, nil
+		}
+
+		switch strings.ToLower(fields[1]) {
+		case "tui", "go", "bubbletea":
+			return uiSurfaceTUI, true, nil
+		case "legacy", "repl", "classic", "ink":
+			return uiSurfaceLegacy, true, nil
+		default:
+			return "", true, fmt.Errorf("Usage: /tui [tui|legacy]")
+		}
+	default:
+		return "", false, nil
+	}
+}
+
+func parseLocalTUICommand(text string) (localTUICommand, bool) {
+	fields := strings.Fields(strings.TrimSpace(text))
+	if len(fields) == 0 {
+		return "", false
+	}
+
+	command := strings.ToLower(fields[0])
+	hasArgs := len(fields) > 1
+	switch command {
+	case "/help", "/?", "/deck":
+		return localTUICommandDeck, true
+	case "/status", "/doctor":
+		return localTUICommandStatus, true
+	case "/agents", "/agent", "/teams", "/super", "/super-agent":
+		if hasArgs {
+			return "", false
+		}
+		return localTUICommandSuperAgent, true
+	case "/council":
+		if hasArgs {
+			return "", false
+		}
+		return localTUICommandCouncil, true
+	case "/provider", "/providers", "/model", "/models":
+		if hasArgs {
+			return "", false
+		}
+		return localTUICommandProvider, true
+	case "/search-provider", "/search-providers", "/search", "/web":
+		if hasArgs {
+			return "", false
+		}
+		return localTUICommandSearch, true
+	default:
+		return "", false
+	}
+}
+
+func (m *MainModel) handleLocalTUICommand(text string) (bool, tea.Cmd) {
+	command, handled := parseLocalTUICommand(text)
+	if !handled {
+		return false, nil
+	}
+
+	content := m.localCommandContent(command)
+	m.appendMessage(model.Message{
+		ID:        messageID("system"),
+		Type:      model.MsgTypeSystem,
+		Content:   content,
+		Timestamp: time.Now(),
+	})
+	m.state.StatusMsg = localCommandStatus(command)
+	return true, nil
+}
+
+func localCommandStatus(command localTUICommand) string {
+	switch command {
+	case localTUICommandDeck:
+		return "command deck"
+	case localTUICommandStatus:
+		return "status snapshot"
+	case localTUICommandSuperAgent:
+		return "super agent surface"
+	case localTUICommandCouncil:
+		return "council surface"
+	case localTUICommandProvider:
+		return "provider surface"
+	case localTUICommandSearch:
+		return "search provider surface"
+	default:
+		return "ready"
+	}
+}
+
+func (m *MainModel) localCommandContent(command localTUICommand) string {
+	switch command {
+	case localTUICommandStatus:
+		return m.statusSnapshot()
+	case localTUICommandSuperAgent:
+		return m.superAgentSnapshot()
+	case localTUICommandCouncil:
+		return m.councilSnapshot()
+	case localTUICommandProvider:
+		return m.providerSnapshot()
+	case localTUICommandSearch:
+		return m.searchSnapshot()
+	default:
+		return m.commandDeckText()
+	}
+}
+
+func (m *MainModel) commandDeckText() string {
+	return strings.Join([]string{
+		"DuckHive command deck",
+		"",
+		"Super Agent",
+		"  /agents - show the unified operator surface for meta agents, Agent Teams, subagents, and swarm routing.",
+		"  /orchestrate <task> --dry-run - analyze complexity, council need, and team plan in the JS backend.",
+		"  /team templates - list Agent Team templates; /team spawn <name> <type> starts one when Hive Nation is online.",
+		"",
+		"AI Council",
+		"  /council - local capability card.",
+		"  /council <question> - starts backend deliberation when the bridge is connected.",
+		"  Shift+Tab cycles composer modes; council mode prefixes prompts for deliberation.",
+		"",
+		"Search providers",
+		"  /search-provider - show the active web search provider and required env keys.",
+		"  /search-provider <mode> - in the classic REPL, persist auto/native/ddg/searxng/tavily/exa/you/jina/bing/mojeek/linkup/custom.",
+		"",
+		"Session controls",
+		"  /status - status snapshot. /provider - model/provider snapshot. /repl - return to the classic REPL.",
+		"  Ctrl+T toggles the side deck. Ctrl+O toggles transcript. Ctrl+X toggles local shell mode.",
+	}, "\n")
+}
+
+func (m *MainModel) statusSnapshot() string {
+	return strings.Join([]string{
+		"DuckHive status",
+		"",
+		fmt.Sprintf("Workspace: %s", filepath.Base(m.state.WorkingDir)),
+		fmt.Sprintf("Bridge: %s", boolLabel(m.state.BridgeConnected, "connected", "local only")),
+		fmt.Sprintf("Provider: %s", m.displayProvider()),
+		fmt.Sprintf("Model: %s", m.displayModel()),
+		fmt.Sprintf("Search: %s", m.displaySearchProvider()),
+		fmt.Sprintf("Mode: %s", m.state.InputMode.String()),
+		fmt.Sprintf("Fast mode: %s", boolLabel(m.state.IsFastMode, "on", "off")),
+		fmt.Sprintf("Active tasks: %d", m.state.ActiveTaskCount),
+		fmt.Sprintf("Checkpoints: %d", m.cap.checkpointCount),
+		"",
+		"Use /doctor in the classic REPL for the full backend diagnostic UI.",
+	}, "\n")
+}
+
+func (m *MainModel) superAgentSnapshot() string {
+	lines := []string{
+		"Super Agent",
+		"",
+		fmt.Sprintf("Meta agents: %s", boolLabel(envIsNotFalse("DUCKHIVE_META_ENABLED"), "enabled", "disabled")),
+		fmt.Sprintf("Agent Teams: %s", boolLabel(m.cap.hasTeams, "wired", "not detected")),
+		fmt.Sprintf("AI Council: %s", boolLabel(m.cap.hasCouncil, "wired", "not detected")),
+		fmt.Sprintf("MCP services: %s", boolLabel(m.cap.hasMCP, "detected", "not detected")),
+		fmt.Sprintf("ACP bridge: %s", boolLabel(m.cap.hasACP, "detected", "not detected")),
+		"",
+		"Backend commands:",
+		"  /orchestrate <task> --dry-run",
+		"  /orchestrate <task> --council --team=code",
+		"  /team templates",
+		"  /team spawn <name> code",
+		"  /spawn <agent>",
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *MainModel) councilSnapshot() string {
+	return strings.Join([]string{
+		"AI Council",
+		"",
+		fmt.Sprintf("Council files: %s", boolLabel(m.cap.hasCouncil, "wired", "not detected")),
+		fmt.Sprintf("Council env: %s", boolLabel(envIsNotFalse("DUCKHIVE_COUNCIL_ENABLED"), "enabled", "disabled")),
+		"Roles include governance, technology, ethics, practical review, skepticism, coding, security, QA, vision, and specialist councilors.",
+		"",
+		"Use /council <question> in a bridged session to start deliberation.",
+		"Use /council --status in the classic REPL for active deliberation state.",
+	}, "\n")
+}
+
+func (m *MainModel) providerSnapshot() string {
+	configured := "none"
+	if len(m.cap.configuredProviders) > 0 {
+		configured = strings.Join(m.cap.configuredProviders, ", ")
+	}
+	return strings.Join([]string{
+		"Model providers",
+		"",
+		fmt.Sprintf("Active: %s", m.displayProvider()),
+		fmt.Sprintf("Model: %s", m.displayModel()),
+		fmt.Sprintf("Configured keys: %s", configured),
+		"First-class DuckHive presets: MiniMax, LM Studio, ChatGPT/OpenAI.",
+		"",
+		"Use /provider in the classic REPL for the full provider manager.",
+		"Use --provider <provider> for one session or ~/.duckhive/config.json for defaults.",
+	}, "\n")
+}
+
+func (m *MainModel) searchSnapshot() string {
+	configured := "duckduckgo"
+	if len(m.cap.configuredSearch) > 0 {
+		configured = strings.Join(m.cap.configuredSearch, ", ")
+	}
+	return strings.Join([]string{
+		"Search providers",
+		"",
+		fmt.Sprintf("Active: %s", m.displaySearchProvider()),
+		fmt.Sprintf("Configured: %s", configured),
+		"Modes: auto, native, ddg, searxng, tavily, exa, you, jina, bing, mojeek, linkup, custom.",
+		"MiniMax CLI is also expected as a first-class media/search companion when mmx-cli is installed.",
+		"",
+		"Provider env keys:",
+		"  TAVILY_API_KEY, EXA_API_KEY, YOU_API_KEY, JINA_API_KEY, BING_API_KEY, MOJEEK_API_KEY, LINKUP_API_KEY",
+		"Custom env:",
+		"  WEB_PROVIDER, WEB_SEARCH_API, WEB_URL_TEMPLATE, WEB_KEY",
+		"SearXNG:",
+		"  /search-provider searxng --url http://localhost:8080/search",
+		"",
+		"Use /search-provider <mode> in the classic REPL to persist the default.",
+	}, "\n")
 }
 
 func (m *MainModel) runShellCommand(command string) tea.Cmd {
@@ -762,16 +1040,16 @@ func (m *MainModel) updateComposer() {
 	switch m.state.InputMode {
 	case model.InputModeShell:
 		m.input.SetPrompt("$ ")
-		m.input.SetPlaceholder("Run a local shell command")
+		m.input.SetPlaceholder("Run a local shell command. Ctrl+X returns to agent mode")
 	case model.InputModeCouncil:
 		m.input.SetPrompt("? ")
-		m.input.SetPlaceholder("Route a task through council-style deliberation")
+		m.input.SetPlaceholder("Ask for council-style deliberation, or use /council for status")
 	case model.InputModeMedia:
 		m.input.SetPrompt("* ")
-		m.input.SetPlaceholder("Describe image, video, speech, music, or search work")
+		m.input.SetPlaceholder("MiniMax/media/search/vision task. Try /search-provider")
 	default:
 		m.input.SetPrompt("> ")
-		m.input.SetPlaceholder("Ask DuckHive to code, plan, search, or reason")
+		m.input.SetPlaceholder("Ask DuckHive, /help, /agents, /council, /status")
 	}
 }
 
@@ -830,12 +1108,9 @@ func (m *MainModel) resizeLayout() {
 func (m *MainModel) renderHeader() string {
 	leftParts := []string{
 		tui.HeaderTitle.Render("DuckHive"),
-		tui.HeaderSubtitle.Render("//"),
 		tui.HeaderSubtitle.Render(filepath.Base(m.state.WorkingDir)),
-		tui.HeaderSubtitle.Render("•"),
-		tui.HeaderSubtitle.Render(m.displayProvider()),
-		tui.HeaderSubtitle.Render("•"),
-		tui.HeaderSubtitle.Render(truncate(m.displayModel(), 28)),
+		tui.HeaderSubtitle.Render(m.displayProvider() + "/" + truncate(m.displayModel(), 28)),
+		tui.HeaderSubtitle.Render("search:" + m.displaySearchProvider()),
 	}
 	left := strings.Join(leftParts, " ")
 
@@ -847,9 +1122,9 @@ func (m *MainModel) renderHeader() string {
 		rightParts = append(rightParts, tui.CardMuted.Render(fmt.Sprintf("%d tasks", m.state.ActiveTaskCount)))
 	}
 	if m.state.BridgeConnected {
-		rightParts = append(rightParts, tui.GoodBadge.Render("BRIDGE"))
+		rightParts = append(rightParts, tui.GoodBadge.Render("bridge"))
 	} else {
-		rightParts = append(rightParts, tui.WarnBadge.Render("LOCAL"))
+		rightParts = append(rightParts, tui.WarnBadge.Render("local"))
 	}
 	right := strings.Join(rightParts, "  ")
 
@@ -867,7 +1142,7 @@ func (m *MainModel) renderRail(width int) string {
 	if m.showInspector {
 		sections = append(sections, renderCard("Status", m.renderSessionCard(width), width))
 		sections = append(sections, renderCard("Capabilities", m.renderFeatureCard(width), width))
-		sections = append(sections, renderCard("Roadmap", m.renderTrackingCard(), width))
+		sections = append(sections, renderCard("Command Deck", m.renderCommandRail(), width))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -892,13 +1167,14 @@ func (m *MainModel) renderSessionCard(width int) string {
 		fmt.Sprintf("workspace  %s", filepath.Base(m.state.WorkingDir)),
 		fmt.Sprintf("provider   %s", m.displayProvider()),
 		fmt.Sprintf("model      %s", truncate(m.displayModel(), width-12)),
+		fmt.Sprintf("search     %s", m.displaySearchProvider()),
 		fmt.Sprintf("mode       %s", m.state.InputMode.String()),
 		fmt.Sprintf("fast       %s", boolLabel(m.state.IsFastMode, "on", "off")),
 		fmt.Sprintf("bridge     %s", boolLabel(m.state.BridgeConnected, "up", "local")),
 		fmt.Sprintf("tasks      %d", m.state.ActiveTaskCount),
 		fmt.Sprintf("checkpts   %d", m.cap.checkpointCount),
 		fmt.Sprintf("docs       %s", strings.Join(instructions, ", ")),
-		fmt.Sprintf("keys       %s", strings.Join(m.cap.configuredProviders, ", ")),
+		fmt.Sprintf("keys       %s", strings.Join(nonEmptyOrDefault(m.cap.configuredProviders, "none"), ", ")),
 	}
 
 	if m.state.StatusMsg != "" {
@@ -923,20 +1199,23 @@ func (m *MainModel) renderFeatureCard(width int) string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
-func (m *MainModel) renderTrackingCard() string {
+func (m *MainModel) renderCommandRail() string {
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		tui.CardMuted.Render("Tracked in:"),
-		tui.Accent.Render("tui/TODO.md"),
-		tui.Accent.Render("tui/KANBAN.md"),
-		tui.Accent.Render("tui/FEATURE_MATRIX.md"),
+		tui.CardMuted.Render("/help deck"),
+		tui.CardMuted.Render("/status snapshot"),
+		tui.CardMuted.Render("/provider models"),
+		tui.CardMuted.Render("/search-provider search"),
+		tui.CardMuted.Render("/agents super agent"),
+		tui.CardMuted.Render("/council deliberation"),
+		tui.CardMuted.Render("/repl classic UI"),
 	)
 }
 
 func (m *MainModel) renderFooter() string {
 	status := m.state.StatusMsg
 	if status == "" {
-		status = "ready"
+		status = "ready · /help deck · /agents super agent · /search-provider web · /repl classic"
 	}
 
 	help := formatHelp(tui.ActiveBindings(m.keys, m.currentContext()))
@@ -1025,6 +1304,8 @@ func detectWorkspaceCapabilities(root string) workspaceCapabilities {
 		hasMercury:          true,
 		activeProvider:      detectActiveProvider(),
 		configuredProviders: detectConfiguredProviders(),
+		searchProvider:      detectSearchProvider(),
+		configuredSearch:    detectConfiguredSearchProviders(),
 	}
 }
 
@@ -1041,6 +1322,139 @@ func (m *MainModel) displayProvider() string {
 		return provider
 	}
 	return "auto"
+}
+
+func (m *MainModel) displaySearchProvider() string {
+	if provider := strings.TrimSpace(m.cap.searchProvider); provider != "" {
+		return provider
+	}
+	return "auto"
+}
+
+func (h *uiHandoff) Execute() (int, error) {
+	if h == nil {
+		return 0, nil
+	}
+
+	if err := setDuckHiveUISurfacePreference(h.target); err != nil {
+		return 1, err
+	}
+
+	switch h.target {
+	case uiSurfaceLegacy:
+		return launchLegacyREPL()
+	default:
+		return 0, nil
+	}
+}
+
+func launchLegacyREPL() (int, error) {
+	launcherCmd := strings.TrimSpace(os.Getenv("DUCKHIVE_LAUNCHER_CMD"))
+	if launcherCmd == "" {
+		launcherCmd = strings.TrimSpace(os.Getenv("DUCKHIVE_BRIDGE_CMD"))
+	}
+	if launcherCmd == "" {
+		return 1, fmt.Errorf("missing DUCKHIVE_LAUNCHER_CMD")
+	}
+
+	launcherEntry := strings.TrimSpace(os.Getenv("DUCKHIVE_LAUNCHER_ENTRY"))
+	if launcherEntry == "" {
+		root, err := runtimeRoot()
+		if err != nil {
+			return 1, err
+		}
+		launcherEntry = filepath.Join(root, "dist", "cli.mjs")
+	}
+
+	cmd := exec.Command(launcherCmd, launcherEntry)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = buildLauncherEnv(uiSurfaceLegacy)
+
+	err := cmd.Run()
+	if err == nil {
+		return 0, nil
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return exitErr.ExitCode(), nil
+	}
+	return 1, err
+}
+
+func buildLauncherEnv(target uiSurface) []string {
+	env := make([]string, 0, len(os.Environ())+2)
+	for _, entry := range os.Environ() {
+		if shouldDropLauncherEnv(entry) {
+			continue
+		}
+		env = append(env, entry)
+	}
+
+	env = append(env, fmt.Sprintf("DUCKHIVE_DEFAULT_UI_SURFACE=%s", target))
+	if target == uiSurfaceLegacy {
+		env = append(env, "DUCKHIVE_NO_AUTO_TUI=1")
+	}
+	return env
+}
+
+func shouldDropLauncherEnv(entry string) bool {
+	for _, prefix := range []string{
+		"DUCKHIVE_AUTO_TUI=",
+		"DUCKHIVE_BRIDGE_ARGS=",
+		"DUCKHIVE_BRIDGE_CMD=",
+		"DUCKHIVE_BRIDGE_SOCKET=",
+		"DUCKHIVE_DEFAULT_UI_SURFACE=",
+		"DUCKHIVE_LAUNCHER_CMD=",
+		"DUCKHIVE_LAUNCHER_ENTRY=",
+		"DUCKHIVE_NO_AUTO_TUI=",
+	} {
+		if strings.HasPrefix(entry, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func runtimeRoot() (string, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(filepath.Dir(exePath)), nil
+}
+
+func setDuckHiveUISurfacePreference(surface uiSurface) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	configDir := filepath.Join(home, ".duckhive")
+	configPath := filepath.Join(configDir, "config.json")
+
+	data := map[string]any{}
+	if raw, readErr := os.ReadFile(configPath); readErr == nil {
+		_ = json.Unmarshal(raw, &data)
+	}
+
+	uiSection, ok := data["ui"].(map[string]any)
+	if !ok {
+		uiSection = map[string]any{}
+	}
+	uiSection["defaultSurface"] = string(surface)
+	data["ui"] = uiSection
+
+	encoded, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, append(encoded, '\n'), 0o644)
 }
 
 func nearestFileExists(root, name string) bool {
@@ -1126,6 +1540,13 @@ func boolLabel(ok bool, yes, no string) string {
 	return no
 }
 
+func nonEmptyOrDefault(values []string, fallback string) []string {
+	if len(values) > 0 {
+		return values
+	}
+	return []string{fallback}
+}
+
 func statusFromBool(ok bool) string {
 	if ok {
 		return "ready"
@@ -1144,6 +1565,7 @@ func detectConfiguredProviders() []string {
 		{name: "gemini", envs: []string{"GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"}},
 		{name: "kimi", envs: []string{"KIMI_API_KEY", "MOONSHOT_API_KEY"}},
 		{name: "minimax", envs: []string{"MINIMAX_API_KEY"}},
+		{name: "lmstudio", envs: []string{"LMSTUDIO_API_KEY", "LM_STUDIO_API_KEY"}},
 	}
 
 	providers := make([]string, 0, len(checks))
@@ -1153,6 +1575,40 @@ func detectConfiguredProviders() []string {
 		}
 	}
 	return providers
+}
+
+func detectConfiguredSearchProviders() []string {
+	checks := []struct {
+		name string
+		envs []string
+	}{
+		{name: "firecrawl", envs: []string{"FIRECRAWL_API_KEY"}},
+		{name: "tavily", envs: []string{"TAVILY_API_KEY"}},
+		{name: "exa", envs: []string{"EXA_API_KEY"}},
+		{name: "you", envs: []string{"YOU_API_KEY"}},
+		{name: "jina", envs: []string{"JINA_API_KEY"}},
+		{name: "bing", envs: []string{"BING_API_KEY"}},
+		{name: "mojeek", envs: []string{"MOJEEK_API_KEY"}},
+		{name: "linkup", envs: []string{"LINKUP_API_KEY"}},
+		{name: "custom", envs: []string{"WEB_SEARCH_API", "WEB_URL_TEMPLATE", "WEB_PROVIDER"}},
+		{name: "minimax-cli", envs: []string{"MINIMAX_API_KEY", "MINIMAX_OAUTH_TOKEN"}},
+	}
+
+	providers := make([]string, 0, len(checks)+1)
+	for _, check := range checks {
+		if envAnySet(check.envs...) {
+			providers = append(providers, check.name)
+		}
+	}
+	providers = append(providers, "duckduckgo")
+	return providers
+}
+
+func detectSearchProvider() string {
+	if provider := strings.TrimSpace(os.Getenv("WEB_SEARCH_PROVIDER")); provider != "" {
+		return provider
+	}
+	return "auto"
 }
 
 func detectActiveProvider() string {
@@ -1173,6 +1629,8 @@ func detectActiveProvider() string {
 		return "kimi"
 	case strings.TrimSpace(os.Getenv("MINIMAX_MODEL")) != "" || strings.Contains(openAIModel, "minimax") || envAnySet("MINIMAX_API_KEY"):
 		return "minimax"
+	case strings.Contains(baseURL, "localhost:1234") || strings.Contains(baseURL, "127.0.0.1:1234") || envAnySet("LMSTUDIO_API_KEY", "LM_STUDIO_API_KEY"):
+		return "lmstudio"
 	case strings.Contains(openAIModel, "codex"):
 		return "codex"
 	case strings.HasPrefix(openAIModel, "github:copilot") || os.Getenv("CLAUDE_CODE_USE_GITHUB") == "1":
@@ -1193,6 +1651,11 @@ func envAnySet(keys ...string) bool {
 		}
 	}
 	return false
+}
+
+func envIsNotFalse(key string) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	return value != "0" && value != "false" && value != "no" && value != "off"
 }
 
 func formatHelp(bindings []key.Binding) string {

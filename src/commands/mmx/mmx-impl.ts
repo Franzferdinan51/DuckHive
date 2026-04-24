@@ -5,8 +5,52 @@
 import type { LocalCommandCall } from '../../types/command.js'
 import { runMmxCommand } from './index.js'
 
+export function parseMmxArgs(args: string): string[] {
+  const out: string[] = []
+  let current = ''
+  let quote: '"' | "'" | null = null
+  let escaped = false
+
+  for (const ch of args.trim()) {
+    if (escaped) {
+      current += ch
+      escaped = false
+      continue
+    }
+    if (ch === '\\') {
+      escaped = true
+      continue
+    }
+    if (quote) {
+      if (ch === quote) {
+        quote = null
+      } else {
+        current += ch
+      }
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      continue
+    }
+    if (/\s/.test(ch)) {
+      if (current) {
+        out.push(current)
+        current = ''
+      }
+      continue
+    }
+    current += ch
+  }
+
+  // Only append trailing backslash if we actually escaped a character
+  if (escaped) current += '\\'
+  if (current) out.push(current)
+  return out
+}
+
 export const call: LocalCommandCall = async (args: string) => {
-  const parsedArgs = args.trim() ? args.trim().split(/\s+/) : []
+  const parsedArgs = args.trim() ? parseMmxArgs(args) : []
   const mmxArgs = ['--non-interactive', ...parsedArgs]
 
   if (mmxArgs.length <= 1) {
@@ -31,6 +75,7 @@ Run /mmx <subcommand> --help for details.`,
     await runMmxCommand(mmxArgs)
     return { type: 'text', value: '' }
   } catch (err) {
-    return { type: 'text', value: `Error: ${err}` }
+    const msg = err instanceof Error ? err.message : String(err)
+    return { type: 'text', value: `Error: ${msg}` }
   }
 }

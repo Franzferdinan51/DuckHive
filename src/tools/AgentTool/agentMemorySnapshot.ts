@@ -48,7 +48,9 @@ async function readJsonFile<T>(
     const content = await readFile(path, { encoding: 'utf-8' })
     const result = schema.safeParse(jsonParse(content))
     return result.success ? result.data : null
-  } catch {
+  } catch (err) {
+    // Log for debugging but suppress to avoid flooding logs during normal operation
+    logForDebugging(`readJsonFile failed for ${path}: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }
 }

@@ -20,15 +20,23 @@ export interface TaskContext {
 
 const COMPLEXITY_KEYWORDS = {
   critical: ['security', 'delete', 'rm -rf', 'drop table', 'sudo', 'grant all', 'firewall', 'deploy production', 'reboot', 'shutdown'],
-  complex: ['refactor', 'architect', 'design pattern', 'multi-step', 'parallel', 'async', 'database migration', 'api design', 'auth', 'refactor'],
+  complex: ['architect', 'design pattern', 'multi-step', 'parallel', 'async', 'database migration', 'api design', 'auth', 'restructure', 'redesign'],
   medium: ['build', 'implement', 'create api', 'write test', 'debug', 'optimize', 'improve', 'add feature', 'fix bug', 'analyze'],
 }
 
 const COUNCIL_TRIGGERS = [
+  // Phrase-based triggers (explicit safety/risk questions)
   'should we', 'should i', 'is it safe', 'is it secure', 'is this a good idea',
   'what if', 'risk assessment', 'ethics', 'privacy', 'compliance',
-  'deploy', 'migrate', 'refactor architecture', 'delete production',
-  'security', 'authentication', 'authorization', 'cost impact',
+  // Keyword triggers (common sensitive operations)
+  'security', 'auth', 'permission', 'deploy', 'production',
+  'cost', 'budget', 'financial', 'api key', 'secret', 'credential',
+  'delete', 'remove', 'drop', 'truncate', 'rm -rf',
+  'firewall', 'network', 'ssl', 'tls', 'oauth',
+  'database migration', 'schema change', 'breaking change',
+  'sudo', 'root', 'admin', 'access control',
+  'migrate', 'refactor architecture', 'delete production',
+  'authentication', 'authorization',
 ]
 
 export function analyzeTask(message: string, context: TaskContext): TaskAnalysis {
