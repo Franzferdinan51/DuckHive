@@ -39,7 +39,7 @@ export function useIdeLogging(mcpClients: MCPServerConnection[]): void {
     )
 
     return () => {
-      ideClient.client.removeNotificationHandler(LogEventSchema(), handler)
+      ideClient.client.removeNotificationHandler('log_event')
     }
   }, [mcpClients])
 }

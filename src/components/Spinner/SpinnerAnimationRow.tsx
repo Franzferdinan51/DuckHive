@@ -12,7 +12,7 @@ import { Byline } from '../design-system/Byline.js';
 import FullWidthRow from '../design-system/FullWidthRow.js';
 import { GlimmerMessage } from './GlimmerMessage.js';
 import { SpinnerGlyph } from './SpinnerGlyph.js';
-import type { SpinnerMode } from './types.js';
+import type { SpinnerMode } from './index.js';
 import { useStalledAnimation } from './useStalledAnimation.js';
 import { interpolateColor, toRGBColor } from './utils.js';
 const SEP_WIDTH = stringWidth(' · ');
@@ -57,6 +57,9 @@ export type SpinnerAnimationRowProps = {
   verbose: boolean;
   columns: number;
 
+  // Task list for status display (optional — defaults to empty)
+  tasks?: Array<{ status: string }>;
+
   // Teammate-derived (computed by parent from tasks)
   hasRunningTeammates: boolean;
   teammateTokens: number;
@@ -83,6 +86,7 @@ export function SpinnerAnimationRow({
   mode,
   reducedMotion,
   hasActiveTools,
+  tasks,
   responseLengthRef,
   message,
   messageColor,
@@ -201,17 +205,20 @@ export function SpinnerAnimationRow({
   const thinkingShimmerColor = toRGBColor(interpolateColor(THINKING_INACTIVE, THINKING_INACTIVE_SHIMMER, thinkingOpacity));
 
   // === Build status parts ===
+  // Task list for status display (optional — defaults to empty)
+  const taskList = tasks ?? [];
+
   // Show active task context when there are in-progress tasks or running agents
   const activeTaskText = hasRunningTeammates && foregroundedTeammate
     ? ` · ${foregroundedTeammate.identity.agentName}`
-    : tasks.length > 0
-      ? ` · ${tasks.filter(t => t.status === 'in_progress').length} task${tasks.filter(t => t.status === 'in_progress').length !== 1 ? 's' : ''}`
+    : taskList.length > 0
+      ? ` · ${taskList.filter((t: { status: string }) => t.status === 'in_progress').length} task${taskList.filter((t: { status: string }) => t.status === 'in_progress').length !== 1 ? 's' : ''}`
       : null;
 
   // Paused indicator: pulsing "⏸" prefix when paused with active tools running
   const isPaused = pauseStartTimeRef.current !== null;
-  const hasActiveTools = tasks.some(t => t.status === 'in_progress') || hasRunningTeammates;
-  const pausedIndicator = isPaused && hasActiveTools
+  const hasActiveToolsFromTasks = taskList.some(t => t.status === 'in_progress') || hasRunningTeammates;
+  const pausedIndicator = isPaused && hasActiveToolsFromTasks
     ? <Text dimColor={!reducedMotion} key="paused"> ⏸</Text>
     : null;
 
