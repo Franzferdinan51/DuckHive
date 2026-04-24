@@ -1,6 +1,6 @@
 import { c as _c } from "react-compiler-runtime";
-import React from 'react';
-import { Text } from '../../ink.js';
+import React, { useRef } from 'react';
+import { Text, useAnimationFrame } from '../../ink.js';
 import type { Theme } from '../../utils/theme.js';
 type Props = {
   /**
@@ -22,18 +22,35 @@ type Props = {
    * Optional color for the empty portion of the bar
    */
   emptyColor?: keyof Theme;
+
+  /**
+   * When true, the leading edge of the fill animates with a marching effect.
+   * Cycles block characters at ~200ms cadence to give a "working" feel.
+   */
+  animated?: boolean;
 };
 const BLOCKS = [' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
+const ANIM_CYCLE_MS = 200;
 export function ProgressBar(t0) {
-  const $ = _c(13);
+  const $ = _c(14);
   const {
     ratio: inputRatio,
     width,
     fillColor,
-    emptyColor
+    emptyColor,
+    animated
   } = t0;
   const ratio = Math.min(1, Math.max(0, inputRatio));
   const whole = Math.floor(ratio * width);
+
+  // Track animation frame for marching leading edge effect
+  const animFrameRef = useRef(0);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useAnimationFrame((elapsed) => {
+    animFrameRef.current = Math.floor(elapsed / ANIM_CYCLE_MS) % BLOCKS.length;
+  }, animated === true);
+
+  const leadingChar = animated ? BLOCKS[animFrameRef.current] : BLOCKS[Math.floor((ratio * width - whole) * BLOCKS.length)];
   let t1;
   if ($[0] !== whole) {
     t1 = BLOCKS[BLOCKS.length - 1].repeat(whole);
@@ -46,9 +63,7 @@ export function ProgressBar(t0) {
   if ($[2] !== ratio || $[3] !== t1 || $[4] !== whole || $[5] !== width) {
     segments = [t1];
     if (whole < width) {
-      const remainder = ratio * width - whole;
-      const middle = Math.floor(remainder * BLOCKS.length);
-      segments.push(BLOCKS[middle]);
+      segments.push(leadingChar);
       const empty = width - whole - 1;
       if (empty > 0) {
         let t2;

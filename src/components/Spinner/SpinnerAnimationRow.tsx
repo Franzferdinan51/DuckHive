@@ -208,6 +208,13 @@ export function SpinnerAnimationRow({
       ? ` · ${tasks.filter(t => t.status === 'in_progress').length} task${tasks.filter(t => t.status === 'in_progress').length !== 1 ? 's' : ''}`
       : null;
 
+  // Paused indicator: pulsing "⏸" prefix when paused with active tools running
+  const isPaused = pauseStartTimeRef.current !== null;
+  const hasActiveTools = tasks.some(t => t.status === 'in_progress') || hasRunningTeammates;
+  const pausedIndicator = isPaused && hasActiveTools
+    ? <Text dimColor={!reducedMotion} key="paused"> ⏸</Text>
+    : null;
+
   const parts = [...(spinnerSuffix ? [<Text dimColor key="suffix">
             {spinnerSuffix}
           </Text>] : []), ...(showTimer ? [<Text dimColor key="elapsedTime">
@@ -219,7 +226,7 @@ export function SpinnerAnimationRow({
               {thinkingOnly ? `(${thinkingText})` : thinkingText}
             </Text> : <Text dimColor key="thinking">
               {thinkingText}
-            </Text>] : []), ...(activeTaskText ? [<Text key="activeTask" dimColor>{activeTaskText}</Text>] : [])];
+            </Text>] : []), ...(activeTaskText ? [<Text key="activeTask" dimColor>{activeTaskText}</Text>] : []), ...(pausedIndicator ? [pausedIndicator] : [])];
   const status = foregroundedTeammate && !foregroundedTeammate.isIdle ? <>
         <Text dimColor>(esc to interrupt </Text>
         <Text color={toInkColor(foregroundedTeammate.identity.color)}>

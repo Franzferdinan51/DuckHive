@@ -10,6 +10,14 @@ type Props = {
   parens?: boolean;
   /** Whether to render the shortcut in bold. Default: false */
   bold?: boolean;
+  /**
+   * Visual weight tier — controls dim level and shortcut styling.
+   * - 'primary': shortcut rendered bold, action normal weight
+   * - 'secondary': shortcut normal weight, action dim
+   * - 'muted': shortcut dim, action dim (lowest prominence)
+   * Default: 'secondary'
+   */
+  weight?: 'primary' | 'secondary' | 'muted';
 };
 
 /**
@@ -27,54 +35,69 @@ type Props = {
  * // With bold shortcut: "Enter to confirm" (Enter is bold)
  * <Text dimColor><KeyboardShortcutHint shortcut="Enter" action="confirm" bold /></Text>
  *
- * // Multiple hints with middot separator - use Byline
- * <Text dimColor>
- *   <Byline>
- *     <KeyboardShortcutHint shortcut="Enter" action="confirm" />
- *     <KeyboardShortcutHint shortcut="Esc" action="cancel" />
- *   </Byline>
- * </Text>
+ * // With weight: secondary (default) shows shortcut normal + action dim
+ * <KeyboardShortcutHint shortcut="Enter" action="confirm" weight="secondary" />
+ *
+ * // With weight: muted shows both dim (for rarely shown hints)
+ * <KeyboardShortcutHint shortcut="?" action="help" weight="muted" />
  */
 export function KeyboardShortcutHint(t0) {
-  const $ = _c(9);
+  const $ = _c(13);
   const {
     shortcut,
     action,
     parens: t1,
-    bold: t2
+    bold: t2,
+    weight: t3
   } = t0;
   const parens = t1 === undefined ? false : t1;
   const bold = t2 === undefined ? false : t2;
-  let t3;
-  if ($[0] !== bold || $[1] !== shortcut) {
-    t3 = bold ? <Text bold={true}>{shortcut}</Text> : shortcut;
+  const weight = t3 === undefined ? 'secondary' : t3;
+
+  // Determine dimness based on weight tier
+  const shortcutDim = weight === 'muted';
+  const actionDim = weight !== 'primary';
+
+  let t4;
+  if ($[0] !== bold || $[1] !== shortcut || $[2] !== shortcutDim) {
+    const rendered = bold || shortcutDim
+      ? <Text bold={bold} dimColor={shortcutDim}>{shortcut}</Text>
+      : shortcut;
+    t4 = rendered;
     $[0] = bold;
     $[1] = shortcut;
-    $[2] = t3;
+    $[2] = shortcutDim;
+    $[3] = t4;
   } else {
-    t3 = $[2];
+    t4 = $[3];
   }
-  const shortcutText = t3;
-  if (parens) {
-    let t4;
-    if ($[3] !== action || $[4] !== shortcutText) {
-      t4 = <Text>({shortcutText} to {action})</Text>;
-      $[3] = action;
-      $[4] = shortcutText;
-      $[5] = t4;
-    } else {
-      t4 = $[5];
-    }
-    return t4;
-  }
-  let t4;
-  if ($[6] !== action || $[7] !== shortcutText) {
-    t4 = <Text>{shortcutText} to {action}</Text>;
+  const shortcutText = t4;
+
+  let t5;
+  if ($[4] !== actionDim || $[5] !== shortcutText || $[6] !== action) {
+    const actionText = actionDim
+      ? <Text dimColor={true}>{action}</Text>
+      : action;
+    t5 = <>{shortcutText} to {actionText}</>;
+    $[4] = actionDim;
+    $[5] = shortcutText;
     $[6] = action;
-    $[7] = shortcutText;
-    $[8] = t4;
+    $[7] = t5;
   } else {
-    t4 = $[8];
+    t5 = $[7];
   }
-  return t4;
+  const hintText = t5;
+
+  if (parens) {
+    let t6;
+    if ($[8] !== hintText) {
+      t6 = <Text>({hintText})</Text>;
+      $[8] = hintText;
+      $[9] = t6;
+    } else {
+      t6 = $[9];
+    }
+    return t6;
+  }
+  return hintText;
 }
