@@ -508,6 +508,12 @@ export function startBackgroundSession({
     } catch (error) {
       logError(error)
       completeMainSessionTask(taskId, false, setAppState)
+    } finally {
+      // Release bgMessages array for GC. Same pattern as runAgent.ts
+      // (initialMessages.length = 0) — long background sessions accumulate
+      // many messages; without this the array stays in scope at the closure
+      // level even after the task completes.
+      bgMessages.length = 0
     }
   })
 
