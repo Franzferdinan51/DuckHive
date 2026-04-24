@@ -20,6 +20,7 @@ import type {
   HiveContext,
   IntegrationOptions,
 } from './hive-types.js'
+import { logForDebugging } from '../../utils/debug.js'
 
 const DEFAULT_COUNCIL_PORT = process.env.COUNCIL_PORT || '3007'
 const DEFAULT_HIVE_API_BASE =
@@ -35,9 +36,9 @@ const DEFAULT_CONFIG: HiveConfig = {
 const DEFAULT_OPTIONS: IntegrationOptions = {
   autoConsultCouncil: process.env.DUCKHIVE_COUNCIL_ENABLED !== 'false',
   councilThreshold: Number.parseInt(
-    process.env.DUCKHIVE_COUNCIL_THRESHOLD || '4',
+    process.env.DUCKHIVE_COUNCIL_THRESHOLD || '3',
     10,
-  ) || 4,
+  ) || 3,
   showCouncilInRepl: true,
   cacheCouncilResults: true,
 }
@@ -299,7 +300,11 @@ export class HiveBridge {
   }
 
   shouldConsultCouncil(complexity: number): boolean {
-    return this.options.autoConsultCouncil && complexity >= this.options.councilThreshold
+    const auto = this.options.autoConsultCouncil
+    const thresh = this.options.councilThreshold
+    const result = auto && complexity >= thresh
+    logForDebugging(`[hive-bridge] shouldConsultCouncil complexity=${complexity} auto=${auto} threshold=${thresh} → ${result}`)
+    return result
   }
 }
 

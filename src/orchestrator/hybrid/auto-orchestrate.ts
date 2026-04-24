@@ -33,7 +33,7 @@ export interface AutoOrchestrationResult {
   summary: string
 }
 
-const ORCHESTRATION_THRESHOLD = 3 // Only orchestrate tasks with complexity >= 3
+const ORCHESTRATION_THRESHOLD = 2 // Orchestrate tasks with complexity >= 2 (council, checkpoint, model routing)
 
 /**
  * Run auto-orchestration on an incoming user message.
@@ -91,17 +91,20 @@ export async function autoOrchestrate(
   let councilTriggered = false
   let councilVerdict: string | undefined
   if (enableCouncil && analysis.needsCouncil) {
-    try {
-      const bridge = getHiveBridge()
-      if (bridge.shouldConsultCouncil(analysis.complexity)) {
+    const bridge = getHiveBridge()
+    const shouldConsult = bridge.shouldConsultCouncil(analysis.complexity)
+    logForDebugging(`[auto-orchestrate] needsCouncil=true (reasons: ${analysis.councilReasons.join(', ')}), complexity=${analysis.complexity}, councilThreshold=${bridge.getOptions().councilThreshold}, autoConsult=${bridge.getOptions().autoConsultCouncil}, shouldConsult=${shouldConsult}`)
+    if (shouldConsult) {
+      try {
         const result = await bridge.startDeliberation(message, 'balanced')
+        logForDebugging(`[auto-orchestrate] deliberation result: success=${result.success}, verdict=${result.verdict ?? 'none'}`)
         councilTriggered = result.success
         if (result.success && result.verdict) {
           councilVerdict = result.verdict
         }
+      } catch (err) {
+        logForDebugging(`[auto-orchestrate] deliberation failed: ${err instanceof Error ? err.message : String(err)}`)
       }
-    } catch {
-      // Council failure is non-fatal — log but continue
     }
   }
 
