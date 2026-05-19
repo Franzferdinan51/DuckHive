@@ -1,6 +1,6 @@
 # 🦆 DuckHive
 
-![DuckHive](https://img.shields.io/badge/DuckHive-v0.13.6-gold?style=for-the-badge&logo=buymeacoffee)
+![DuckHive](https://img.shields.io/badge/DuckHive-v0.13.7-gold?style=for-the-badge&logo=buymeacoffee)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?style=for-the-badge&logo=typescript)](package.json)
 [![Bun](https://img.shields.io/badge/Bun-1.3-yellow?style=for-the-badge&logo=bun)](package.json)
@@ -1150,7 +1150,7 @@ Hermes-style autonomous skill creation and `SkillManageTool` now use the same sh
 ## Architecture
 
 ```
-DuckHive v0.13.6
+DuckHive v0.13.7
 ├── MiniMax M2.7 (default model)
 ├── DuckHive mmx (MiniMax CLI integration)
 │   ├── Image generation
@@ -1361,7 +1361,7 @@ duckhive config path
 ./bin/duckhive --version
 
 # Command ownership check
-duckhive --version      # 0.13.6 (DuckHive)
+duckhive --version      # 0.13.7 (DuckHive)
 openclaude --version    # upstream OpenClaude, if installed separately
 ```
 
@@ -1423,14 +1423,14 @@ The `/statusbar session` surface now reads the same public build version used by
 
 Recent verification snapshot:
 
-- `npm run typecheck`, `npm run build`, `npm run smoke`, `npm run verify:privacy`, and `node dist\cli.mjs runtime-doctor`: passing on Windows for `duckhive@0.13.6`
+- `npm run typecheck`, `npm run build`, `npm run smoke`, `npm run verify:privacy`, and `node dist\cli.mjs runtime-doctor`: passing on Windows for `duckhive@0.13.7`
 - `bun test src\utils\api.test.ts scripts\postbuild-patch.test.ts`: `9 pass`, `0 fail`, covering Zod schema conversion, every built-in tool schema, and fail-closed bundle patching
 - `npm run smoke`: `12 pass`, `0 fail`, plus `CLI smoke passed (80 commands plus Windows wrapper checks)`
-- focused 0.13.6 checks cover Zod 4 schema conversion, a real mock-provider prompt submission, Windows stdin delivery, TextInput buffering, provider-free command surfaces, provider-free voice readiness, TUI backend slash-command routing, and packaged TUI input/submit smoke
+- focused 0.13.7 checks cover Zod 4 schema conversion, a real mock-provider prompt submission, Windows stdin delivery, TextInput buffering, provider-free command surfaces, provider-free voice readiness, TUI backend slash-command routing, and packaged TUI input/submit smoke
 - `cd tui && go test ./...`: passing with local Go 1.25.4 from `.tmp\go-toolchain`; the packaged `tui\duckhive-tui.exe` was rebuilt from that tested source
-- `duckhive --version`: `0.13.6 (DuckHive)`
+- `duckhive --version`: `0.13.7 (DuckHive)`
 - `openclaude --version`: upstream OpenClaude remains separately owned when installed
-- package dry-run publishes as `duckhive@0.13.6`, includes the `duckhive` launcher, `duckhive/sdk`, `duckhive/harness`, `config/`, `tui\duckhive-tui.exe`, and the runtime `skills/newest-desktop-control/` skill files without test fixtures
+- package dry-run publishes as `duckhive@0.13.7`, includes the `duckhive` launcher, `duckhive/sdk`, `duckhive/harness`, `config/`, `tui\duckhive-tui.exe`, and the runtime `skills/newest-desktop-control/` skill files without test fixtures
 
 Known local limitation: `duckhive tui` is an interactive terminal app, so final keyboard verification in the exact user shell still requires a real PowerShell terminal. Use `duckhive tui --snapshot` for non-interactive CI/log rendering, `duckhive tui --input-smoke "typed text"` for the packaged Bubble Tea input-loop diagnostic, `duckhive tui --submit-smoke "submitted text"` for the type-and-Enter submission diagnostic, local Go 1.25.4 with `cd tui && go test ./...` for component-level regressions, and `duckhive tui --help` for launcher diagnostics.
 
