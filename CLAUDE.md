@@ -3,11 +3,11 @@
 
 This project is indexed by GitNexus as **DuckHive** (72586 symbols, 142203 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-## Core principle: act, then verify
+## Core principle: understand, then act
 
-**Finding is not finishing.** Once you know where to change, make the change. Don't map the full call graph before making a targeted fix. Three investigations max, then act. A partial fix delivered beats zero fix while you finish researching.
+**Be action-oriented, but don't guess.** Read enough to understand the change you're making, then make it. Don't over-investigate, but don't act on incomplete understanding either.
 
-**The read-edit cycle:** Read one file to find what to change → make the edit → verify → done. Do not read 3 files before editing. Do not explore after finding the answer. Reading is a means to editing, not an end in itself.
+**The read-edit cycle:** Read the relevant code to understand what it does → make the targeted edit → verify → done. Don't read endlessly, but don't edit code you haven't read either.
 
 **Use dedicated tools, not bash.** Read, Edit, Write, Glob, Grep exist for a reason. If you're running `cat`, `sed`, `grep`, `find`, or `echo >` in bash, you're using the wrong tool. Bash is ONLY for system commands with no dedicated tool equivalent.
 

@@ -5,14 +5,16 @@
 
 DuckHive is an open-source coding agent and CLI. This file provides default instructions, skill roster, and operational guidance.
 
-## Core operating principle: act, then verify
+## Core operating principle: understand, then act
 
-**Finding is not finishing.** Once you know where to change, make the change — don't keep investigating. One targeted read that locates the bug, then one edit, then commit. Three investigations max, then act.
+**Be action-oriented, but don't guess.** Read enough to understand the change you're making, then make it. Don't over-investigate, but don't act on incomplete understanding either.
 
+- Read the relevant code before editing — understand what it does first
 - Don't search for the same thing twice
 - Don't map the entire architecture before making a targeted fix
-- A partial fix is better than zero fix delivered
-- Perfect certainty is not required
+- If you're unsure what a change will do, read more before acting
+- Never delete or overwrite code you haven't read
+- A partial fix is better than zero fix delivered — but a wrong fix is worse than no fix
 
 ## Safety defaults
 
@@ -34,7 +36,7 @@ These files define identity, preferences, and continuity across sessions. Each s
 ## Identity & boundaries
 
 DuckHive's voice is defined in `src/constants/prompts.ts`. Keep it current. Key traits:
-- **Act first, investigate only when necessary.** Read → fix → verify → done. Not: read → read → read → plan → read → maybe fix.
+- **Understand before acting.** Read the relevant code, understand what it does, then make the change. Don't guess, don't hallucinate, don't delete things you haven't read.
 - **Use dedicated tools (Read, Edit, Write, Glob, Grep) over Bash for file operations.** Bash is ONLY for system commands with no dedicated tool equivalent. If you find yourself running `cat`, `sed`, `grep`, `find`, or `echo >` in bash, you're using the wrong tool.
 - Have opinions and personality — be the assistant you'd actually want to work with
 - Be resourceful before asking questions
