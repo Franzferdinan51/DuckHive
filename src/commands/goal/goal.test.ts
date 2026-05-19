@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+import * as stateModule from '../../bootstrap/state.js'
+import * as configModule from '../../utils/config.js'
 
 type GoalRecord = {
   id: string
@@ -44,35 +46,48 @@ describe('/goal command', () => {
     configStore = { 'duckhive.goals': [] }
     sessionId = 'session-current'
     spawnedTasks = []
-    mock.module('../../utils/config.js', () => ({
-      getGlobalConfig: () => configStore,
-      saveGlobalConfig: (
-        updater: (current: Record<string, unknown>) => Record<string, unknown>,
-      ) => {
-        configStore = updater(configStore)
-      },
-    }))
-    mock.module('../../bootstrap/state.js', () => ({
-      getSessionId: () => sessionId,
-      setActiveGoalId: () => {},
-      addSlowOperation: () => {},
-      getInvokedSkills: () => new Map(),
-      getCwdState: () => process.cwd(),
-      getOriginalCwd: () => process.cwd(),
-      getAdditionalDirectoriesForClaudeMd: () => [],
-      setLastAPIRequestMessages: () => {},
-      setLastAPIRequest: () => {},
-      getLastAPIRequest: () => null,
-      getLastAPIRequestMessages: () => [],
-      waitForScrollIdle: () => Promise.resolve(),
-      getStatsStore: () => ({}),
-      getAllowedSettingSources: () => [],
-      getProjectRoot: () => process.cwd(),
-      getFlagSettingsPath: () => '',
-      getInlinePlugins: () => [],
-      getIsNonInteractiveSession: () => false,
-      getIsInteractive: () => true,
-    }))
+
+    // Build comprehensive proxy mocks to stop SyntaxErrors
+    const stateMock = {} as any
+    for (const key of Object.keys(stateModule)) {
+      if (typeof (stateModule as any)[key] === 'function') {
+        stateMock[key] = (...args: any[]) => {
+          if (key === 'getSessionId') return sessionId
+          if (key === 'getCwdState') return process.cwd()
+          if (key === 'getOriginalCwd') return process.cwd()
+          if (key === 'getProjectRoot') return process.cwd()
+          if (key === 'getInvokedSkills') return new Map()
+          if (key === 'getLastAPIRequestMessages') return []
+          if (key === 'getInlinePlugins') return []
+          if (key === 'getAllowedSettingSources') return []
+          if (key === 'getStatsStore') return {}
+          if (key === 'getIsInteractive') return true
+          return undefined
+        }
+      }
+    }
+
+    const configMock = {} as any
+    for (const key of Object.keys(configModule)) {
+      if (typeof (configModule as any)[key] === 'function') {
+        configMock[key] = (...args: any[]) => {
+          if (key === 'getGlobalConfig') return configStore
+          if (key === 'saveGlobalConfig') {
+            const updater = args[0]
+            configStore = updater(configStore)
+            return
+          }
+          if (key === 'getMemoryPath') return ''
+          return undefined
+        }
+      } else {
+        configMock[key] = (configModule as any)[key]
+      }
+    }
+
+    mock.module('../../utils/config.js', () => configMock)
+    mock.module('../../bootstrap/state.js', () => stateMock)
+
     mock.module('../../subagentSystem.js', () => ({
       sessions_spawn: async (options: {
         label?: string

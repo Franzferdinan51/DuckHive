@@ -36,10 +36,20 @@ DuckHive is an AI coding CLI built on top of [Gitlawb/openclaude](https://github
 
 DuckHive features a powerful, persisted goal system inspired by Codex `r0.128.0`. It allows for long-horizon, autonomous engineering tasks.
 
-- **Shorthand creation**: Run `/goal <task description>` (e.g., `/goal Refactor the auth module`) to immediately create and start a goal. Single-word goals like `/goal Refactor` are also supported, matching Codex behavior.
-- **Autonomous Execution**: Starting a goal via shorthand or `/goal pursue` automatically enables **YOLO mode** (permission bypass). The agent works continuously across turns without requiring constant manual approval for every tool call.
-- **Action-Oriented Prompting**: The autonomous task instructions prioritize **action over exploration**. It follows a "Read Once, Plan Once, Act Always" philosophy to prevent analysis paralysis while maintaining accuracy.
-- **Persistence**: Goals are saved across sessions. Use `/goal list` and `/goal status` to track progress, and `/goal stop` to cancel autonomous work.
+- **Shorthand creation**: Run `/goal <task description>` (e.g., `/goal Refactor the auth module`) to immediately create and start a goal. Single-word goals like `/goal Refactor` are also supported.
+- **Autonomous Execution**: Starting a goal automatically enables **YOLO mode** (permission bypass). The agent works continuously across turns without requiring constant approval.
+- **Integrated Planning**: Uses the DuckHive `TaskPlanner` to automatically decompose complex goals into actionable **Milestones** synced with your session's `PLAN.md`.
+- **Visual Progress**: High-fidelity ASCII progress bars and roadmap indicators in `/goal status` provide real-time visibility into the agent's work.
+- **Traceability**: Agents are mandated to perform **Atomic Git Commits** after each verified milestone, ensuring a clean, revertible history of autonomous work.
+
+### Engineering Excellence
+
+DuckHive is built for professional engineering environments where stability and transparency matter.
+
+- **Strict Type Safety**: Critical core modules (`query.ts`, `QueryEngine.ts`, `planner.ts`) are fully typed with no `@ts-nocheck` gaps, ensuring robust execution and preventing latent runtime bugs.
+- **Professional Session Reporting**: The `/cost` command produces a detailed **DuckHive Session Report** with precise metrics for cost, API duration, wall duration, and lines of code changed (color-coded).
+- **Research Loop Protection**: The core orchestrator actively detects "over-exploration" loops and provides gentle momentum nudges to ensure the agent remains decisive and action-oriented.
+- **PowerShell Tooling**: Native PowerShell support is enabled by default on Windows, providing a first-class experience for Windows-based engineering workflows.
 
 ---
 
