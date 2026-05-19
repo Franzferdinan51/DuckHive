@@ -216,6 +216,8 @@ type State = {
   pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
   stopHookActive: boolean | undefined
   turnCount: number
+  // Count of consecutive exploration-only tool calls.
+  explorationCount: number
   // Count of consecutive continuation nudges within the current turn.
   // Capped at MAX_CONTINUATION_NUDGES to prevent infinite nudge loops
   // when the model keeps matching continuation signals without tool calls.
@@ -292,6 +294,7 @@ async function* queryLoop(
     maxOutputTokensRecoveryCount: 0,
     hasAttemptedReactiveCompact: false,
     turnCount: 1,
+    explorationCount: 0,
     continuationNudgeCount: 0,
     pendingToolUseSummary: undefined,
     transition: undefined,
@@ -1889,6 +1892,45 @@ async function* queryLoop(
       queryTracking,
     }
 
+    // exploration loop detection
+    let currentExplorationCount = state.explorationCount
+    if (assistantMessages.length > 0) {
+      const allTools = assistantMessages.flatMap(
+        m =>
+          m.message.content.filter(
+            c => c.type === 'tool_use',
+          ) as ToolUseBlock[],
+      )
+      if (allTools.length > 0) {
+        const isExplorationTurn = allTools.every(toolBlock => {
+          const tool = findToolByName(
+            toolUseContext.options.tools,
+            toolBlock.name,
+          )
+          const searchOrRead = tool?.isSearchOrReadCommand?.()
+          return searchOrRead?.isRead || searchOrRead?.isSearch
+        })
+        if (isExplorationTurn) {
+          currentExplorationCount++
+        } else {
+          currentExplorationCount = 0
+        }
+      }
+    }
+
+    // If we've been exploring for too long, inject a reminder
+    if (currentExplorationCount >= 2) {
+      const reminder = createUserMessage({
+        content:
+          'SYSTEM REMINDER: You have been searching and reading for multiple turns. ' +
+          'Stop exploring and take action now. Make an edit or run a test to advance the task. ' +
+          'Action is prioritized over perfect information.',
+        isMeta: true,
+      })
+      yield reminder
+      toolResults.push(reminder)
+    }
+
     // Each time we have tool results and are about to recurse, that's a turn
     const nextTurnCount = turnCount + 1
 
@@ -1932,6 +1974,7 @@ async function* queryLoop(
       toolUseContext: toolUseContextWithQueryTracking,
       autoCompactTracking: tracking,
       turnCount: nextTurnCount,
+      explorationCount: currentExplorationCount,
       maxOutputTokensRecoveryCount: 0,
       hasAttemptedReactiveCompact: false,
       continuationNudgeCount: 0,
