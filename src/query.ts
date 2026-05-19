@@ -1927,11 +1927,11 @@ async function* queryLoop(
 
     // If we've been exploring for a while, add a gentle nudge about momentum
     if (currentExplorationCount >= 4) {
-      const reminder = createUserMessage({
+      const reminder = createSystemMessage({
         content:
-          'SYSTEM REMINDER: You have been in research mode for several turns. ' +
-          'If you have enough information, consider taking the first step toward a fix or implementation to maintain momentum. ' +
-          'Action is often the best way to validate your findings.',
+          'SYSTEM NUDGE: You have been in research mode for several turns. ' +
+          'If the path is becoming clear, consider taking a first safe step toward the solution to maintain momentum. ' +
+          'Practical action is often a great way to verify your current findings.',
         isMeta: true,
       })
       yield reminder

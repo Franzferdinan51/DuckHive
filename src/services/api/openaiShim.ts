@@ -667,6 +667,18 @@ function convertMessages(
           result.push(assistantMsg)
         }
       }
+    } else if (role === 'system') {
+      result.push({
+        role: 'system',
+        content: (() => {
+          const c = convertContentBlocks(content)
+          return typeof c === 'string'
+            ? c
+            : Array.isArray(c)
+              ? c.map((p: { text?: string }) => p.text ?? '').join('')
+              : ''
+        })(),
+      })
     }
   }
 
