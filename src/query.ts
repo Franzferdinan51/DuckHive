@@ -1918,13 +1918,13 @@ async function* queryLoop(
       }
     }
 
-    // If we've been exploring for too long, inject a reminder
-    if (currentExplorationCount >= 2) {
+    // If we've been exploring for a while, add a gentle nudge about momentum
+    if (currentExplorationCount >= 4) {
       const reminder = createUserMessage({
         content:
-          'SYSTEM REMINDER: You have been searching and reading for multiple turns. ' +
-          'Stop exploring and take action now. Make an edit or run a test to advance the task. ' +
-          'Action is prioritized over perfect information.',
+          'SYSTEM REMINDER: You have been in research mode for several turns. ' +
+          'If you have enough information, consider taking the first step toward a fix or implementation to maintain momentum. ' +
+          'Action is often the best way to validate your findings.',
         isMeta: true,
       })
       yield reminder
