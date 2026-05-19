@@ -80,7 +80,7 @@ function buildGoalPromptSection(): Record<string, string> | null {
               ``,
             ]
           : []),
-        `**You are an ACTION agent.** Make concrete changes — don't just read and analyze. After each change, update the goal step status with /goal step complete.`,
+        `Work toward this goal step by step. Read before writing, understand before changing. After completing a step, update the goal step status with /goal step complete.`,
       ].join('\n'),
     }
   } catch {

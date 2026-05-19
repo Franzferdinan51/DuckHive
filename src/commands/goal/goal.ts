@@ -736,6 +736,18 @@ async function completeStep(args: string[]): Promise<string> {
 
   await saveGoals(goals, { type: 'step_completed', goal })
 
+  // If goal is in autonomous mode and there's a next step, re-enqueue
+  // a goal_tick to keep the agent working (Codex-style autonomous loop).
+  if (goal.autonomousMode && nextStep) {
+    getSystemContext.cache.clear?.()
+    enqueuePendingNotification({
+      value: `<goal_tick>Step completed. Continue with the next step: ${nextStep.description}. Read the relevant files first, then make targeted changes.</goal_tick>`,
+      mode: 'prompt',
+      priority: 'next',
+      isMeta: true,
+    })
+  }
+
   return `Step completed: ${currentStep.description}${nextStep ? `\nNext step: ${nextStep.description}` : '\nAll steps completed!'}`
 }
 
@@ -750,18 +762,25 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `Goal: ${goal.description}`,
     stepGuidance,
     '',
-    `You are an ACTION agent, not a research agent. Your job is to make concrete changes — not just read and analyze.`,
+    `Your job is to make concrete progress toward this goal. Understand before acting.`,
     '',
-    `=== ACTION RULES ===`,
-    `- READ files to understand what to change, then EDIT or WRITE to make the change`,
-    `- If a file needs to exist for the goal, CREATE it`,
-    `- If something is broken, FIX it — don't just describe the problem`,
-    `- NEVER stop after reading files — every reading turn must lead to a writing turn`,
-    `- If you've explored for 2 tool calls and have no clear edit target, you're done exploring — make the change anyway`,
-    `- When a step is complete, update the goal step status via /goal step complete`,
+    `=== WORKFLOW ===`,
+    `1. READ the relevant files to understand the current state`,
+    `2. PLAN your change — what specifically needs to change and why`,
+    `3. EDIT or WRITE to make the change`,
+    `4. VERIFY the change works (run tests if applicable)`,
+    `5. Update the goal step status via /goal step complete`,
+    '',
+    `=== RULES ===`,
+    `- Always read before writing. Never edit a file you haven't read.`,
+    `- If you're unsure about a change, read more files or run tests first. Don't guess.`,
+    `- If a file needs to exist for the goal, create it.`,
+    `- If something is broken, fix it — but understand the root cause first.`,
+    `- Prefer targeted edits over wholesale rewrites.`,
+    `- When a step is complete, update the goal step status via /goal step complete.`,
     '',
     `=== STOPPING ===`,
-    `Stop when you have made at least one concrete change that advances the goal, or when the goal step is done. Concise report only.`,
+    `Stop when the current goal step is complete. Provide a brief summary of what was done.`,
   ].join('\n')
 }
 
