@@ -1,54 +1,111 @@
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+# CLAUDE.md
 
-This project is indexed by GitNexus as **DuckHive** (72586 symbols, 142203 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Core principle: understand, then act
+## Build & Test Commands
 
-**Be action-oriented, but don't guess.** Read enough to understand the change you're making, then make it. Don't over-investigate, but don't act on incomplete understanding either.
+```bash
+# Build (produces dist/cli.mjs, dist/sdk.mjs, dist/harness.mjs)
+npm run build
 
-**The read-edit cycle:** Read the relevant code to understand what it does → make the targeted edit → verify → done. Don't read endlessly, but don't edit code you haven't read either.
+# Run all tests (3400+ tests, ~40s)
+npx bun test
 
-**Use dedicated tools, not bash.** Read, Edit, Write, Glob, Grep exist for a reason. If you're running `cat`, `sed`, `grep`, `find`, or `echo >` in bash, you're using the wrong tool. Bash is ONLY for system commands with no dedicated tool equivalent.
+# Run a single test file
+npx bun test src/commands/goal/goal.test.ts
 
-## When to use GitNexus
+# Run tests matching a pattern
+npx bun test --test-name-pattern "SQLite"
 
-GitNexus is a **power tool for architecture and risky changes**, not a gate for every edit.
+# TypeScript check (no emit)
+npx tsc --noEmit
 
-**Use it for:**
-- Understanding unfamiliar code: `gitnexus_query({query: "concept"})` finds execution flows faster than grep
-- Risky refactors: `gitnexus_impact` on widely-used symbols before renaming/extracting
-- Pre-commit: `gitnexus_detect_changes()` to verify scope before pushing
+# Install globally after building
+npm install -g .
+```
 
-**Don't gate routine edits with it.** For a simple bug fix, read the file, make the edit, done.
+## Architecture
 
-## Quick reference
+DuckHive is a fork of OpenClaude (Claude Code CLI) extended with multi-agent coordination (Hive commands), MiniMax AI Platform integration, and a buddy system. Built with Bun + TypeScript + React/Ink for the terminal UI.
 
-| Task | GitNexus tool |
-|------|--------------|
-| Find code related to a concept | `gitnexus_query` |
-| Blast radius for a symbol | `gitnexus_impact` |
-| Full symbol context | `gitnexus_context` |
-| Detect changed symbols | `gitnexus_detect_changes` |
+### Entry Points
 
-## Resources
+- `src/main.tsx` — CLI entry point, command dispatch, REPL setup
+- `src/entrypoints/sdk.ts` — SDK bundle for programmatic use
+- `src/entrypoints/harness.ts` — Agent harness bundle
 
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/DuckHive/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/DuckHive/clusters` | All functional areas |
-| `gitnexus://repo/DuckHive/processes` | All execution flows |
-| `gitnexus://repo/DuckHive/process/{name}` | Step-by-step execution trace |
+### Core Pipeline
 
-## Skills
+**User input → query loop → API → tool execution → response**
 
-| Task | Skill file |
-|------|-----------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+1. `src/screens/REPL.tsx` — Main REPL screen, handles input/output, manages conversation state
+2. `src/utils/handlePromptSubmit.ts` — Processes user input, handles slash commands, queues work
+3. `src/query.ts` — The main query loop. Sends messages to the API, processes tool calls, handles auto-compact, continuation nudges, and tool failure loops
+4. `src/services/api/client.ts` — API client with provider routing, retry logic, error classification
+5. `src/services/api/openaiShim.ts` — Translates between OpenAI-compatible providers and the internal message format
 
-<!-- gitnexus:end -->
+### Command System
+
+Commands live in `src/commands/<name>/`. Each has an `index.ts` with a lazy-loaded `load()` function. Registration is in `src/commands.ts`. Commands return strings (displayed to user) or objects with `message`/`attachments`.
+
+Key commands:
+- `goal` — Autonomous goal mode (Codex-style). Multi-word `/goal "do X"` creates and starts pursuing
+- `hive-council`, `hive-team`, `hive-senate` — Multi-agent coordination
+- `mmx` — MiniMax AI Platform (text, image, speech, music, video)
+- `provider` — Provider management (OpenAI, Gemini, DeepSeek, Ollama, etc.)
+
+### Tool System
+
+Tools live in `src/tools/<ToolName>/`. Each tool implements `ToolDefinition` with `call()`, `renderToolUseMessage()`, and `renderToolResultMessage()`. Tools are registered in `src/tools/index.ts`.
+
+### MCP (Model Context Protocol)
+
+`src/services/mcp/client.ts` — MCP client with connection management, tool exposure, and reconnection logic. MCP servers are configured via `.mcp.json` or plugin manifests.
+
+### Plugin System
+
+`src/plugins/` — Plugin loading, manifest parsing, skill/hook/MCP integration. Plugins are discovered from `~/.openclaude/plugins/` and can provide commands, tools, skills, hooks, and MCP servers.
+
+### State Management
+
+- `src/state/AppStateStore.ts` — Global app state (Zustand-based)
+- `src/bootstrap/state.ts` — Session state (session ID, cost tracking, timing)
+- `src/utils/globalConfig.ts` — User config (`.openclaude.json`)
+
+### Bridge (Remote/IDE)
+
+`src/bridge/` — Connects local REPL to remote sessions (CCR) or IDE extensions. Uses SSE transports with reconnection and 401 recovery.
+
+### Context & Compaction
+
+- `src/context.ts` — Builds system prompt (git status, repo map, goal context)
+- `src/services/compact/` — Auto-compact and reactive compact for context window management
+- `src/services/contextCollapse/` — Context collapse for mid-turn overflow
+
+## Key Patterns
+
+### Feature Flags
+
+`scripts/build.ts` defines feature flags (`CONTEXT_COLLAPSE`, `REACTIVE_COMPACT`, etc.) that gate code at build time. Check `feature('FLAG_NAME')` in source.
+
+### Provider System
+
+Providers are configured in `.openclaude.json` under `providers`. The `src/providers/customProviders.ts` handles custom OpenAI-compatible endpoints. Provider routing happens in `src/services/api/client.ts`.
+
+### Error Classification
+
+`src/services/api/openaiErrorClassification.ts` classifies API errors (auth, rate limit, overloaded, context window) and determines retry behavior.
+
+### Testing
+
+Tests use Bun's built-in test runner. Mock with `mock.module()` for ESM modules. SQLite tests need 30s timeouts (`it('...', async () => { ... }, 30_000)`). Parallel test results may need sorting before assertion.
+
+## GitNexus
+
+This project is indexed by GitNexus (72586 symbols, 142203 relationships). Use for architecture questions and risky refactors, not routine edits.
+
+| Task | Tool |
+|------|------|
+| Find code by concept | `gitnexus_query` |
+| Blast radius | `gitnexus_impact` |
+| Detect changes | `gitnexus_detect_changes` |
