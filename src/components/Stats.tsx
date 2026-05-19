@@ -140,7 +140,7 @@ function StatsContent(t0) {
   const [copyStatus, setCopyStatus] = useState(null);
   let t2;
   let t3;
-  if ($[1] !== dateRange || $[2] !== statsCache) {
+  if ($[1] !== dateRange) {
     t2 = () => {
       if (dateRange === "all") {
         return;
@@ -167,9 +167,8 @@ function StatsContent(t0) {
         cancelled = true;
       };
     };
-    t3 = [dateRange, statsCache];
+    t3 = [dateRange];
     $[1] = dateRange;
-    $[2] = statsCache;
     $[3] = t2;
     $[4] = t3;
   } else {

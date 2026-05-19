@@ -252,7 +252,7 @@ async function showDiffInIDE(
 
   // Cleanup if the user hits esc to cancel the tool call - or on exit
   toolUseContext.abortController.signal.addEventListener('abort', cleanup)
-  process.on('beforeExit', cleanup)
+  process.once('beforeExit', cleanup)
 
   // Open the diff in the IDE
   const ideClient = getConnectedIdeClient(toolUseContext.options.mcpClients)
