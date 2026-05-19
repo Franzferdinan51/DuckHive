@@ -355,9 +355,21 @@ async function saveGoals(
 }
 
 function formatGoal(goal: Goal, detailed = false): string {
+  const completedSteps = goal.steps.filter(s => s.status === 'completed').length
+  const totalSteps = goal.steps.length
+  const percent =
+    totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0
+
+  // Build a simple ASCII progress bar
+  const barWidth = 20
+  const filledWidth = Math.round((percent / 100) * barWidth)
+  const emptyWidth = barWidth - filledWidth
+  const progressBar = `[${'#'.repeat(filledWidth)}${'.'.repeat(emptyWidth)}] ${percent}%`
+
   let output = `${formatGoalStatusLabel(goal.status)} **${bold(goal.title)}** \`${goal.id}\`\n`
-  output += `   Status: ${goal.status.toUpperCase()}\n`
-  output += `   Created: ${new Date(goal.createdAt).toLocaleString()}\n`
+  output += `   Progress: ${progressBar}\n`
+  output += `   Status:   ${goal.status.toUpperCase()}\n`
+  output += `   Created:  ${new Date(goal.createdAt).toLocaleString()}\n`
 
   if (goal.status === 'paused' && goal.currentStepId) {
     output += `   Current Step: ${goal.currentStepId}\n`
@@ -370,9 +382,13 @@ function formatGoal(goal: Goal, detailed = false): string {
   if (detailed) {
     output += `\n   ${italic(goal.description)}\n`
     if (goal.steps.length > 0) {
-      output += `\n   Steps (${goal.steps.length}):\n`
+      output += `\n   ${bold('Roadmap:')}\n`
       for (const step of goal.steps) {
-        output += `   ${formatStepStatusLabel(step.status)} [${step.id}] ${step.description}\n`
+        const isCurrent = step.id === goal.currentStepId
+        const prefix = isCurrent ? ' → ' : '   '
+        const label = formatStepStatusLabel(step.status)
+        const desc = isCurrent ? bold(step.description) : step.description
+        output += `${prefix}${label} ${desc}\n`
       }
     }
   }
@@ -826,9 +842,11 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `3. VALIDATE UNDERSTANDING: Briefly state what you've learned. If you find a contradiction or gap, resolve it immediately with one more targeted read.`,
     `4. DECISIVE ACTION: Once the path is clear, execute the change. If the path is 80% clear, take the safest first step (e.g., create a test or a small part of the logic).`,
     `5. EMPIRICAL FEEDBACK: Run the code or tests. Use the output to correct your course rather than just reading more code.`,
-    `6. UPDATE & REPEAT: Report progress, mark step complete with '/goal step complete', and move to the next.`,
+    `6. ATOMIC COMMIT: Once a step is verified, commit your changes with a clear message referencing the goal.`,
+    `7. UPDATE & REPEAT: Report progress, mark step complete with '/goal step complete', and move to the next.`,
     '',
     `=== RULES TO PREVENT STALLING & HALLUCINATION ===`,
+    `- COMMIT FREQUENTLY: Prefer small, atomic commits for each completed milestone. This makes it easier to track progress and revert if needed.`,
     `- PLAN YOUR WORK: Never start a complex step without a plan. Record your plan in the goal system so it's visible.`,
     `- NO GUESSING: Never edit a file based on an assumption. If you haven't read the file in this session, read it now.`,
     `- NO ENDLESS BROWSING: If you have read a file and know where the logic is, stop searching. Start planning the edit.`,
