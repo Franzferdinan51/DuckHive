@@ -49,7 +49,9 @@ export async function findRelevantMemories(
   alreadySurfaced: ReadonlySet<string> = new Set(),
 ): Promise<RelevantMemory[]> {
   // Fire-and-forget FTS5 init on first call
-  void initFts5().catch(() => {})
+  void initFts5().catch((err) => {
+    logForDebugging(`[memdir] FTS5 init failed: ${err instanceof Error ? err.message : String(err)}`)
+  })
 
   // Try FTS5 first as a fast pre-filter
   const ftsResults = searchMemoriesFts5(query, 10)

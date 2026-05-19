@@ -288,14 +288,15 @@ export class EmailAdapter implements ChannelAdapter {
 
   private async closeImap(): Promise<void> {
     if (!this.imap) return
+    const imap = this.imap
+    this.imap = null
     return new Promise(resolve => {
       try {
-        this.imap!.end()
-        this.imap!.once('end', resolve)
+        imap.end()
+        imap.once('end', resolve)
       } catch {
         resolve()
       }
-      this.imap = null
     })
   }
 
