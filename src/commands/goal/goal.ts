@@ -360,35 +360,35 @@ function formatGoal(goal: Goal, detailed = false): string {
   const percent =
     totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0
 
-  // Build a simple ASCII progress bar
-  const barWidth = 20
+  // Build a precise ASCII progress bar
+  const barWidth = 30
   const filledWidth = Math.round((percent / 100) * barWidth)
   const emptyWidth = barWidth - filledWidth
-  const progressBar = `[${'#'.repeat(filledWidth)}${'.'.repeat(emptyWidth)}] ${percent}%`
+  const progressBar = `|${'█'.repeat(filledWidth)}${'.'.repeat(emptyWidth)}| ${percent}%`
 
-  let output = `${formatGoalStatusLabel(goal.status)} **${bold(goal.title)}** \`${goal.id}\`\n`
+  let output = `\n${formatGoalStatusLabel(goal.status)} **${bold(goal.title)}** \`${goal.id}\`\n`
   output += `   Progress: ${progressBar}\n`
   output += `   Status:   ${goal.status.toUpperCase()}\n`
   output += `   Created:  ${new Date(goal.createdAt).toLocaleString()}\n`
 
   if (goal.status === 'paused' && goal.currentStepId) {
-    output += `   Current Step: ${goal.currentStepId}\n`
+    output += `   Waiting at: ${goal.currentStepId}\n`
   }
 
   if (goal.sessionId) {
-    output += `   Attached Session: ${goal.sessionId}\n`
+    output += `   Session:  ${goal.sessionId}\n`
   }
 
   if (detailed) {
     output += `\n   ${italic(goal.description)}\n`
     if (goal.steps.length > 0) {
-      output += `\n   ${bold('Roadmap:')}\n`
+      output += `\n   ${bold('Milestones:')}\n`
       for (const step of goal.steps) {
         const isCurrent = step.id === goal.currentStepId
         const prefix = isCurrent ? ' → ' : '   '
-        const label = formatStepStatusLabel(step.status)
+        const label = `[${formatStepStatusLabel(step.status)}]`
         const desc = isCurrent ? bold(step.description) : step.description
-        output += `${prefix}${label} ${desc}\n`
+        output += `${prefix}${label.padEnd(4)} ${desc}\n`
       }
     }
   }
