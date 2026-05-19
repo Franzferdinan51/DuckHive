@@ -80,9 +80,12 @@ function buildGoalPromptSection(): Record<string, string> | null {
               ``,
             ]
           : []),
-        `Work toward this goal step by step. DO NOT get stuck in a loop of endless exploration. If you've read a few files, MAKE A CHANGE. Action is prioritized over perfect information.`,
-        `After each step: (1) report what you did, (2) update the goal step status with /goal step complete, (3) move to the next step immediately.`,
-        `Keep working until the goal is met. Don't stop after one step — if there are more steps, do them.`,
+        `### EXECUTION GUIDELINES`,
+        `1. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.`,
+        `2. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.`,
+        `3. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.`,
+        `4. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.`,
+        `Keep working until the ENTIRE goal is met. Don't stop after one step.`,
       ].join('\n'),
     }
   } catch {

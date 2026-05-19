@@ -156,24 +156,53 @@ export class SimplePlanner {
       })
     }
 
-    // Match patterns in priority order
-    for (const pattern of STEP_PATTERNS) {
-      for (const keyword of pattern.keywords) {
-        if (taskLower.includes(keyword)) {
-          // Extract the phrase around the keyword for more descriptive step
-          const regex = new RegExp(`(.{0,40}${keyword}.{0,60})`, 'i')
-          const match = task.match(regex)
-          const description = match ? match[1].trim() : keyword
+    // First, try to split the task into logical sub-tasks if separators exist
+    const subTasks = task.split(/\b(?:then|and then|followed by|after that|after which)\b/i)
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
 
-          addStep(pattern, description)
+    // Match patterns for each sub-task
+    for (const subTask of subTasks) {
+      const subTaskLower = subTask.toLowerCase()
+      let matched = false
 
-          // Only match each keyword once
-          break
+      for (const pattern of STEP_PATTERNS) {
+        for (const keyword of pattern.keywords) {
+          if (subTaskLower.includes(keyword)) {
+            addStep(pattern, subTask)
+            matched = true
+            break
+          }
+        }
+        if (matched) break
+      }
+
+      // If a sub-task didn't match any pattern, add it as a generic agent step
+      if (!matched && subTasks.length > 1) {
+        addStep({
+          keywords: [],
+          taskType: 'local_agent',
+          activeForms: ['Processing'],
+        }, subTask)
+      }
+    }
+
+    // Fallback: if nothing matched or split, treat whole task as one step using original matching
+    if (steps.length === 0) {
+      for (const pattern of STEP_PATTERNS) {
+        for (const keyword of pattern.keywords) {
+          if (taskLower.includes(keyword)) {
+            const regex = new RegExp(`(.{0,40}${keyword}.{0,60})`, 'i')
+            const match = task.match(regex)
+            const description = match ? match[1].trim() : keyword
+            addStep(pattern, description)
+            break
+          }
         }
       }
     }
 
-    // Fallback: if nothing matched, treat whole task as one step
+    // Double Fallback: treat whole task as one step
     if (steps.length === 0) {
       steps.push({
         id: 's1',
