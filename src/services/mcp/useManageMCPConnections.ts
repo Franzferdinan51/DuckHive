@@ -393,9 +393,13 @@ export function useManageMCPConnections(
 
                   const reconnectStartTime = Date.now()
                   try {
+                    // Use current config from dynamicMcpConfig instead of captured
+                    // client.config, which may be stale if the user edited .mcp.json
+                    // while reconnection was in progress.
+                    const currentConfig = dynamicMcpConfig?.[client.name] ?? client.config
                     const result = await reconnectMcpServerImpl(
                       client.name,
-                      client.config,
+                      currentConfig,
                     )
                     const elapsed = Date.now() - reconnectStartTime
 
