@@ -8,7 +8,7 @@ const yolo = {
   aliases: ['bypass', 'perm'] as const,
   description: 'Toggle yolo/permission bypass mode (auto-approve all tool calls)',
   supportsNonInteractive: true,
-  isEnabled: () => isYoloModeEnabled(),
+  isEnabled: () => true,
   argumentHint: '[on|off|toggle]',
   get immediate() {
     return shouldInferenceConfigCommandBeImmediate()

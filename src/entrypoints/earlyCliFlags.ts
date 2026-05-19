@@ -2,6 +2,7 @@ export function hasEarlyYoloFlag(args: readonly string[]): boolean {
   return args.some(
     arg =>
       arg === '--yolo' ||
+      arg === '-y' ||
       arg === '--dangerously-skip-permissions',
   )
 }

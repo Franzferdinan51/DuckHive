@@ -54,6 +54,12 @@ describe('/goal command', () => {
     }))
     mock.module('../../bootstrap/state.js', () => ({
       getSessionId: () => sessionId,
+      setActiveGoalId: () => {},
+      addSlowOperation: () => {},
+      getInvokedSkills: () => new Map(),
+      getCwdState: () => process.cwd(),
+      getOriginalCwd: () => process.cwd(),
+      getAdditionalDirectoriesForClaudeMd: () => [],
     }))
     mock.module('../../subagentSystem.js', () => ({
       sessions_spawn: async (options: {
@@ -352,14 +358,14 @@ describe('/goal command', () => {
     expect(result).toContain('all, active, paused, completed')
   })
 
-  test('unknown subcommands do not silently create a new goal', async () => {
+  test('single-word goals are accepted exactly like Codex (no longer rejected as unknown subcommands)', async () => {
     const goalCommand = await importFreshGoalCommand()
 
-    const result = await goalCommand(['statue'])
+    const result = await goalCommand(['Refactor'])
 
-    expect(result).toContain('Unknown goal command: statue')
-    expect(result).toContain('/goal help')
-    expect(getStoredGoals()).toHaveLength(0)
+    expect(result).toContain('Autonomous goal started')
+    expect(getStoredGoals()).toHaveLength(1)
+    expect(getStoredGoals()[0]?.description).toBe('Refactor')
   })
 
   test('bare status prefers the single active goal detail view', async () => {

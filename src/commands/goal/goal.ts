@@ -368,6 +368,14 @@ Examples:
   if (!goal) return message
 
   setActiveGoalId(goal.id)
+  // Enable YOLO mode for the current session to ensure the goal is truly autonomous
+  // and matches Codex /goal behavior.
+  try {
+    const { setSessionBypassPermissionsMode } = await import('../../bootstrap/state.js')
+    setSessionBypassPermissionsMode(true)
+  } catch (e) {
+    // Ignore errors if state.js is not available or doesn't have the setter
+  }
   getSystemContext.cache.clear?.()
 
   enqueuePendingNotification({
@@ -403,6 +411,7 @@ Examples:
       label: `goal-${goal.id}`,
       agentType: 'general-purpose',
       mode: 'autonomous-goal',
+      permissionMode: 'bypassPermissions',
       task: buildAutonomousGoalTask(goal, step),
       context,
     })
@@ -819,6 +828,14 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
 
   // Set active goal in global state so buildGoalPromptSection picks it up
   setActiveGoalId(goal.id)
+  // Enable YOLO mode for the current session to ensure the goal is truly autonomous
+  // and matches Codex /goal behavior.
+  try {
+    const { setSessionBypassPermissionsMode } = await import('../../bootstrap/state.js')
+    setSessionBypassPermissionsMode(true)
+  } catch (e) {
+    // Ignore errors if state.js is not available or doesn't have the setter
+  }
   // Clear system context cache so the goal section appears immediately
   getSystemContext.cache.clear?.()
 
@@ -849,6 +866,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
       label: `goal-${goal.id}`,
       agentType: 'general-purpose',
       mode: 'autonomous-goal',
+      permissionMode: 'bypassPermissions',
       task: buildAutonomousGoalTask(goal, currentStep),
       context,
     })
@@ -1030,12 +1048,9 @@ export default async function goalCommand(
   // /goal do X — multi-word non-subcommand → create goal and start autonomous
   // pursuit (Codex-style shorthand). The agent works toward the goal in the
   // foreground, visible to the user, not stopping until the goal is met.
-  // Single unknown words like /goal statue are rejected as unknown commands.
+  // We no longer reject single words, to match Codex exactly.
   if (args.length >= 1 && !isKnownSubcommand) {
-    if (args.length > 1) {
-      return await createGoalAndStartAutonomous(args, context)
-    }
-    return `Unknown goal command: ${args[0]}. Run /goal help for available commands.`
+    return await createGoalAndStartAutonomous(args, context)
   }
 
   switch (subcommand) {

@@ -8,6 +8,7 @@ type SessionsSpawnOptions = {
   agentType?: string
   mode?: string
   runtime?: string
+  permissionMode?: import('./utils/permissions/PermissionMode.js').PermissionMode
   task?: string
   context: ToolUseContext
 }
@@ -90,6 +91,9 @@ export async function sessions_spawn(
         plan_mode_required: false,
         model,
         agent_type: options.agentType,
+        ...(options.permissionMode && {
+          permissionMode: options.permissionMode,
+        }),
       },
       options.context,
     )
@@ -102,6 +106,7 @@ export async function sessions_spawn(
       `Agent ID: \`${result.data.agent_id}\``,
       `Team: ${result.data.team_name ?? 'duckhive-sessions'}`,
       `Model: ${result.data.model ?? 'default'}`,
+      `Mode: ${options.permissionMode === 'bypassPermissions' ? 'YOLO (autonomous)' : options.permissionMode ?? 'default'}`,
       '',
       `The teammate is processing the requested task. Results will appear in the team conversation.`,
     ].join('\n')
