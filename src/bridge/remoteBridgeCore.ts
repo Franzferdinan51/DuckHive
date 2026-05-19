@@ -573,7 +573,10 @@ export async function initEnvLessBridgeCore(
       // before our setOnClose callback). Reset so the new onConnect re-flushes.
       // (v1 scopes initialFlushDone inside the per-transport closure at
       // replBridge.ts:1027 so it resets naturally; v2 has it at outer scope.)
+      // Also clear recentPostedUUIDs so the re-flush includes messages that
+      // were added during the 401 recovery window but never actually delivered.
       initialFlushDone = false
+      recentPostedUUIDs.clear()
       await rebuildTransport(fresh, 'auth_401_recovery')
       logForDebugging('[remote-bridge] Transport rebuilt after 401')
     } catch (err) {
