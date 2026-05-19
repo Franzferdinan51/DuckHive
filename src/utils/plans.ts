@@ -157,6 +157,14 @@ export function getPlan(agentId?: AgentId): string | null {
 }
 
 /**
+ * Set the plan content for the current session.
+ */
+export async function writePlan(content: string): Promise<void> {
+  const filePath = getPlanFilePath()
+  await writeFile(filePath, content, { encoding: 'utf-8' })
+}
+
+/**
  * Extract the plan slug from a log's message history.
  */
 function getSlugFromLog(log: LogOption): string | undefined {

@@ -22,7 +22,8 @@ import { enqueuePendingNotification } from '../../utils/messageQueueManager.js'
 import { getSystemContext } from '../../context.js'
 import type { ToolUseContext } from '../../Tool.js'
 import { createSignal } from '../../utils/signal.js'
-import { SimplePlanner } from '../../coordinator/planner.js'
+import { TaskPlanner } from '../../coordinator/planner.js'
+import { writePlan } from '../../utils/plans.js'
 
 // Goal states
 export type GoalStatus = 'active' | 'paused' | 'completed' | 'failed'
@@ -287,12 +288,13 @@ function cloneGoal(goal: Goal): Goal {
 }
 
 /**
- * Decompose a goal description into multiple actionable steps using SimplePlanner.
- * Populates the goal.steps array and sets the initial currentStepId.
+ * Decompose a goal description into multiple actionable steps using TaskPlanner.
+ * Populates the goal.steps array, sets the initial currentStepId, and writes
+ * the plan to the built-in session plan file.
  */
-function planGoal(goal: Goal): void {
-  const planner = new SimplePlanner()
-  const plan = planner.plan(goal.description)
+async function planGoal(goal: Goal): Promise<void> {
+  const planner = new TaskPlanner()
+  const plan = await planner.createPlan(goal.description)
 
   if (plan.steps.length > 0) {
     goal.steps = plan.steps.map((s, index) => ({
@@ -312,6 +314,26 @@ function planGoal(goal: Goal): void {
     }
     goal.steps = [step]
     goal.currentStepId = step.id
+  }
+
+  // Sync with built-in planning infrastructure
+  const planContent = [
+    `# Goal: ${goal.title}`,
+    ``,
+    `> ${goal.description}`,
+    ``,
+    `## Steps`,
+    ...goal.steps.map(
+      (s, i) => `${i + 1}. [${s.status === 'completed' ? 'x' : ' '}] ${s.description}`,
+    ),
+    ``,
+    `*Generated via DuckHive Autonomous Planning*`,
+  ].join('\n')
+
+  try {
+    await writePlan(planContent)
+  } catch (e) {
+    // Ignore if plan file cannot be written
   }
 }
 
@@ -420,9 +442,7 @@ Examples:
   goal.updatedAt = new Date().toISOString()
   goal.lastActivityAt = new Date().toISOString()
 
-  if (goal.steps.length === 0) {
-    planGoal(goal)
-  }
+  // Steps are already planned by createGoal()
 
   const step = getCurrentStep(goal)
   const stepInfo = step ? `\nCurrent step: ${step.description}` : ''
@@ -482,7 +502,7 @@ async function createGoal(args: string[]): Promise<{ goalId: string; message: st
   }
 
   // Decompose goal into actionable steps
-  planGoal(goal)
+  await planGoal(goal)
 
   const goals = getGoals()
   goals.unshift(goal)
@@ -840,7 +860,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
 
   // If goal has no steps yet, decompose it into actionable steps
   if (goal.steps.length === 0) {
-    planGoal(goal)
+    await planGoal(goal)
   }
 
   // Set active goal in global state so buildGoalPromptSection picks it up
@@ -901,7 +921,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
     }
   }
 
-  return `Autonomous goal mode activated for goal.\n\n${formatGoal(goal)}${stepInfo}${spawnInfo}\n\nThe agent will now work toward this goal continuously. Use /goal status to check progress or /goal stop-autonomous to cancel.`
+  return `Autonomous goal mode activated for goal.\n\n${formatGoal(goal, true)}${stepInfo}${spawnInfo}\n\nThe agent will now work toward this goal continuously. Use /goal status to check progress or /goal stop-autonomous to cancel.`
 }
 
 async function stopAutonomousMode(args: string[], context?: ToolUseContext): Promise<string> {
@@ -1120,7 +1140,6 @@ export default async function goalCommand(
 
     case 'clear':
     case 'delete':
-    case 'remove':
       return clearGoal(args.slice(1))
 
     case 'attach':

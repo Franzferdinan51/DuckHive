@@ -88,7 +88,7 @@ export async function sessions_spawn(
         name: teammateName,
         prompt: task,
         team_name: 'duckhive-sessions',
-        plan_mode_required: false,
+        plan_mode_required: options.mode === 'plan' || options.mode === 'autonomous-goal',
         model,
         agent_type: options.agentType,
         ...(options.permissionMode && {
