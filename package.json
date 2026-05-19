@@ -1,6 +1,6 @@
 {
   "name": "duckhive",
-  "version": "0.13.6",
+  "version": "0.13.7",
   "description": "DuckHive opens coding-agent workflows to any LLM - OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
   "type": "module",
   "bin": {
