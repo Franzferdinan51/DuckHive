@@ -371,7 +371,7 @@ Examples:
   getSystemContext.cache.clear?.()
 
   enqueuePendingNotification({
-    value: `<goal_tick>Autonomous goal started. Work toward the active goal. Check system prompt for goal context.</goal_tick>`,
+    value: `<goal_tick>Autonomous goal started. Work toward the active goal. Report your progress after each step. Keep working until the goal is met. Check system prompt for goal context.</goal_tick>`,
     mode: 'prompt',
     priority: 'next',
     isMeta: true,
@@ -741,7 +741,7 @@ async function completeStep(args: string[]): Promise<string> {
   if (goal.autonomousMode && nextStep) {
     getSystemContext.cache.clear?.()
     enqueuePendingNotification({
-      value: `<goal_tick>Step completed. Continue with the next step: ${nextStep.description}. Read the relevant files first, then make targeted changes.</goal_tick>`,
+      value: `<goal_tick>Step completed. Report what you did, then continue with the next step: ${nextStep.description}. Read the relevant files first, then make targeted changes.</goal_tick>`,
       mode: 'prompt',
       priority: 'next',
       isMeta: true,
@@ -769,7 +769,9 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `2. PLAN your change — what specifically needs to change and why`,
     `3. EDIT or WRITE to make the change`,
     `4. VERIFY the change works (run tests if applicable)`,
-    `5. Update the goal step status via /goal step complete`,
+    `5. REPORT what you did — show the user what changed and why`,
+    `6. Update the goal step status via /goal step complete`,
+    `7. If there are more steps, CONTINUE to the next step. Don't stop.`,
     '',
     `=== RULES ===`,
     `- Always read before writing. Never edit a file you haven't read.`,
@@ -777,10 +779,12 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `- If a file needs to exist for the goal, create it.`,
     `- If something is broken, fix it — but understand the root cause first.`,
     `- Prefer targeted edits over wholesale rewrites.`,
+    `- After each step, report what you did and why. Show the user your progress.`,
     `- When a step is complete, update the goal step status via /goal step complete.`,
+    `- If there are remaining steps, continue to the next one. Keep working until the goal is met.`,
     '',
     `=== STOPPING ===`,
-    `Stop when the current goal step is complete. Provide a brief summary of what was done.`,
+    `Stop only when ALL goal steps are complete, or when you've made meaningful progress and need user input. Always summarize what was done.`,
   ].join('\n')
 }
 
@@ -823,7 +827,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
   // timer or user message. The REPL's 1s cron scheduler processes this via
   // processQueueIfReady → executeQueuedInput → handlePromptSubmit.
   enqueuePendingNotification({
-    value: `<goal_tick>Autonomous goal started. Work toward the active goal. Check system prompt for goal context.</goal_tick>`,
+    value: `<goal_tick>Autonomous goal started. Work toward the active goal. Report your progress after each step. Keep working until the goal is met. Check system prompt for goal context.</goal_tick>`,
     mode: 'prompt',
     priority: 'next',
     isMeta: true,

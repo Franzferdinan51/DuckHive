@@ -80,7 +80,9 @@ function buildGoalPromptSection(): Record<string, string> | null {
               ``,
             ]
           : []),
-        `Work toward this goal step by step. Read before writing, understand before changing. After completing a step, update the goal step status with /goal step complete.`,
+        `Work toward this goal step by step. Read before writing, understand before changing.`,
+        `After each step: (1) report what you did, (2) update the goal step status with /goal step complete, (3) continue to the next step.`,
+        `Keep working until the goal is met. Don't stop after one step — if there are more steps, do them.`,
       ].join('\n'),
     }
   } catch {
