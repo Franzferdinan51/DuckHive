@@ -108,7 +108,7 @@ describe('/goal command', () => {
 
     const result = await goalCommand(['Build', 'user', 'authentication', 'system'])
 
-    expect(result).toContain('Goal created successfully!')
+    expect(result).toContain('Autonomous goal started')
     expect(getStoredGoals()).toHaveLength(1)
     expect(getStoredGoals()[0]?.description).toBe('Build user authentication system')
   })
@@ -153,7 +153,7 @@ describe('/goal command', () => {
 
     const result = await call('Build the \\"fast\\" workflow')
 
-    expect(result.value).toContain('Goal created successfully!')
+    expect(result.value).toContain('Autonomous goal started')
     expect(getStoredGoals()).toHaveLength(1)
     expect(getStoredGoals()[0]?.description).toBe('Build the "fast" workflow')
   })

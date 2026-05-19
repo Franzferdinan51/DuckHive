@@ -1004,14 +1004,13 @@ export default async function goalCommand(
     'stop', 'stop-autonomous', 'help',
   ].includes(subcommand ?? '')
 
-  // /goal do X — multi-word non-subcommand → create goal (Codex-style shorthand)
+  // /goal do X — multi-word non-subcommand → create goal and start autonomous
+  // pursuit (Codex-style shorthand). The agent works toward the goal in the
+  // foreground, visible to the user, not stopping until the goal is met.
   // Single unknown words like /goal statue are rejected as unknown commands.
-  // Note: splitCommandArgs strips outer quotes, so /goal "Fix login" becomes
-  // ['Fix login'] — the quote check is unnecessary.
   if (args.length >= 1 && !isKnownSubcommand) {
     if (args.length > 1) {
-      const { message } = await createGoal(args)
-      return message
+      return await createGoalAndStartAutonomous(args, context)
     }
     return `Unknown goal command: ${args[0]}. Run /goal help for available commands.`
   }
