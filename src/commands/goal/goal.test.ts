@@ -60,6 +60,18 @@ describe('/goal command', () => {
       getCwdState: () => process.cwd(),
       getOriginalCwd: () => process.cwd(),
       getAdditionalDirectoriesForClaudeMd: () => [],
+      setLastAPIRequestMessages: () => {},
+      setLastAPIRequest: () => {},
+      getLastAPIRequest: () => null,
+      getLastAPIRequestMessages: () => [],
+      waitForScrollIdle: () => Promise.resolve(),
+      getStatsStore: () => ({}),
+      getAllowedSettingSources: () => [],
+      getProjectRoot: () => process.cwd(),
+      getFlagSettingsPath: () => '',
+      getInlinePlugins: () => [],
+      getIsNonInteractiveSession: () => false,
+      getIsInteractive: () => true,
     }))
     mock.module('../../subagentSystem.js', () => ({
       sessions_spawn: async (options: {

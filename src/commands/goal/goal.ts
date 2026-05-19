@@ -22,6 +22,7 @@ import { enqueuePendingNotification } from '../../utils/messageQueueManager.js'
 import { getSystemContext } from '../../context.js'
 import type { ToolUseContext } from '../../Tool.js'
 import { createSignal } from '../../utils/signal.js'
+import { SimplePlanner } from '../../coordinator/planner.js'
 
 // Goal states
 export type GoalStatus = 'active' | 'paused' | 'completed' | 'failed'
@@ -285,6 +286,35 @@ function cloneGoal(goal: Goal): Goal {
   }
 }
 
+/**
+ * Decompose a goal description into multiple actionable steps using SimplePlanner.
+ * Populates the goal.steps array and sets the initial currentStepId.
+ */
+function planGoal(goal: Goal): void {
+  const planner = new SimplePlanner()
+  const plan = planner.plan(goal.description)
+
+  if (plan.steps.length > 0) {
+    goal.steps = plan.steps.map((s, index) => ({
+      id: `step_${Date.now()}_${index}`,
+      description: s.description,
+      status: index === 0 ? 'active' : 'paused',
+      createdAt: new Date().toISOString(),
+    }))
+    goal.currentStepId = goal.steps[0].id
+  } else {
+    // Fallback if planner returned nothing
+    const step: GoalStep = {
+      id: `step_${Date.now()}`,
+      description: goal.description,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    }
+    goal.steps = [step]
+    goal.currentStepId = step.id
+  }
+}
+
 async function saveGoals(
   goals: Goal[],
   event?: { type: GoalUpdateType; goal?: Goal },
@@ -391,13 +421,7 @@ Examples:
   goal.lastActivityAt = new Date().toISOString()
 
   if (goal.steps.length === 0) {
-    goal.steps.push({
-      id: generateId(),
-      description: goal.description,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    })
-    goal.currentStepId = goal.steps[0].id
+    planGoal(goal)
   }
 
   const step = getCurrentStep(goal)
@@ -456,6 +480,9 @@ async function createGoal(args: string[]): Promise<{ goalId: string; message: st
     steps: [],
     currentStepId: undefined,
   }
+
+  // Decompose goal into actionable steps
+  planGoal(goal)
 
   const goals = getGoals()
   goals.unshift(goal)
@@ -774,13 +801,15 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `Your job is to make concrete progress toward this goal. You must balance deep understanding with decisive action. Do not guess, but do not hesitate.`,
     '',
     `=== WORKFLOW: READ ONCE, PLAN ONCE, ACT ALWAYS ===`,
-    `1. TARGETED RESEARCH: Read only the files directly related to the current step. Use grep to find exact locations. Do not browse the whole repo.`,
-    `2. VALIDATE UNDERSTANDING: Briefly state what you've learned. If you find a contradiction or gap, resolve it immediately with one more targeted read.`,
-    `3. DECISIVE ACTION: Once the path is clear, execute the change. If the path is 80% clear, take the safest first step (e.g., create a test or a small part of the logic).`,
-    `4. EMPIRICAL FEEDBACK: Run the code or tests. Use the output to correct your course rather than just reading more code.`,
-    `5. UPDATE & REPEAT: Report progress, mark step complete, and move to the next.`,
+    `1. PLAN & REFINE: Review the current steps. If they are too broad or missing details, use '/goal step add' to decompose them into smaller, actionable tasks.`,
+    `2. TARGETED RESEARCH: Read only the files directly related to the current step. Use grep to find exact locations. Do not browse the whole repo.`,
+    `3. VALIDATE UNDERSTANDING: Briefly state what you've learned. If you find a contradiction or gap, resolve it immediately with one more targeted read.`,
+    `4. DECISIVE ACTION: Once the path is clear, execute the change. If the path is 80% clear, take the safest first step (e.g., create a test or a small part of the logic).`,
+    `5. EMPIRICAL FEEDBACK: Run the code or tests. Use the output to correct your course rather than just reading more code.`,
+    `6. UPDATE & REPEAT: Report progress, mark step complete with '/goal step complete', and move to the next.`,
     '',
     `=== RULES TO PREVENT STALLING & HALLUCINATION ===`,
+    `- PLAN YOUR WORK: Never start a complex step without a plan. Record your plan in the goal system so it's visible.`,
     `- NO GUESSING: Never edit a file based on an assumption. If you haven't read the file in this session, read it now.`,
     `- NO ENDLESS BROWSING: If you have read a file and know where the logic is, stop searching. Start planning the edit.`,
     `- TEST-DRIVEN PROGRESS: If you are unsure, write a small reproduction test. The test failure will give you "perfect information" without needing to read every file.`,
@@ -809,16 +838,9 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
   goal.updatedAt = new Date().toISOString()
   goal.lastActivityAt = new Date().toISOString()
 
-  // If goal has no steps yet, create the first step from the description
+  // If goal has no steps yet, decompose it into actionable steps
   if (goal.steps.length === 0) {
-    const step: GoalStep = {
-      id: generateId(),
-      description: goal.description,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    }
-    goal.steps.push(step)
-    goal.currentStepId = step.id
+    planGoal(goal)
   }
 
   // Set active goal in global state so buildGoalPromptSection picks it up
