@@ -32,6 +32,15 @@ DuckHive is an AI coding CLI built on top of [Gitlawb/openclaude](https://github
 | Basic MCP | **dmcp** — enhanced MCP server management |
 | Distribution | **npm global install** — one command setup |
 
+### Codex-style `/goal` (Autonomous Mode)
+
+DuckHive features a powerful, persisted goal system inspired by Codex `r0.128.0`. It allows for long-horizon, autonomous engineering tasks.
+
+- **Shorthand creation**: Run `/goal <task description>` (e.g., `/goal Refactor the auth module`) to immediately create and start a goal. Single-word goals like `/goal Refactor` are also supported, matching Codex behavior.
+- **Autonomous Execution**: Starting a goal via shorthand or `/goal pursue` automatically enables **YOLO mode** (permission bypass). The agent works continuously across turns without requiring constant manual approval for every tool call.
+- **Action-Oriented Prompting**: The autonomous task instructions prioritize **action over exploration**. It follows a "Read Once, Plan Once, Act Always" philosophy to prevent analysis paralysis while maintaining accuracy.
+- **Persistence**: Goals are saved across sessions. Use `/goal list` and `/goal status` to track progress, and `/goal stop` to cancel autonomous work.
+
 ---
 
 ## Features
