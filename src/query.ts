@@ -1177,6 +1177,7 @@ async function* queryLoop(
               messages: drained.messages,
               toolUseContext,
               autoCompactTracking: tracking,
+              explorationCount: state.explorationCount,
               maxOutputTokensRecoveryCount,
               hasAttemptedReactiveCompact,
               maxOutputTokensOverride: undefined,
@@ -1231,6 +1232,7 @@ async function* queryLoop(
             messages: postCompactMessages,
             toolUseContext,
             autoCompactTracking: undefined,
+            explorationCount: state.explorationCount,
             maxOutputTokensRecoveryCount,
             hasAttemptedReactiveCompact: true,
             maxOutputTokensOverride: undefined,
@@ -1287,6 +1289,7 @@ async function* queryLoop(
             messages: messagesForQuery,
             toolUseContext,
             autoCompactTracking: tracking,
+            explorationCount: state.explorationCount,
             maxOutputTokensRecoveryCount,
             hasAttemptedReactiveCompact,
             maxOutputTokensOverride: ESCALATED_MAX_TOKENS,
@@ -1316,6 +1319,7 @@ async function* queryLoop(
             ],
             toolUseContext,
             autoCompactTracking: tracking,
+            explorationCount: state.explorationCount,
             maxOutputTokensRecoveryCount: maxOutputTokensRecoveryCount + 1,
             hasAttemptedReactiveCompact,
             maxOutputTokensOverride: undefined,
@@ -1369,6 +1373,7 @@ async function* queryLoop(
           ],
           toolUseContext,
           autoCompactTracking: tracking,
+          explorationCount: state.explorationCount,
           maxOutputTokensRecoveryCount: 0,
           // Preserve the reactive compact guard — if compact already ran and
           // couldn't recover from prompt-too-long, retrying after a stop-hook
@@ -1411,7 +1416,8 @@ async function* queryLoop(
             ],
             toolUseContext,
             autoCompactTracking: tracking,
-            maxOutputTokensRecoveryCount: 0,
+            explorationCount: state.explorationCount,
+            maxOutputTokensRecoveryCount,
             hasAttemptedReactiveCompact: false,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
@@ -1493,7 +1499,8 @@ async function* queryLoop(
               messages: [...messagesForQuery, ...assistantMessages, nudge],
               toolUseContext,
               autoCompactTracking: tracking,
-              maxOutputTokensRecoveryCount: 0,
+              explorationCount: state.explorationCount,
+              maxOutputTokensRecoveryCount,
               hasAttemptedReactiveCompact: false,
               maxOutputTokensOverride: undefined,
               pendingToolUseSummary: undefined,
@@ -1907,7 +1914,7 @@ async function* queryLoop(
             toolUseContext.options.tools,
             toolBlock.name,
           )
-          const searchOrRead = tool?.isSearchOrReadCommand?.()
+          const searchOrRead = tool?.isSearchOrReadCommand?.(toolBlock.input as any)
           return searchOrRead?.isRead || searchOrRead?.isSearch
         })
         if (isExplorationTurn) {

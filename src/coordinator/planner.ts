@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DuckHive Task Planner
  *
@@ -531,7 +530,5 @@ function remapDependencies(
 }
 
 // ---------------------------------------------------------------------------
-// Exports
+// End of file
 // ---------------------------------------------------------------------------
-
-export type { Plan, PlanStep, PlannerOptions, LLMPlannerConfig }

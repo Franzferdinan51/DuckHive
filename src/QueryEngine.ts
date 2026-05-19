@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { feature } from 'bun:bundle'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs'
 import { randomUUID } from 'crypto'
@@ -1075,9 +1074,10 @@ export class QueryEngine {
     // is a type predicate (message is Message), so inside the false branch
     // `result` narrows to never and these accesses don't typecheck.
     const edeResultType = (result as any)?.type ?? 'undefined'
+    const lastContent = last(result.message.content)
     const edeLastContentType =
-      (result as any)?.type === 'assistant'
-        ? (last(result.message.content)?.type ?? 'none')
+      (result as any).type === 'assistant' && lastContent
+        ? (lastContent as any).type ?? 'none'
         : 'n/a'
 
     // Flush buffered transcript writes before yielding result.
@@ -1134,10 +1134,11 @@ export class QueryEngine {
     let textResult = ''
     let isApiError = false
 
-    if ((result as any).type === 'assistant') {
-      const lastContent = last(result.message.content)
+    if (result && result.type === 'assistant') {
+      const lastContent = last(result.message.content) as any
       if (
-        lastContent?.type === 'text' &&
+        lastContent &&
+        lastContent.type === 'text' &&
         !SYNTHETIC_MESSAGES.has(lastContent.text)
       ) {
         textResult = lastContent.text
@@ -1228,7 +1229,7 @@ export class QueryEngine {
       }
       return agent
     }, 'injectAgents')
-    this.config.agents = validated
+    this.config.agents = validated as AgentDefinition[]
   }
 
   /**
@@ -1414,7 +1415,10 @@ export async function* ask({
           snipReplay: (yielded: Message, store: Message[]) => {
             if (!snipProjection!.isSnipBoundaryMessage(yielded))
               return undefined
-            return snipModule!.snipCompactIfNeeded(store, { force: true })
+            return {
+              ...snipModule!.snipCompactIfNeeded(store),
+              executed: true,
+            }
           },
         }
       : {}),

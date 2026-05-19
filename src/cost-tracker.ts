@@ -247,21 +247,28 @@ function formatModelUsage(): string {
 }
 
 export function formatTotalCost(): string {
+  const cost = getTotalCostUSD()
+  const apiDuration = getTotalAPIDuration()
+  const wallDuration = getTotalDuration()
+  const added = getTotalLinesAdded()
+  const removed = getTotalLinesRemoved()
+
   const costDisplay =
-    formatCost(getTotalCostUSD()) +
+    formatCost(cost) +
     (hasUnknownModelCost()
       ? ' (costs may be inaccurate due to usage of unknown models)'
       : '')
 
   const modelUsageDisplay = formatModelUsage()
 
-  return chalk.dim(
-    `Total cost:            ${costDisplay}\n` +
-      `Total duration (API):  ${formatDuration(getTotalAPIDuration())}
-Total duration (wall): ${formatDuration(getTotalDuration())}
-Total code changes:    ${getTotalLinesAdded()} ${getTotalLinesAdded() === 1 ? 'line' : 'lines'} added, ${getTotalLinesRemoved()} ${getTotalLinesRemoved() === 1 ? 'line' : 'lines'} removed
-${modelUsageDisplay}`,
-  )
+  let output = `\n${bold('DuckHive Session Report')}\n`
+  output += `   Cost:            ${bold(costDisplay)}\n`
+  output += `   API duration:    ${formatDuration(apiDuration)}\n`
+  output += `   Wall duration:   ${formatDuration(wallDuration)}\n`
+  output += `   Code changes:    ${chalk.green(`+${added}`)} ${added === 1 ? 'line' : 'lines'}, ${chalk.red(`-${removed}`)} ${removed === 1 ? 'line' : 'lines'}\n`
+  output += `\n${modelUsageDisplay}`
+
+  return chalk.dim(output)
 }
 
 function round(number: number, precision: number): number {
