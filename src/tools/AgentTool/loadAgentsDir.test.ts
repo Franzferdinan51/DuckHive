@@ -1,13 +1,8 @@
 // @ts-nocheck
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
-import {
-  clearAgentDefinitionsCache,
-  getAgentDefinitionsWithOverrides,
-} from './loadAgentsDir.js'
-import { loadMarkdownFilesForSubdir } from '../../utils/markdownConfigLoader.js'
 import {
   acquireSharedMutationLock,
   releaseSharedMutationLock,
@@ -21,13 +16,24 @@ const originalEnv = {
 }
 
 let tempDir: string
+let clearAgentDefinitionsCache: typeof import('./loadAgentsDir.js').clearAgentDefinitionsCache
+let getAgentDefinitionsWithOverrides: typeof import('./loadAgentsDir.js').getAgentDefinitionsWithOverrides
+let loadMarkdownFilesForSubdir: typeof import('../../utils/markdownConfigLoader.js').loadMarkdownFilesForSubdir
 
 beforeEach(async () => {
   await acquireSharedMutationLock('loadAgentsDir.test.ts')
+  mock.restore()
   tempDir = await mkdtemp(join(tmpdir(), 'DuckHive-agents-test-'))
   process.env.CLAUDE_CONFIG_DIR = join(tempDir, '.duckhive')
   process.env.CLAUDE_CODE_USE_NATIVE_FILE_SEARCH = '1'
   delete process.env.CLAUDE_CODE_SIMPLE
+  ;({
+    clearAgentDefinitionsCache,
+    getAgentDefinitionsWithOverrides,
+  } = await import('./loadAgentsDir.js'))
+  ;({ loadMarkdownFilesForSubdir } = await import(
+    '../../utils/markdownConfigLoader.js'
+  ))
   clearAgentDefinitionsCache()
   loadMarkdownFilesForSubdir.cache.clear?.()
 })

@@ -27,6 +27,10 @@ let spawnedTasks: Array<{
   agentType?: string
   mode?: string
 }> = []
+let planSlugCache: Map<string, string>
+let modelStringsState: unknown = null
+let inlinePlugins: string[] = []
+let agentColorMap: Map<string, unknown>
 
 async function importFreshGoalCommand() {
   return (await import(`./goal.ts?goal-test=${Date.now()}-${Math.random()}`))
@@ -46,6 +50,10 @@ describe('/goal command', () => {
     configStore = { 'duckhive.goals': [] }
     sessionId = 'session-current'
     spawnedTasks = []
+    planSlugCache = new Map()
+    modelStringsState = null
+    inlinePlugins = []
+    agentColorMap = new Map()
 
     // Build comprehensive proxy mocks to stop SyntaxErrors
     const stateMock = {} as any
@@ -58,12 +66,32 @@ describe('/goal command', () => {
           if (key === 'getProjectRoot') return process.cwd()
           if (key === 'getInvokedSkills') return new Map()
           if (key === 'getLastAPIRequestMessages') return []
-          if (key === 'getInlinePlugins') return []
-          if (key === 'getAllowedSettingSources') return []
+          if (key === 'getInlinePlugins') return inlinePlugins
+          if (key === 'setInlinePlugins') {
+            inlinePlugins = args[0] ?? []
+            return
+          }
+          if (key === 'getAllowedSettingSources') {
+            return ['userSettings', 'projectSettings', 'localSettings']
+          }
           if (key === 'getStatsStore') return {}
           if (key === 'getIsInteractive') return true
+          if (key === 'getPlanSlugCache') return planSlugCache
+          if (key === 'getAgentColorMap') return agentColorMap
+          if (key === 'getAdditionalDirectoriesForClaudeMd') return []
+          if (key === 'getModelStrings') return modelStringsState
+          if (key === 'setModelStrings') {
+            modelStringsState = args[0]
+            return
+          }
+          if (key === 'resetModelStringsForTestingOnly') {
+            modelStringsState = null
+            return
+          }
           return undefined
         }
+      } else {
+        stateMock[key] = (stateModule as any)[key]
       }
     }
 
@@ -103,6 +131,31 @@ describe('/goal command', () => {
           'Team: duckhive-sessions',
           'Model: default',
         ].join('\n')
+      },
+    }))
+    mock.module('../../context.js', () => ({
+      getSystemPromptInjection: () => null,
+      setSystemPromptInjection: () => undefined,
+      getGitStatus: Object.assign(async () => null, {
+        cache: { clear: () => undefined },
+      }),
+      getRepoMapContext: Object.assign(async () => null, {
+        cache: { clear: () => undefined },
+      }),
+      getSystemContext: Object.assign(() => ({}), {
+        cache: { clear: () => undefined },
+      }),
+      getUserContext: Object.assign(async () => ({}), {
+        cache: { clear: () => undefined },
+      }),
+    }))
+    mock.module('../../coordinator/planner.js', () => ({
+      SimplePlanner: class {},
+      LLMPlanner: class {},
+      TaskPlanner: class {
+        async createPlan(description: string) {
+          return { steps: [{ description }] }
+        }
       },
     }))
   })
