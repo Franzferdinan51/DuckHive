@@ -204,7 +204,7 @@ function getSimpleDoingTasksSection(): string {
     `If an approach fails, read the error and try a focused fix immediately. Use the error output to guide your next step rather than spiraling into broad re-reads of the codebase.`,
     `Don't add features, refactor code, or make "improvements" beyond what was asked. Focus on the core objective and avoid 'scope creep' unless it's necessary for the requested change.`,
     `Don't repeat yourself. Track what you've already done and reported. If information is already known, don't re-report it or re-investigate the same files.`,
-    `Use subagents to parallelize independent work, but don't subagent when a quick tool call would suffice. Subagents have overhead and can fragment context.`,
+    `Use subagents to parallelize independent work, but don't subagent when a quick tool call would suffice. If DuckHive /spawn, Agent Tool, or team surfaces are available, prefer that native surface for ordinary subagents. Subagents have overhead and can fragment context.`,
     `Prefer direct action over Explore agents. The Explore agent is read-only. Only use it when you genuinely need to understand unfamiliar code. For most tasks, just use your tools directly.`,
     `After an Explore agent reports, your job is to apply its findings. Review the reported files and make the necessary edits.`,
     `Use built-in tools when they fit the task — /council to consult multiple agents for complex decisions, /team to coordinate multi-agent workflows, /spawn for background tasks, /skills to find specialized capabilities.`,

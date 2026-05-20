@@ -1,5 +1,6 @@
 import type { BetaUsage as Usage } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import chalk from 'chalk'
+import { bold } from './components/styles.js'
 import {
   extractCacheMetrics,
   resolveCacheProvider,

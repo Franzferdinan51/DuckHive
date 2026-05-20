@@ -1927,13 +1927,12 @@ async function* queryLoop(
 
     // If we've been exploring for a while, add a gentle nudge about momentum
     if (currentExplorationCount >= 4) {
-      const reminder = createSystemMessage({
-        content:
-          'SYSTEM NUDGE: You have been in research mode for several turns. ' +
+      const reminder = createSystemMessage(
+        'SYSTEM NUDGE: You have been in research mode for several turns. ' +
           'If the path is becoming clear, consider taking a first safe step toward the solution to maintain momentum. ' +
           'Practical action is often a great way to verify your current findings.',
-        isMeta: true,
-      })
+        'info',
+      )
       yield reminder
       toolResults.push(reminder)
     }
