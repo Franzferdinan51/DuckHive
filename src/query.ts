@@ -1462,25 +1462,28 @@ async function* queryLoop(
             .join(' ')
             .toLowerCase()
 
-          // Tightened patterns: require explicit action verbs and exclude
-          // common explanatory phrasing to reduce false positives.
+          // Wider patterns: catch more "intent without action" patterns
           const continuationSignals = [
-            // Only match "so now I/let me/we" followed by an action verb
-            /\bso now (i|let me|we) (need to|have to|should|must|will) (do|create|write|edit|update|fix|implement|add|run|check|make|build|set up)\b/,
-            // "now I'll" + action (not "now I'll explain" etc.)
-            /\bnow i('ll| will) (do|create|write|edit|update|fix|implement|add|run|check|make|build|set up|go|proceed)\b/,
-            // "let me" + action (not "let me think/explain/show")
-            /\blet me (go ahead and |now )?(do|create|write|edit|update|fix|implement|add|run|check|make|build|set up|proceed)\b/,
-            // "I'll/I need to/I have to" + action, only if message is short (<80 chars)
-            ...(lastText.length < 80
-              ? [/\b(i('ll| will| need to| have to| must) (now )?(do|create|write|edit|update|fix|implement|add|run|check|make|build|set up))\b/]
-              : []),
-            // "time to" + action
-            /\btime to (do|create|write|edit|update|fix|implement|add|run|check|make|build|get started|begin)\b/,
-            // "next, I'll/let me" + action, only if message is short
-            ...(lastText.length < 80
-              ? [/\bnext,?\s+(i('ll| will)|let me|i need to) (do|create|write|edit|update|fix|implement|add|run|check|make|build)\b/]
-              : []),
+            // "let me" + any verb (catch "let me explain", "let me describe", "let me show")
+            /\blet me (explain|describe|show|share|outline|detail|illustrate|lay out|break down|examine|analyze|review|look at|think about|understand|figure out|check|go over)\b/,
+            // "I'll" + any verb (not just action verbs - catch "I'll explain", "I'll describe")
+            /\bi('ll| will) (explain|describe|show|share|outline|detail|illustrate|lay out|break down|examine|analyze|review|look at|think|understand|figure out|check|go over|start|begin)\b/,
+            // "so now I/let me/we" + action
+            /\bso now (i|let me|we) (need to|have to|should|must|will) (do|create|write|edit|update|fix|implement|add|run|check|make|build|set up|explain|describe|analyze|understand)\b/,
+            // "now I'll" + any verb
+            /\bnow i('ll| will) (do|create|write|edit|update|fix|implement|add|run|check|make|build|set up|go|proceed|explain|describe|analyze|start|begin)\b/,
+            // "I need to understand" + rest (model keeps trying to understand without acting)
+            /\b(i need to|let me) (understand|figure out|look into|investigate|explore|examine|analyze|review)\b/,
+            // "first, I" + any verb (sequential prefix that doesn't commit to action)
+            /\bfirst,? i('ll| will| need to| want to)? (do|create|write|edit|update|fix|implement|add|run|check|make|build|explain|describe|analyze|look|think)\b/,
+            // "I'll start by" (start-prefixed intents)
+            /\bi('ll| will| need to|) start by\b/,
+            // "based on what I've seen" (re-analysis signal)
+            /\bbased on (what|i've|i have|my) (seen|found|learned|understood|discovered)\b/,
+            // "from my analysis" (re-analysis signal)
+            /\bfrom (my|the)? ?(analysis|research|investigation|examination)\b/,
+            // Generic "let me" without strong commitment to action
+            /\blet me (share|outline|detail|give you|provide|offer|present)\b/,
           ]
 
           // Don't nudge if the text contains completion markers
@@ -1513,6 +1516,59 @@ async function* queryLoop(
             continue
           }
         }
+      }
+
+      // Nudges exhausted - force action escalation
+      if (
+        assistantMessages.length > 0 &&
+        state.continuationNudgeCount >= MAX_CONTINUATION_NUDGES &&
+        !state.stopHookActive // Don't re-escalate if we just escalated
+      ) {
+        // Get the last non-escalation assistant message to analyze
+        // (don't analyze our own escalation messages)
+        const lastNonEscalationAssistant = [...assistantMessages].reverse()
+          .find(m => {
+            if (m.type !== 'assistant') return false
+            const content = m.message.content
+              .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+              .map(b => b.text)
+              .join(' ')
+            // Skip our own escalation messages
+            return !content.includes('ACTION REQUIRED')
+          })
+        const lastText = lastNonEscalationAssistant?.type === 'assistant'
+          ? lastNonEscalationAssistant.message.content
+              .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+              .map(b => b.text)
+              .join(' ')
+              .toLowerCase()
+          : ''
+        logForDebugging(
+          `Forced action escalation: ${MAX_CONTINUATION_NUDGES} nudges exhausted, model said "${lastText.slice(-120)}"`,
+        )
+        // Force model to use a specific tool or explicitly say why it can't
+        const escalation = createUserMessage({
+          content: 'ACTION REQUIRED: You have been explaining what you need to do without taking action. ' +
+            'You must now either: (1) Use a tool to accomplish the task, OR (2) If you genuinely cannot proceed, ' +
+            'say "I cannot proceed because: [specific reason]" and nothing else.',
+          isMeta: true,
+        })
+        const next: State = {
+          messages: [...messagesForQuery, ...assistantMessages, escalation],
+          toolUseContext,
+          autoCompactTracking: tracking,
+          explorationCount: state.explorationCount,
+          maxOutputTokensRecoveryCount,
+          hasAttemptedReactiveCompact: false,
+          maxOutputTokensOverride: undefined,
+          pendingToolUseSummary: undefined,
+          stopHookActive: true, // Mark that we just escalated — prevent re-escalation
+          turnCount,
+          continuationNudgeCount: state.continuationNudgeCount,
+          transition: { reason: 'forced_action_escalation' },
+        }
+        state = next
+        continue
       }
 
       return { reason: 'completed' }
