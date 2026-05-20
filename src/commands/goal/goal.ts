@@ -271,7 +271,7 @@ function formatGoalStatusLabel(status: GoalStatus): string {
 
 function formatStepStatusLabel(status: GoalStatus): string {
   const labels: Record<GoalStatus, string> = {
-    active: '>',
+    active: 'active',
     paused: '||',
     completed: 'x',
     failed: '!',
@@ -364,7 +364,7 @@ function formatGoal(goal: Goal, detailed = false): string {
   const barWidth = 30
   const filledWidth = Math.round((percent / 100) * barWidth)
   const emptyWidth = barWidth - filledWidth
-  const progressBar = `|${'█'.repeat(filledWidth)}${'.'.repeat(emptyWidth)}| ${percent}%`
+  const progressBar = `|${'#'.repeat(filledWidth)}${'.'.repeat(emptyWidth)}| ${percent}%`
 
   let output = `\n${formatGoalStatusLabel(goal.status)} **${bold(goal.title)}** \`${goal.id}\`\n`
   output += `   Progress: ${progressBar}\n`
@@ -376,7 +376,7 @@ function formatGoal(goal: Goal, detailed = false): string {
   }
 
   if (goal.sessionId) {
-    output += `   Session:  ${goal.sessionId}\n`
+    output += `   Attached Session: ${goal.sessionId}\n`
   }
 
   if (detailed) {
@@ -385,10 +385,11 @@ function formatGoal(goal: Goal, detailed = false): string {
       output += `\n   ${bold('Milestones:')}\n`
       for (const step of goal.steps) {
         const isCurrent = step.id === goal.currentStepId
-        const prefix = isCurrent ? ' → ' : '   '
-        const label = `[${formatStepStatusLabel(step.status)}]`
+        const prefix = isCurrent ? '> ' : '  '
+        const label = `[${step.id}]`
+        const status = formatStepStatusLabel(step.status)
         const desc = isCurrent ? bold(step.description) : step.description
-        output += `${prefix}${label.padEnd(4)} ${desc}\n`
+        output += `${prefix}${label} (${status}) ${desc}\n`
       }
     }
   }
@@ -458,7 +459,9 @@ Examples:
   goal.updatedAt = new Date().toISOString()
   goal.lastActivityAt = new Date().toISOString()
 
-  // Steps are already planned by createGoal()
+  if (goal.steps.length === 0) {
+    await planGoal(goal)
+  }
 
   const step = getCurrentStep(goal)
   const stepInfo = step ? `\nCurrent step: ${step.description}` : ''
@@ -516,9 +519,6 @@ async function createGoal(args: string[]): Promise<{ goalId: string; message: st
     steps: [],
     currentStepId: undefined,
   }
-
-  // Decompose goal into actionable steps
-  await planGoal(goal)
 
   const goals = getGoals()
   goals.unshift(goal)
