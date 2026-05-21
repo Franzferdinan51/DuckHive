@@ -15,7 +15,7 @@
  */
 
 import { bold, italic } from '../../components/styles.js'
-import { getSessionId, setActiveGoalId } from '../../bootstrap/state.js'
+import { getSessionId, setActiveGoalId, getActiveGoalId } from '../../bootstrap/state.js'
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js'
 import { sessions_spawn } from '../../subagentSystem.js'
 import { enqueuePendingNotification } from '../../utils/messageQueueManager.js'
@@ -24,6 +24,7 @@ import type { ToolUseContext } from '../../Tool.js'
 import { createSignal } from '../../utils/signal.js'
 import { TaskPlanner } from '../../coordinator/planner.js'
 import { writePlan } from '../../utils/plans.js'
+import { writeToMailbox } from '../../utils/teammateMailbox.js'
 
 // Goal states
 export type GoalStatus = 'active' | 'paused' | 'completed' | 'failed'
@@ -56,6 +57,7 @@ export interface Goal {
   autonomousMode?: boolean
   // Active agent run tracking for autonomous mode
   activeAgentRunId?: string
+  activeAgentName?: string
   lastActivityAt?: string
 }
 
@@ -82,13 +84,13 @@ export type GoalUpdateEvent = {
 export const goalUpdates = createSignal<[GoalUpdateEvent]>()
 
 // Storage key for goals
-const GOALS_STORAGE_KEY = 'duckhive.goals'
+export const GOALS_STORAGE_KEY = 'duckhive.goals'
 
 function generateId(): string {
   return `goal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
-function getGoals(): Goal[] {
+export function getGoals(): Goal[] {
   try {
     const config = getGlobalConfig()
     return (config as Record<string, unknown>)[GOALS_STORAGE_KEY] as Goal[] || []
@@ -293,7 +295,7 @@ function cloneGoal(goal: Goal): Goal {
  * the plan to the built-in session plan file.
  */
 async function planGoal(goal: Goal): Promise<void> {
-  const planner = new TaskPlanner()
+  const planner = new TaskPlanner({ maxSteps: 30 })
   const plan = await planner.createPlan(goal.description)
 
   if (plan.steps.length > 0) {
@@ -351,6 +353,14 @@ async function saveGoals(
       goal: event.goal ? cloneGoal(event.goal) : undefined,
       goals: goals.map(cloneGoal),
     })
+
+    // Trigger global state signal if it's the active goal or just became autonomous
+    if (
+      event.goal?.id === getActiveGoalId() ||
+      event.type === 'autonomous_started'
+    ) {
+      setActiveGoalId(event.goal?.id ?? null)
+    }
   }
 }
 
@@ -447,13 +457,6 @@ Examples:
   }
   getSystemContext.cache.clear?.()
 
-  enqueuePendingNotification({
-    value: `<goal_tick>Autonomous goal started. Work toward the active goal. Report your progress after each step. Keep working until the goal is met. Check system prompt for goal context.</goal_tick>`,
-    mode: 'prompt',
-    priority: 'next',
-    isMeta: true,
-  })
-
   goal.autonomousMode = true
   goal.status = 'active'
   goal.updatedAt = new Date().toISOString()
@@ -479,18 +482,29 @@ Examples:
       context,
     })
     const agentRunId = extractSpawnedAgentRunId(spawnResult)
+    const agentName = extractSpawnedAgentName(spawnResult)
     if (agentRunId) {
       goal.activeAgentRunId = agentRunId
-      spawnInfo = `\nBackground teammate started: ${agentRunId}`
+      goal.activeAgentName = agentName
+      spawnInfo = `\nBackground teammate started: ${agentRunId} (${agentName || 'unknown name'})`
     } else if (spawnResult.includes('Failed to spawn subagent teammate')) {
       goal.autonomousMode = false
       goal.activeAgentRunId = undefined
+      goal.activeAgentName = undefined
       await saveGoals(goals, { type: 'autonomous_failed', goal })
       return `Failed to start autonomous goal mode.\n\n${spawnResult}`
     } else if (spawnResult.trim()) {
       spawnInfo = `\nSpawn result: ${spawnResult}`
     }
   } else {
+    // Trigger first autonomous tick for the 1s scheduler if no REPL context
+    // is available for spawning a background teammate.
+    enqueuePendingNotification({
+      value: `<goal_tick>Autonomous goal started. Work toward the active goal. Report your progress after each step. Keep working until the goal is met. Check system prompt for goal context.</goal_tick>`,
+      mode: 'prompt',
+      priority: 'next',
+      isMeta: true,
+    })
     spawnInfo = '\nCron-tick loop active — the 1s scheduler drives goal work each turn.'
   }
 
@@ -785,7 +799,10 @@ async function addStep(args: string[], goalId?: string): Promise<string> {
   return `Step added to goal.\n\n${formatGoal(goal, true)}`
 }
 
-async function completeStep(args: string[]): Promise<string> {
+async function completeStep(
+  args: string[],
+  context?: ToolUseContext,
+): Promise<string> {
   const goals = getGoals()
   const { goal, error } = resolveGoalTarget(goals, args[0], ['active'])
   if (!goal) {
@@ -812,12 +829,26 @@ async function completeStep(args: string[]): Promise<string> {
   // a goal_tick to keep the agent working (Codex-style autonomous loop).
   if (goal.autonomousMode && nextStep) {
     getSystemContext.cache.clear?.()
-    enqueuePendingNotification({
-      value: `<goal_tick>Step completed. Report what you did, then continue with the next step: ${nextStep.description}. Read the relevant files first, then make targeted changes.</goal_tick>`,
-      mode: 'prompt',
-      priority: 'next',
-      isMeta: true,
-    })
+    const tickContent = `<goal_tick>Step completed. Report what you did, then continue with the next step: ${nextStep.description}. Read the relevant files first, then make targeted changes.</goal_tick>`
+
+    if (context?.agentId && goal.activeAgentName) {
+      // If called from a subagent, wake it up via its mailbox to keep the loop local to that agent
+      await writeToMailbox(goal.activeAgentName, {
+        from: 'team-lead',
+        text: tickContent,
+        timestamp: new Date().toISOString(),
+        summary: `Next step: ${nextStep.description}`,
+      })
+    } else {
+      // Fallback to global queue (e.g. for lead-driven cron loop)
+      enqueuePendingNotification({
+        value: tickContent,
+        mode: 'prompt',
+        priority: 'next',
+        isMeta: true,
+        agentId: context?.agentId,
+      })
+    }
   }
 
   return `Step completed: ${currentStep.description}${nextStep ? `\nNext step: ${nextStep.description}` : '\nAll steps completed!'}`
@@ -845,7 +876,19 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `6. ATOMIC COMMIT: Once a step is verified, commit your changes with a clear message referencing the goal.`,
     `7. UPDATE & REPEAT: Report progress, mark step complete with '/goal step complete', and move to the next.`,
     '',
-    `=== RULES TO PREVENT STALLING & HALLUCINATION ===`,
+    `=== COMMUNICATION & ORCHESTRATION ===`,
+    `- If you are stuck, need clarification, or encounter a major blocker, send a message to 'team-lead' using 'SendMessage'.`,
+    `- When you finish a major milestone, send a summary message to 'team-lead' before marking the step complete.`,
+    `- The 'team-lead' is monitoring your progress but you are the primary driver.`,
+    '',
+    `=== RULES TO PREVENT STALLING & TOKEN BLOWOUTS ===`,
+    `- ONE SEARCH, ONE ACTION: For every file search or read you perform, you MUST take a concrete action (edit, create, or delete) within 2 turns. Do not "keep searching" for more context if you have found the relevant code.`,
+    `- NO REDUNDANT SEARCHING: If you have already read a file or seen a search result, do not repeat it. Use your memory.`,
+    `- PRIORITIZE EDITS: Once you find a bug or a missing feature, FIX IT IMMEDIATELY. Do not search for "similar problems" or "related files" until the current task is done.`,
+    `- STOP IF STUCK: If you cannot find the solution after 3 search attempts, STOP and ask the 'team-lead' for help. Do not keep searching blindly.`,
+    `- BE SURGICAL: Use grep_search and read_file with line ranges to minimize token usage. Never read entire large files if you only need one function.`,
+    '',
+    `=== RULES TO PREVENT HALLUCINATION ===`,
     `- COMMIT FREQUENTLY: Prefer small, atomic commits for each completed milestone. This makes it easier to track progress and revert if needed.`,
     `- PLAN YOUR WORK: Never start a complex step without a plan. Record your plan in the goal system so it's visible.`,
     `- NO GUESSING: Never edit a file based on an assumption. If you haven't read the file in this session, read it now.`,
@@ -861,6 +904,10 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
 
 function extractSpawnedAgentRunId(spawnResult: string): string | undefined {
   return spawnResult.match(/Agent ID:\s*`([^`]+)`/)?.[1]
+}
+
+function extractSpawnedAgentName(spawnResult: string): string | undefined {
+  return spawnResult.match(/Subagent teammate \*\*([^*]+)\*\*/)?.[1]
 }
 
 async function pursueGoal(args: string[], context?: ToolUseContext): Promise<string> {
@@ -894,17 +941,6 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
   // Clear system context cache so the goal section appears immediately
   getSystemContext.cache.clear?.()
 
-  // Trigger first autonomous tick — injects a goal-aware prompt on the next
-  // turn so the model immediately starts working without waiting for a cron
-  // timer or user message. The REPL's 1s cron scheduler processes this via
-  // processQueueIfReady → executeQueuedInput → handlePromptSubmit.
-  enqueuePendingNotification({
-    value: `<goal_tick>Autonomous goal started. Work toward the active goal. Report your progress after each step. Keep working until the goal is met. Check system prompt for goal context.</goal_tick>`,
-    mode: 'prompt',
-    priority: 'next',
-    isMeta: true,
-  })
-
   await saveGoals(goals, { type: 'autonomous_started', goal })
 
   const currentStep = getCurrentStep(goal)
@@ -915,7 +951,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
   // If REPL context is available, spawn a background teammate for live
   // autonomous work. Otherwise the cron scheduler's 1s tick loop drives
   // progress via the enqueued goal_tick prompt above.
-  let spawnInfo = '\nNo REPL context — running in cron-tick loop mode. The 1s scheduler will fire goal-aware prompts each turn.'
+  let spawnInfo = ''
   if (context) {
     const spawnResult = await sessions_spawn({
       label: `goal-${goal.id}`,
@@ -926,17 +962,32 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
       context,
     })
     const agentRunId = extractSpawnedAgentRunId(spawnResult)
+    const agentName = extractSpawnedAgentName(spawnResult)
     if (agentRunId) {
       goal.activeAgentRunId = agentRunId
-      spawnInfo = `\nBackground teammate started: ${agentRunId}`
+      goal.activeAgentName = agentName
+      spawnInfo = `\nBackground teammate started: ${agentRunId} (${agentName || 'unknown name'})`
     } else if (spawnResult.includes('Failed to spawn subagent teammate')) {
       goal.autonomousMode = false
       goal.activeAgentRunId = undefined
+      goal.activeAgentName = undefined
       await saveGoals(goals, { type: 'autonomous_failed', goal })
       return `Failed to start autonomous goal mode.\n\n${spawnResult}`
     } else {
       spawnInfo = `\nBackground teammate spawn result:\n${spawnResult}`
     }
+  } else {
+    // Trigger first autonomous tick — injects a goal-aware prompt on the next
+    // turn so the model immediately starts working without waiting for a cron
+    // timer or user message. The REPL's 1s cron scheduler processes this via
+    // processQueueIfReady → executeQueuedInput → handlePromptSubmit.
+    enqueuePendingNotification({
+      value: `<goal_tick>Autonomous goal started. Work toward the active goal. Report your progress after each step. Keep working until the goal is met. Check system prompt for goal context.</goal_tick>`,
+      mode: 'prompt',
+      priority: 'next',
+      isMeta: true,
+    })
+    spawnInfo = '\nNo REPL context — running in cron-tick loop mode. The 1s scheduler will fire goal-aware prompts each turn.'
   }
 
   return `Autonomous goal mode activated for goal.\n\n${formatGoal(goal, true)}${stepInfo}${spawnInfo}\n\nThe agent will now work toward this goal continuously. Use /goal status to check progress or /goal stop-autonomous to cancel.`
@@ -1050,7 +1101,10 @@ ${italic('Autonomous mode: the agent works toward the goal continuously across t
 `.trim()
 }
 
-async function handleStepCommand(args: string[]): Promise<string> {
+async function handleStepCommand(
+  args: string[],
+  context?: ToolUseContext,
+): Promise<string> {
   const action = args[0]?.toLowerCase()
 
   if (!action) {
@@ -1063,7 +1117,7 @@ async function handleStepCommand(args: string[]): Promise<string> {
       return addStep(args.slice(1))
     case 'complete':
     case 'done':
-      return completeStep(args.slice(1))
+      return completeStep(args.slice(1), context)
     default:
       return 'Unknown step command: ' + action + '\nUsage: /goal step add <goal-id> <description>'
   }
@@ -1165,7 +1219,7 @@ export default async function goalCommand(
       return attachToGoal(args.slice(1))
 
     case 'step':
-      return handleStepCommand(args.slice(1))
+      return handleStepCommand(args.slice(1), context)
 
     case 'help':
       return showHelp()

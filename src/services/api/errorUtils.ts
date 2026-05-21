@@ -116,16 +116,30 @@ function sanitizeMessageHTML(message: string): string {
 }
 
 /**
+ * Robustly extracts an error message from an APIError, handling various
+ * provider-specific shapes and deserialization artifacts (where .message is lost).
+ */
+function getErrorMessageFromAPIError(apiError: APIError): string {
+  // 1. Try standard message property (missing on deserialized JSONL errors)
+  if (apiError.message) return apiError.message
+
+  // 2. Try deserialized shapes (see NestedAPIError below)
+  const body = apiError.error as NestedAPIError['error']
+  const nestedMessage = body?.error?.message ?? body?.message
+  if (nestedMessage) return nestedMessage
+
+  // 3. Fallback to stringified body or generic message
+  return typeof apiError.error === 'string'
+    ? apiError.error
+    : apiError.name || 'Unknown API Error'
+}
+
+/**
  * Detects if an error message contains HTML content (e.g., CloudFlare error pages)
  * and returns a user-friendly message instead
  */
 export function sanitizeAPIError(apiError: APIError): string {
-  const message = apiError.message
-  if (!message) {
-    // Sometimes message is undefined
-    // TODO: figure out why
-    return ''
-  }
+  const message = getErrorMessageFromAPIError(apiError)
   return sanitizeMessageHTML(message)
 }
 

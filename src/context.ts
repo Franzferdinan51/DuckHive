@@ -43,6 +43,7 @@ function buildGoalPromptSection(): Record<string, string> | null {
       status: string
       autonomousMode?: boolean
       currentStepId?: string
+      activeAgentRunId?: string
       steps: Array<{
         id: string
         description: string
@@ -66,6 +67,7 @@ function buildGoalPromptSection(): Record<string, string> | null {
         `**Goal**: ${activeGoal.title}`,
         `**Description**: ${activeGoal.description}`,
         `**Status**: ${activeGoal.status}`,
+        activeGoal.activeAgentRunId ? `**Assigned Agent**: ${activeGoal.activeAgentRunId}` : '',
         ``,
         currentStep
           ? `**Current step**: ${currentStep.description} [${currentStep.status}]`
@@ -81,12 +83,17 @@ function buildGoalPromptSection(): Record<string, string> | null {
             ]
           : []),
         `### EXECUTION GUIDELINES`,
-        `1. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.`,
-        `2. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.`,
-        `3. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.`,
-        `4. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.`,
+        `1. ROLE & ORCHESTRATION: ${
+          activeGoal.activeAgentRunId
+            ? `Subagent \`${activeGoal.activeAgentRunId}\` is assigned to this goal. If you are the team-lead, you are the COORDINATOR and a CONTRIBUTOR. Work alongside the subagent by tackling parallel steps or handling complex integration. Use 'SendMessage' to divide the work and avoid redundant searching. If YOU are the assigned subagent, you are the primary driver for your current task.`
+            : `You are the primary driver for this goal. Work decisively until complete.`
+        }`,
+        `2. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.`,
+        `3. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.`,
+        `4. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.`,
+        `5. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.`,
         `Keep working until the ENTIRE goal is met. Don't stop after one step.`,
-      ].join('\n'),
+      ].filter(line => line !== '').join('\n'),
     }
   } catch {
     return null

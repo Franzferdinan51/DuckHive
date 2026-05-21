@@ -515,6 +515,7 @@ export const setActiveGoalId = (id: string | null) => {
  * PID file's sessionId in sync with --resume.
  */
 export const onSessionSwitch = sessionSwitched.subscribe
+export const onActiveGoalIdChange = activeGoalIdChanged.subscribe
 
 /**
  * Project directory the current session's transcript lives in, or `null` if

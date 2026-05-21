@@ -32,7 +32,7 @@ import { startPreventSleep, stopPreventSleep } from '../services/preventSleep.js
 import { useTerminalNotification } from '../ink/useTerminalNotification.js';
 import { hasCursorUpViewportYankBug } from '../ink/terminal.js';
 import { createFileStateCacheWithSizeLimit, mergeFileStateCaches, READ_FILE_STATE_CACHE_SIZE } from '../utils/fileStateCache.js';
-import { updateLastInteractionTime, getLastInteractionTime, getOriginalCwd, getProjectRoot, getSessionId, switchSession, setCostStateForRestore, getTurnHookDurationMs, getTurnHookCount, resetTurnHookDuration, getTurnToolDurationMs, getTurnToolCount, resetTurnToolDuration, getTurnClassifierDurationMs, getTurnClassifierCount, resetTurnClassifierDuration } from '../bootstrap/state.js';
+import { updateLastInteractionTime, getLastInteractionTime, getOriginalCwd, getProjectRoot, getSessionId, switchSession, setCostStateForRestore, getTurnHookDurationMs, getTurnHookCount, resetTurnHookDuration, getTurnToolDurationMs, getTurnToolCount, resetTurnToolDuration, getTurnClassifierDurationMs, getTurnClassifierCount, resetTurnClassifierDuration, getActiveGoalId, onActiveGoalIdChange } from '../bootstrap/state.js';
 import { asSessionId, asAgentId } from '../types/ids.js';
 import { logForDebugging } from '../utils/debug.js';
 import { QueryGuard } from '../utils/QueryGuard.js';
@@ -160,6 +160,48 @@ import { useManagePlugins } from '../hooks/useManagePlugins.js';
 import { Messages } from '../components/Messages.js';
 import { TaskListV2 } from '../components/TaskListV2.js';
 import { TeammateViewHeader } from '../components/TeammateViewHeader.js';
+import { getGoals, GOALS_STORAGE_KEY } from '../commands/goal/goal.js';
+
+function ActiveGoalBanner() {
+  const activeGoalId = React.useSyncExternalStore(onActiveGoalIdChange, getActiveGoalId);
+  const activeGoal = useMemo(() => {
+    if (!activeGoalId) return null;
+    return getGoals().find(g => g.id === activeGoalId && g.autonomousMode);
+  }, [activeGoalId]);
+
+  if (!activeGoal) return null;
+
+  const currentStep = activeGoal.steps.find(s => s.id === activeGoal.currentStepId);
+  const completedCount = activeGoal.steps.filter(s => s.status === 'completed').length;
+  const totalCount = activeGoal.steps.length;
+  const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1} marginY={1}>
+      <Box justifyContent="space-between">
+        <Text color="blue" bold>ACTIVE AUTONOMOUS GOAL</Text>
+        <Text color="gray">{activeGoal.activeAgentRunId ? `Assigned to: ${activeGoal.activeAgentRunId}` : 'Main Loop Driving'}</Text>
+      </Box>
+      <Text bold>{activeGoal.title}</Text>
+      <Box marginTop={1}>
+        <Text>Progress: </Text>
+        <Box width={32}>
+          <Text color="gray">{'['}</Text>
+          <Text color="blue">{'█'.repeat(Math.floor(progress / 100 * 30))}</Text>
+          <Text color="gray">{' '.repeat(30 - Math.floor(progress / 100 * 30))}</Text>
+          <Text color="gray">{']'}</Text>
+        </Box>
+        <Text> {progress}% ({completedCount}/{totalCount} steps)</Text>
+      </Box>
+      {currentStep && (
+        <Box marginTop={1}>
+          <Text color="yellow" bold>Current: </Text>
+          <Text italic>{currentStep.description}</Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
 import { useTasksV2WithCollapseEffect } from '../hooks/useTasksV2.js';
 import { maybeMarkProjectOnboardingComplete } from '../projectOnboardingState.js';
 import type { MCPServerConnection } from '../services/mcp/types.js';
@@ -4643,6 +4685,7 @@ export function REPL({
         jumpToNew(scrollRef.current);
       }} scrollable={<>
         <TeammateViewHeader />
+        <ActiveGoalBanner />
         <Messages messages={displayedMessages} tools={tools} commands={renderCommands} verbose={verbose} toolJSX={toolJSX} toolUseConfirmQueue={toolUseConfirmQueue} inProgressToolUseIDs={viewedTeammateTask ? viewedTeammateTask.inProgressToolUseIDs ?? new Set() : inProgressToolUseIDs} isMessageSelectorVisible={isMessageSelectorVisible} conversationId={conversationId} screen={screen} streamingToolUses={streamingToolUses} showAllInTranscript={showAllInTranscript} agentDefinitions={agentDefinitions} onOpenRateLimitOptions={handleOpenRateLimitOptions} isLoading={isLoading} streamingText={isLoading && !viewedAgentTask ? visibleStreamingText : null} isBriefOnly={viewedAgentTask ? false : isBriefOnly} unseenDivider={viewedAgentTask ? undefined : unseenDivider} scrollRef={isFullscreenEnvEnabled() ? scrollRef : undefined} trackStickyPrompt={isFullscreenEnvEnabled() ? true : undefined} cursor={cursor} setCursor={setCursor} cursorNavRef={cursorNavRef} />
         <AwsAuthStatusBox />
         {/* Hide the processing placeholder while a modal is showing —

@@ -1689,24 +1689,9 @@ function shouldExcludeFromPostCompactRestore(
     // If we can't get plan file path, continue with other checks
   }
 
-  // Exclude all types of claude.md files
-  // TODO: Refactor to use isMemoryFilePath() from claudemd.ts for consistency
-  // and to also match child directory memory files (.claude/rules/*.md, etc.)
-  try {
-    const normalizedMemoryPaths = new Set(
-      MEMORY_TYPE_VALUES.filter(type => type !== 'Project').map(type =>
-        expandPath(getMemoryPath(type)),
-      ),
-    )
-    for (const path of getProjectInstructionFilePaths(getOriginalCwd())) {
-      normalizedMemoryPaths.add(expandPath(path))
-    }
-
-    if (normalizedMemoryPaths.has(normalizedFilename)) {
-      return true
-    }
-  } catch {
-    // If we can't get memory paths, continue
+  // Exclude all types of memory files (CLAUDE.md, .claude/rules/*.md, etc.)
+  if (isMemoryFilePath(normalizedFilename)) {
+    return true
   }
 
   return false

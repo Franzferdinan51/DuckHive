@@ -688,4 +688,128 @@ describe('/goal command', () => {
 
     expect(result).toContain('Multiple active goals found.')
   })
+
+  test('autonomous start does not enqueue tick for lead when teammate is spawned', async () => {
+    let enqueuedCommand: any = null
+    mock.module('../../utils/messageQueueManager.js', () => ({
+      enqueuePendingNotification: (cmd: any) => {
+        enqueuedCommand = cmd
+      },
+    }))
+
+    const { call } = await importFreshGoalModule()
+    // context present means REPL mode -> spawn teammate
+    await call('"Fix bug"', {} as any)
+
+    expect(spawnedTasks).toHaveLength(1)
+    // Should NOT have enqueued a tick for the lead
+    expect(enqueuedCommand).toBeNull()
+  })
+
+  test('autonomous start enqueues tick for lead when no teammate is spawned (non-REPL)', async () => {
+    let enqueuedCommand: any = null
+    mock.module('../../utils/messageQueueManager.js', () => ({
+      enqueuePendingNotification: (cmd: any) => {
+        enqueuedCommand = cmd
+      },
+    }))
+
+    const { call } = await importFreshGoalModule()
+    // No context -> cron tick loop mode
+    await call('"Fix bug"', undefined)
+
+    expect(spawnedTasks).toHaveLength(0)
+    expect(enqueuedCommand).not.toBeNull()
+    expect(enqueuedCommand.value).toContain('<goal_tick>')
+    expect(enqueuedCommand.agentId).toBeUndefined()
+  })
+
+  test('completeStep routes goal_tick back to the subagent mailbox if activeAgentName is present', async () => {
+    let enqueuedCommand: any = null
+    mock.module('../../utils/messageQueueManager.js', () => ({
+      enqueuePendingNotification: (cmd: any) => {
+        enqueuedCommand = cmd
+      },
+    }))
+
+    let mailboxMessage: any = null
+    mock.module('../../utils/teammateMailbox.js', () => ({
+      writeToMailbox: (name: string, msg: any) => {
+        mailboxMessage = { name, msg }
+      },
+    }))
+
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Work'])
+
+    // Mock an active subagent with steps
+    const goals = getStoredGoals()
+    goals[0].autonomousMode = true
+    goals[0].activeAgentName = 'goal-worker'
+    goals[0].activeAgentRunId = 'agent_123'
+    goals[0].currentStepId = 'step_1'
+    goals[0].steps.push({
+      id: 'step_1',
+      description: 'Step 1',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    })
+    goals[0].steps.push({
+      id: 'step_2',
+      description: 'Step 2',
+      status: 'paused',
+      createdAt: new Date().toISOString(),
+    })
+
+    // Call completeStep with an agentId context
+    await goalCommand(['step', 'complete'], { agentId: 'agent_123' } as any)
+
+    // Should NOT have enqueued a global tick
+    expect(enqueuedCommand).toBeNull()
+
+    // Should HAVE written to the subagent mailbox
+    expect(mailboxMessage).not.toBeNull()
+    expect(mailboxMessage.name).toBe('goal-worker')
+    expect(mailboxMessage.msg.text).toContain('<goal_tick>')
+    expect(mailboxMessage.msg.summary).toContain('Next step: Step 2')
+  })
+
+  test('completeStep routes goal_tick to lead if called from main thread', async () => {
+    let enqueuedCommand: any = null
+    mock.module('../../utils/messageQueueManager.js', () => ({
+      enqueuePendingNotification: (cmd: any) => {
+        enqueuedCommand = cmd
+      },
+    }))
+
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Work'])
+    await goalCommand(['pursue'], undefined)
+
+    // Manually add a second step
+    const goals = getStoredGoals()
+    expect(goals).toHaveLength(1)
+    goals[0].steps.push({
+      id: 'step_2',
+      description: 'Step 2',
+      status: 'paused',
+      createdAt: new Date().toISOString(),
+    })
+
+    // Call completeStep without an agentId (main thread)
+    await goalCommand(['step', 'complete'], {} as any)
+
+    expect(enqueuedCommand).not.toBeNull()
+    expect(enqueuedCommand.agentId).toBeUndefined()
+  })
+
+  test('pursue captures and stores activeAgentName from spawn result', async () => {
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Work'])
+    await goalCommand(['pursue'], {} as any) // REPL context -> spawn
+
+    const goals = getStoredGoals()
+    expect(goals[0].activeAgentName).toBe('goal-worker')
+    expect(goals[0].activeAgentRunId).toBe('agent_goal_123')
+  })
 })

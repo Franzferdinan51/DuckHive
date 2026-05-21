@@ -838,6 +838,28 @@ export const call: LocalJSXCommandCall = async (onDone, _context, args) => {
     return
   }
 
+  if (trimmedArgs === 'list' || trimmedArgs === 'ls') {
+    const discoveryContext = await loadModelDiscoveryContext()
+    let output = `${chalk.bold('Available Models')}\n\n`
+    
+    if (discoveryContext?.kind === 'descriptor') {
+      output += `Provider: ${chalk.cyan(discoveryContext.routeLabel)}\n`
+      for (const opt of discoveryContext.optionsOverride) {
+        output += `  - ${chalk.green(opt.label)} (${chalk.gray(opt.value)})\n`
+        if (opt.description) output += `    ${chalk.dim(opt.description)}\n`
+      }
+    } else {
+      const profiles = getProviderProfiles()
+      for (const profile of profiles) {
+        output += `${chalk.cyan(profile.name)} (ID: ${profile.id})\n`
+        output += `  - Default Model: ${chalk.green(profile.model)}\n`
+      }
+    }
+    
+    onDone(output, { display: 'system' })
+    return
+  }
+
   // Check if argument matches a provider profile name (switch provider)
   if (trimmedArgs) {
     const profiles = getProviderProfiles()

@@ -195,6 +195,7 @@ export class SimplePlanner {
             const match = task.match(regex)
             const description = match ? match[1].trim() : keyword
             addStep(pattern, description)
+            // Continue to next pattern to get more steps
             break
           }
         }
@@ -295,12 +296,13 @@ export class LLMPlanner {
 Task: "${task}"
 
 Rules:
-- Break the task into 2-${maxSteps} distinct steps
-- Each step should be actionable and have a clear output
-- Steps must be in execution order (dependencies first)
+- Break the task into 5-${maxSteps} distinct, granular milestones.
+- DO NOT group multiple tasks into one step. Each step should represent ~10-15 minutes of work.
+- Each step should be actionable and have a clear, verifiable output.
+- Steps must be in execution order (dependencies first).
 - Use these task types: local_bash, local_agent, remote_agent, in_process_teammate, local_workflow, monitor_mcp, dream
-- Estimate complexity 1-10 for each step (harder tasks = higher)
-- Identify which steps depend on other steps completing first
+- Estimate complexity 1-10 for each step (harder tasks = higher).
+- Identify which steps depend on other steps completing first.
 
 Output format — return ONLY valid JSON (no markdown, no explanation):
 {
@@ -320,13 +322,18 @@ Example:
 Task: "Build a REST API for user authentication"
 {
   "steps": [
-    {"description": "Research auth patterns (JWT, OAuth2)", "taskType": "local_agent", "estimatedComplexity": 4, "dependsOn": [], "activeForm": "Researching auth patterns"},
-    {"description": "Design API schema and endpoints", "taskType": "local_agent", "estimatedComplexity": 5, "dependsOn": ["s1"], "activeForm": "Designing API schema"},
-    {"description": "Implement auth endpoints", "taskType": "local_agent", "estimatedComplexity": 7, "dependsOn": ["s2"], "activeForm": "Implementing auth endpoints"},
-    {"description": "Write tests for auth endpoints", "taskType": "local_bash", "estimatedComplexity": 5, "dependsOn": ["s3"], "activeForm": "Writing auth tests"},
-    {"description": "Deploy to staging", "taskType": "local_bash", "estimatedComplexity": 6, "dependsOn": ["s4"], "activeForm": "Deploying to staging"}
+    {"description": "Research standard JWT claims and security best practices", "taskType": "local_agent", "estimatedComplexity": 4, "dependsOn": [], "activeForm": "Researching auth patterns"},
+    {"description": "Define User and Session database schemas", "taskType": "local_agent", "estimatedComplexity": 5, "dependsOn": ["s1"], "activeForm": "Designing API schema"},
+    {"description": "Setup project dependencies and boilerplate", "taskType": "local_bash", "estimatedComplexity": 3, "dependsOn": ["s2"], "activeForm": "Initializing project"},
+    {"description": "Implement user registration logic", "taskType": "local_agent", "estimatedComplexity": 7, "dependsOn": ["s3"], "activeForm": "Implementing registration"},
+    {"description": "Implement login and token generation", "taskType": "local_agent", "estimatedComplexity": 7, "dependsOn": ["s4"], "activeForm": "Implementing login"},
+    {"description": "Implement password reset flow", "taskType": "local_agent", "estimatedComplexity": 6, "dependsOn": ["s5"], "activeForm": "Implementing password reset"},
+    {"description": "Implement token validation middleware", "taskType": "local_agent", "estimatedComplexity": 6, "dependsOn": ["s6"], "activeForm": "Implementing middleware"},
+    {"description": "Write unit tests for registration", "taskType": "local_bash", "estimatedComplexity": 5, "dependsOn": ["s7"], "activeForm": "Testing registration"},
+    {"description": "Write integration tests for login flow", "taskType": "local_bash", "estimatedComplexity": 5, "dependsOn": ["s8"], "activeForm": "Testing login flow"},
+    {"description": "Deploy to staging environment", "taskType": "local_bash", "estimatedComplexity": 6, "dependsOn": ["s9"], "activeForm": "Deploying to staging"}
   ],
-  "summary": "Build a complete user authentication REST API"
+  "summary": "Build a complete user authentication REST API with registration, login, and token validation"
 }
 
 Return valid JSON only:`

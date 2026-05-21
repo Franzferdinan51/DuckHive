@@ -14,7 +14,7 @@ export function shouldPrintStartupScreen(
     return false
   }
 
-  if (args[0] === 'tui') {
+  if (args[0] === 'tui' || args[0] === 'goal' || args[0] === 'g') {
     return false
   }
 

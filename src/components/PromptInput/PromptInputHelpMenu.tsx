@@ -155,6 +155,14 @@ export function PromptInputHelpMenu(props) {
   } else {
     t23 = $[26];
   }
+  let t23b;
+  if ($[100] !== dimColor) {
+    t23b = <Box><Text dimColor={dimColor}>! for bash commands</Text></Box>;
+    $[100] = dimColor;
+    $[101] = t23b;
+  } else {
+    t23b = $[101];
+  }
   let t24;
   if ($[27] !== dimColor) {
     t24 = <Box><Text dimColor={dimColor}>@ for file paths</Text></Box>;
@@ -180,11 +188,12 @@ export function PromptInputHelpMenu(props) {
     t26 = $[32];
   }
   let t27;
-  if ($[33] !== t21 || $[34] !== t22 || $[35] !== t23 || $[36] !== t24 || $[37] !== t25 || $[38] !== t26) {
-    t27 = <Box flexDirection="column" width={t21}>{t22}{t23}{t24}{t25}{t26}</Box>;
+  if ($[33] !== t21 || $[34] !== t22 || $[35] !== t23 || $[102] !== t23b || $[36] !== t24 || $[37] !== t25 || $[38] !== t26) {
+    t27 = <Box flexDirection="column" width={t21}>{t22}{t23}{t23b}{t24}{t25}{t26}</Box>;
     $[33] = t21;
     $[34] = t22;
     $[35] = t23;
+    $[102] = t23b;
     $[36] = t24;
     $[37] = t25;
     $[38] = t26;

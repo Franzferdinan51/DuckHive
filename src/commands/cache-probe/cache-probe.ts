@@ -360,37 +360,19 @@ export const call: LocalCommandCall = async (args) => {
   comparison.push(`\n  Verdict: ${verdict}`)
 
   // --- Simulate what main's shim code does with this usage ---
-  // codexShim.ts makeUsage() — used for Responses API (GPT-5+/Codex)
-  function mainMakeUsage(u: any) {
-    return {
-      input_tokens: u?.input_tokens ?? 0,
-      output_tokens: u?.output_tokens ?? 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,  // ← main hardcodes this to 0
-    }
-  }
-  // openaiShim.ts convertChunkUsage() — used for Chat Completions
-  function mainConvertChunkUsage(u: any) {
-    return {
-      input_tokens: u?.prompt_tokens ?? 0,
-      output_tokens: u?.completion_tokens ?? 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: u?.prompt_tokens_details?.cached_tokens ?? 0,
-    }
-  }
+  const { buildAnthropicUsageFromRawUsage } = await import('../../services/api/cacheMetrics.js')
 
-  const shimFn = useResponses ? mainMakeUsage : mainConvertChunkUsage
-  const shim1 = shimFn(r1.usage)
-  const shim2 = shimFn(r2.usage)
+  const shim1 = buildAnthropicUsageFromRawUsage(r1.usage)
+  const shim2 = buildAnthropicUsageFromRawUsage(r2.usage)
 
   comparison.push('')
-  comparison.push(`  --- What main's shim reports (${useResponses ? 'codexShim.makeUsage' : 'openaiShim.convertChunkUsage'}) ---`)
+  comparison.push(`  --- What main's shim reports (via buildAnthropicUsageFromRawUsage) ---`)
   comparison.push(`  Call 1: cache_read_input_tokens=${shim1.cache_read_input_tokens}`)
   comparison.push(`  Call 2: cache_read_input_tokens=${shim2.cache_read_input_tokens}`)
-  if (useResponses && cached2 > 0) {
-    comparison.push(`  BUG: Server returned ${cached2} cached tokens but main's makeUsage() drops it → reports 0`)
-  } else if (!useResponses && shim2.cache_read_input_tokens > 0) {
-    comparison.push(`  OK: Chat Completions path on main correctly reads cached_tokens`)
+  if (shim2.cache_read_input_tokens > 0) {
+    comparison.push(`  OK: Shim layer correctly reads cached_tokens`)
+  } else if (cached2 > 0) {
+    comparison.push(`  BUG: Server returned ${cached2} cached tokens but shim drops it → reports 0`)
   }
 
   logForDebugging(comparison.join('\n'))
@@ -407,7 +389,7 @@ export const call: LocalCommandCall = async (args) => {
     verdict,
     '',
     `What main's ${shimLabel} reports:`,
-    `  Call 2 cache_read_input_tokens = ${shim2.cache_read_input_tokens}${useResponses && cached2 > 0 ? '  ← BUG: server sent ' + cached2 + ' but main drops it' : ''}`,
+    `  Call 2 cache_read_input_tokens = ${shim2.cache_read_input_tokens}${cached2 > 0 && shim2.cache_read_input_tokens === 0 ? '  ← BUG: server sent ' + cached2 + ' but shim drops it' : ''}`,
     '',
     'Full details written to debug log.',
   ].join('\n')
