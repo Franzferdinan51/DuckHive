@@ -25,6 +25,22 @@ const DEFAULT_SEMANTIC: CommandSemantic = (exitCode, _stdout, _stderr) => ({
     exitCode !== 0 ? `Command failed with exit code ${exitCode}` : undefined,
 })
 
+const COMMAND_LOOKUP_SEMANTIC: CommandSemantic = (
+  exitCode,
+  _stdout,
+  _stderr,
+) => ({
+  isError: exitCode >= 2,
+  message: exitCode === 1 ? 'Command not found' : undefined,
+})
+
+function predicateSemantic(falseMessage: string): CommandSemantic {
+  return (exitCode, _stdout, _stderr) => ({
+    isError: exitCode !== 0 && exitCode !== 1,
+    message: exitCode === 1 ? falseMessage : undefined,
+  })
+}
+
 /**
  * Command-specific semantics
  */
@@ -98,6 +114,14 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
+  // which/type/hash: 0=command found, 1=not found, 2+=lookup error
+  ['which', COMMAND_LOOKUP_SEMANTIC],
+  ['type', COMMAND_LOOKUP_SEMANTIC],
+  ['hash', COMMAND_LOOKUP_SEMANTIC],
+
+  // pgrep: 0=process matched, 1=no process matched, 2+=syntax/runtime error
+  ['pgrep', predicateSemantic('No matching process found')],
+
   // [ is an alias for test
   [
     '[',
@@ -119,6 +143,8 @@ function getCommandSemantic(command: string): CommandSemantic {
   const activeCommand = heuristicallyExtractActiveCommand(command)
   const gitSemantic = getGitCommandSemantic(activeCommand)
   if (gitSemantic) return gitSemantic
+  const shellPredicateSemantic = getShellPredicateCommandSemantic(activeCommand)
+  if (shellPredicateSemantic) return shellPredicateSemantic
 
   const baseCommand = extractBaseCommand(activeCommand)
   const semantic = COMMAND_SEMANTICS.get(baseCommand)
@@ -177,7 +203,40 @@ function getGitCommandSemantic(command: string): CommandSemantic | undefined {
     return COMMAND_SEMANTICS.get('diff')
   }
 
+  if (
+    parsed.subcommand === 'merge-base' &&
+    parsed.args.includes('--is-ancestor')
+  ) {
+    return predicateSemantic('Commit is not an ancestor')
+  }
+
+  if (
+    parsed.subcommand === 'show-ref' &&
+    parsed.args.includes('--verify') &&
+    parsed.args.includes('--quiet')
+  ) {
+    return predicateSemantic('Ref not found')
+  }
+
+  if (
+    parsed.subcommand === 'rev-parse' &&
+    parsed.args.includes('--verify') &&
+    parsed.args.includes('--quiet')
+  ) {
+    return predicateSemantic('Revision not found')
+  }
+
   return undefined
+}
+
+function getShellPredicateCommandSemantic(
+  command: string,
+): CommandSemantic | undefined {
+  const words = splitShellWords(command)
+  if (words[0] !== 'command') return undefined
+  return words.some(word => word === '-v' || word === '-V')
+    ? COMMAND_LOOKUP_SEMANTIC
+    : undefined
 }
 
 /**

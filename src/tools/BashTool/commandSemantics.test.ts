@@ -141,6 +141,95 @@ describe('interpretCommandResult', () => {
       expect(result.isError).toBe(false)
       expect(result.message).toContain('differ')
     })
+
+    test('git merge-base --is-ancestor exit code 1 = false predicate (not error)', () => {
+      const result = interpretCommandResult(
+        'git merge-base --is-ancestor HEAD origin/main',
+        1,
+        '',
+        '',
+      )
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('not an ancestor')
+    })
+
+    test('git show-ref --verify --quiet exit code 1 = missing ref (not error)', () => {
+      const result = interpretCommandResult(
+        'git show-ref --verify --quiet refs/heads/nope',
+        1,
+        '',
+        '',
+      )
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('Ref not found')
+    })
+
+    test('git rev-parse --verify --quiet exit code 1 = missing revision (not error)', () => {
+      const result = interpretCommandResult(
+        'git rev-parse --verify --quiet missing-ref',
+        1,
+        '',
+        '',
+      )
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('Revision not found')
+    })
+
+    test('git predicate errors above code 1 are still errors', () => {
+      const result = interpretCommandResult(
+        'git merge-base --is-ancestor HEAD missing-ref',
+        128,
+        '',
+        'fatal: Not a valid commit name',
+      )
+      expect(result.isError).toBe(true)
+    })
+  })
+
+  // --- command lookup predicates: 0=found, 1=not found, 2+=lookup error ---
+  describe('command lookup predicates', () => {
+    test('which exit code 1 = command not found (not error)', () => {
+      const result = interpretCommandResult('which definitely-not-installed', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('Command not found')
+    })
+
+    test('command -v exit code 1 = command not found (not error)', () => {
+      const result = interpretCommandResult('command -v definitely-not-installed', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('Command not found')
+    })
+
+    test('type exit code 1 = command not found (not error)', () => {
+      const result = interpretCommandResult('type definitely-not-installed', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('Command not found')
+    })
+
+    test('command without lookup flag keeps default semantics', () => {
+      const result = interpretCommandResult('command node -e "process.exit(1)"', 1, '', '')
+      expect(result.isError).toBe(true)
+      expect(result.message).toContain('exit code 1')
+    })
+
+    test('lookup predicate code 2 remains an error', () => {
+      const result = interpretCommandResult('which', 2, '', 'usage error')
+      expect(result.isError).toBe(true)
+    })
+  })
+
+  // --- pgrep: 0=matched, 1=no process, 2+=error ---
+  describe('pgrep', () => {
+    test('exit code 1 = no matching process (not error)', () => {
+      const result = interpretCommandResult('pgrep -f duckhive-dev-server', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('No matching process')
+    })
+
+    test('exit code 2 = syntax/runtime error', () => {
+      const result = interpretCommandResult('pgrep -[', 2, '', 'invalid option')
+      expect(result.isError).toBe(true)
+    })
   })
 
   // --- test/[: 0=true, 1=false, 2+=error ---
