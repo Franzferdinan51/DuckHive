@@ -67,6 +67,7 @@ import {
   getMainLoopModel,
   parseUserSpecifiedModel,
 } from './utils/model/model.js'
+import { toExternalPermissionMode } from './utils/permissions/PermissionMode.js'
 import { loadAllPluginsCacheOnly } from './utils/plugins/pluginLoader.js'
 import {
   type ProcessUserInputContext,
@@ -539,7 +540,9 @@ export class QueryEngine {
       tools,
       mcpClients,
       model: mainLoopModel,
-      permissionMode: initialAppState.toolPermissionContext.mode,
+      permissionMode: toExternalPermissionMode(
+        initialAppState.toolPermissionContext.mode,
+      ),
       commands,
       agents,
       skills,

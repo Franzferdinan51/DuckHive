@@ -46,6 +46,7 @@ function buildGoalPromptSection(): Record<string, string> | null {
       autonomousMode?: boolean
       currentStepId?: string
       activeAgentRunId?: string
+      budgetUSD?: number
       steps: Array<{
         id: string
         description: string

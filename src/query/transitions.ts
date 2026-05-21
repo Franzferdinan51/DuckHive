@@ -19,4 +19,5 @@ export type Continue =
   | { reason: 'stop_hook_blocking' }
   | { reason: 'token_budget_continuation' }
   | { reason: 'continuation_nudge' }
+  | { reason: 'forced_action_escalation' }
   | { reason: 'next_turn' }

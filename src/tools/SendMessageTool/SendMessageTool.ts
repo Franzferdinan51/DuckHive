@@ -130,6 +130,29 @@ export type SendMessageToolOutput =
   | RequestOutput
   | ResponseOutput
 
+const messageRoutingSchema = lazySchema(() =>
+  z.object({
+    sender: z.string(),
+    senderColor: z.string().optional(),
+    target: z.string(),
+    targetColor: z.string().optional(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+  }),
+)
+
+const outputSchema = lazySchema(() =>
+  z.object({
+    success: z.boolean(),
+    message: z.string(),
+    routing: messageRoutingSchema().optional(),
+    recipients: z.array(z.string()).optional(),
+    request_id: z.string().optional(),
+    target: z.string().optional(),
+  }),
+)
+type OutputSchema = ReturnType<typeof outputSchema>
+
 function findTeammateColor(
   appState: {
     teamContext?: { teammates: { [id: string]: { color?: string } } }
@@ -529,6 +552,9 @@ export const SendMessageTool: Tool<InputSchema, SendMessageToolOutput> =
 
     get inputSchema(): InputSchema {
       return inputSchema()
+    },
+    get outputSchema(): OutputSchema {
+      return outputSchema()
     },
     shouldDefer: true,
 

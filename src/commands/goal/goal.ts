@@ -974,6 +974,16 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
 
   await saveGoals(goals, { type: 'autonomous_started', goal })
 
+  // Add a heartbeat cron task for proactive monitoring (OpenClaw-style)
+  const { addSessionCronTask } = await import('../../bootstrap/state.js')
+  addSessionCronTask({
+    id: `heartbeat-${goal.id}`,
+    cron: '*/30 * * * *', // Every 30 minutes
+    prompt: `<goal_tick>Heartbeat tick. Proactively monitor progress on goal "${goal.title}". If everything is on track and there is no useful action, respond with HEARTBEAT_OK. If you see an opportunity to advance a milestone or fix a minor issue, take action now.</goal_tick>`,
+    createdAt: Date.now(),
+    recurring: true,
+  })
+
   const currentStep = getCurrentStep(goal)
   const stepInfo = currentStep
     ? `\nCurrent step: ${currentStep.description}`

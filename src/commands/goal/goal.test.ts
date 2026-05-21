@@ -11,10 +11,14 @@ type GoalRecord = {
   completedAt?: string
   autonomousMode?: boolean
   activeAgentRunId?: string
+  activeAgentName?: string
   lastActivityAt?: string
+  budgetUSD?: number
   steps: Array<{
+    id?: string
     description: string
     status?: string
+    createdAt?: string
     completedAt?: string
   }>
 }
@@ -31,6 +35,7 @@ let planSlugCache: Map<string, string>
 let modelStringsState: unknown = null
 let inlinePlugins: string[] = []
 let agentColorMap: Map<string, unknown>
+let sessionCronTasks: any[] = []
 
 async function importFreshGoalCommand() {
   return (await import(`./goal.ts?goal-test=${Date.now()}-${Math.random()}`))
@@ -54,6 +59,7 @@ describe('/goal command', () => {
     modelStringsState = null
     inlinePlugins = []
     agentColorMap = new Map()
+    sessionCronTasks = []
 
     // Build comprehensive proxy mocks to stop SyntaxErrors
     const stateMock = {} as any
@@ -78,6 +84,17 @@ describe('/goal command', () => {
           if (key === 'getIsInteractive') return true
           if (key === 'getPlanSlugCache') return planSlugCache
           if (key === 'getAgentColorMap') return agentColorMap
+          if (key === 'getSessionCronTasks') return sessionCronTasks
+          if (key === 'addSessionCronTask') {
+            sessionCronTasks.push(args[0])
+            return
+          }
+          if (key === 'removeSessionCronTasks') {
+            const ids = new Set(args[0] ?? [])
+            const before = sessionCronTasks.length
+            sessionCronTasks = sessionCronTasks.filter(task => !ids.has(task.id))
+            return before - sessionCronTasks.length
+          }
           if (key === 'getAdditionalDirectoriesForClaudeMd') return []
           if (key === 'getModelStrings') return modelStringsState
           if (key === 'setModelStrings') {
@@ -504,6 +521,11 @@ describe('/goal command', () => {
     expect(goal?.lastActivityAt).toBeTruthy()
     expect(goal?.steps[0]?.description).toBe('Stabilize the CLI')
     expect(goal?.steps[0]?.status).toBe('active')
+    expect(sessionCronTasks).toHaveLength(1)
+    expect(sessionCronTasks[0]?.id).toBe(`heartbeat-${goal?.id}`)
+    expect(sessionCronTasks[0]?.cron).toBe('*/30 * * * *')
+    expect(sessionCronTasks[0]?.recurring).toBe(true)
+    expect(sessionCronTasks[0]?.prompt).toContain('HEARTBEAT_OK')
   })
 
   test('stop-autonomous pauses the goal and active step', async () => {

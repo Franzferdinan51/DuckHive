@@ -73,6 +73,7 @@ import {
   areFileEditsInputsEquivalent,
   findActualString,
   getPatchForEdit,
+  normalizeFileEditInput,
   preserveQuoteStyle,
 } from './utils.js'
 

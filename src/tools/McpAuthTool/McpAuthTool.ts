@@ -29,6 +29,15 @@ export type McpAuthOutput = {
   authUrl?: string
 }
 
+const outputSchema = lazySchema(() =>
+  z.object({
+    status: z.enum(['auth_url', 'unsupported', 'error']),
+    message: z.string(),
+    authUrl: z.string().optional(),
+  }),
+)
+type OutputSchema = ReturnType<typeof outputSchema>
+
 function getConfigUrl(config: ScopedMcpServerConfig): string | undefined {
   if ('url' in config) return config.url
   return undefined
@@ -78,6 +87,9 @@ export function createMcpAuthTool(
     },
     get inputSchema(): InputSchema {
       return inputSchema()
+    },
+    get outputSchema(): OutputSchema {
+      return outputSchema()
     },
     async checkPermissions(input): Promise<PermissionDecision> {
       return { behavior: 'allow', updatedInput: input }
