@@ -112,6 +112,22 @@ describe('Agent loop continuation nudge', () => {
       'Continue with the task. Use the appropriate tools to proceed.',
     )
   })
+
+  test('exploration-only loops are nudged early toward edits', async () => {
+    const queryContent = await file('query.ts').text()
+    const promptContent = await file('constants/prompts.ts').text()
+
+    expect(queryContent).toContain('EXPLORATION_NUDGE_THRESHOLD = 2')
+    expect(queryContent).toContain(
+      'You have used only search/read tools for multiple consecutive turns.',
+    )
+    expect(queryContent).toContain(
+      'make the smallest safe Edit/Write now and verify it',
+    )
+    expect(promptContent).toContain(
+      'After two consecutive search/read turns on the same task',
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------

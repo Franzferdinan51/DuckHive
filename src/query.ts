@@ -205,6 +205,8 @@ export type QueryParams = {
 
 // -- query loop state
 
+const EXPLORATION_NUDGE_THRESHOLD = 2
+
 // Mutable state carried between loop iterations
 type State = {
   messages: Message[]
@@ -1981,12 +1983,14 @@ async function* queryLoop(
       }
     }
 
-    // If we've been exploring for a while, add a gentle nudge about momentum
-    if (currentExplorationCount >= 4) {
+    // If we've been exploring for a while, add a directive nudge about momentum.
+    // Repeated search/read turns tend to indicate context thrash: the model has
+    // enough local clues to make a small edit, but keeps widening context.
+    if (currentExplorationCount >= EXPLORATION_NUDGE_THRESHOLD) {
       const reminder = createSystemMessage(
-        'SYSTEM NUDGE: You have been in research mode for several turns. ' +
-          'If the path is becoming clear, consider taking a first safe step toward the solution to maintain momentum. ' +
-          'Practical action is often a great way to verify your current findings.',
+        'SYSTEM NUDGE: You have used only search/read tools for multiple consecutive turns. ' +
+          'Stop broadening context unless a specific missing symbol or line is blocking you. ' +
+          'If you know the target file, make the smallest safe Edit/Write now and verify it; if you do not, ask one concrete blocking question instead of re-reading the same area.',
         'info',
       )
       yield reminder
