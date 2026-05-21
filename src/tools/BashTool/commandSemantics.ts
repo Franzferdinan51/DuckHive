@@ -75,6 +75,20 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
+  // gh: 0=success, 1=error/api failure, 4=not logged in
+  [
+    'gh',
+    (exitCode, _stdout, _stderr) => ({
+      isError: exitCode !== 0,
+      message:
+        exitCode === 4
+          ? 'GitHub CLI is not logged in. Run `gh auth login` to authenticate.'
+          : exitCode === 1
+            ? 'GitHub CLI command failed or returned an API error.'
+            : undefined,
+    }),
+  ],
+
   // [ is an alias for test
   [
     '[',

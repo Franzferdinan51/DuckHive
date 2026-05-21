@@ -299,6 +299,8 @@ export function getSimplePrompt(): string {
 
   const instructionItems: Array<string | string[]> = [
     'If your command will create new directories or files, first use this tool to run `ls` to verify the parent directory exists and is the correct location.',
+    'NEVER hide error messages from the output. DO NOT use `2>/dev/null` or similar redirections unless you specifically want to ignore expected errors. The standard error output is vital for diagnosing failures.',
+    'Check authentication/login status if tool-specific CLI commands (like `gh`, `npm`, etc.) fail with exit codes 1 or 4. Do not assume the tool is "broken" without checking if you are logged in.',
     'Always quote file paths that contain spaces with double quotes in your command (e.g., cd "path with spaces/file.txt")',
     'Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.',
     `You may specify an optional timeout in milliseconds (up to ${getMaxTimeoutMs()}ms / ${getMaxTimeoutMs() / 60000} minutes). By default, your command will timeout after ${getDefaultTimeoutMs()}ms (${getDefaultTimeoutMs() / 60000} minutes).`,

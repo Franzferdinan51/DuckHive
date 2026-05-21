@@ -603,8 +603,22 @@ async function fetchWithRetry(url: string, init: RequestInit, signal?: AbortSign
 
       if (!res.ok) {
         lastStatus = res.status
-        throw new Error(`Custom search API returned ${res.status}: ${res.statusText}`)
+        const text = await res.text().catch(() => '')
+        const preview = text.slice(0, 200).trim()
+        const errorDetail = preview ? `: ${preview}${preview.length >= 200 ? '...' : ''}` : ''
+        throw new Error(`Custom search API returned ${res.status} (${res.statusText})${errorDetail}`)
       }
+
+      const contentType = res.headers.get('content-type')
+      if (contentType && !contentType.includes('application/json')) {
+        const text = await res.text().catch(() => '')
+        const preview = text.slice(0, 200).trim()
+        throw new Error(
+          `Custom search API returned unexpected content-type "${contentType}" instead of JSON. ` +
+          `Preview: ${preview}${preview.length >= 200 ? '...' : ''}`
+        )
+      }
+
       return await res.json()
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err))
