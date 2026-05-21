@@ -125,6 +125,14 @@ async function main(): Promise<void> {
     applySafeConfigEnvironmentVariables()
   }
 
+  {
+    const {
+      applyDuckHiveSearchPreferenceToEnv,
+      readDuckHiveSearchSettingsSync,
+    } = await import('../utils/duckhiveSearch.js')
+    applyDuckHiveSearchPreferenceToEnv(readDuckHiveSearchSettingsSync())
+  }
+
   const hasConfiguredProviderProfile = await (async () => {
     const { getActiveProviderProfile } = await import('../utils/providerProfiles.js')
     return getActiveProviderProfile() !== undefined

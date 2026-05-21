@@ -264,6 +264,26 @@ function canUseStreamlinedPresetFlow(draft: ProviderDraft): boolean {
   return !isSetupPlaceholder(draft.baseUrl) && !isSetupPlaceholder(draft.model)
 }
 
+function parsePresetModelAndInlineApiKey(
+  value: string,
+  fallbackModel: string,
+): { model: string; apiKey?: string } {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return { model: fallbackModel.trim() }
+  }
+
+  const parts = trimmed.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return {
+      model: parts[0] ?? fallbackModel.trim(),
+      apiKey: parts.slice(1).join(' '),
+    }
+  }
+
+  return { model: trimmed }
+}
+
 function profileSummary(profile: ProviderProfile, isActive: boolean): string {
   const activeSuffix = isActive ? ' (active)' : ''
   const keyInfo = profile.apiKey ? 'key set' : 'no key'
@@ -1705,6 +1725,13 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           Choose the default model for {draft.name}. Endpoint and advanced
           details are already configured by the preset.
         </Text>
+        {needsApiKey ? (
+          <Text dimColor>
+            Tip: paste the model and API key together here as
+            {' '}`model api_key` to save in one step, or press Enter to keep the
+            model and continue to the API key screen.
+          </Text>
+        ) : null}
         <Text dimColor>
           Provider type:{' '}
           {getRouteProviderTypeLabel(resolveProfileRoute(draftProvider).routeId)}
@@ -1723,7 +1750,8 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
               }))
             }
             onSubmit={value => {
-              const model = value.trim()
+              const parsed = parsePresetModelAndInlineApiKey(value, draft.model)
+              const model = parsed.model.trim()
               if (!model) {
                 setErrorMessage('Default model is required.')
                 return
@@ -1733,13 +1761,14 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
                 {
                   ...draft,
                   model,
+                  apiKey: parsed.apiKey?.trim() || draft.apiKey,
                 },
                 draftProvider,
               )
               setDraft(nextDraft)
               setErrorMessage(undefined)
 
-              if (needsApiKey) {
+              if (needsApiKey && !nextDraft.apiKey.trim()) {
                 setCursorOffset(0)
                 setScreen('preset-api-key')
                 return

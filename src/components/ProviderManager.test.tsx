@@ -753,6 +753,62 @@ test('ProviderManager asks for model and API key when adding OpenAI preset', asy
   }
 })
 
+test('ProviderManager saves OpenAI preset from one inline model-plus-key entry', async () => {
+  const addProviderProfile = mock((payload: any) => ({
+    id: 'openai_profile',
+    ...payload,
+  }))
+
+  mockProviderManagerDependencies(() => undefined, async () => undefined, {
+    addProviderProfile,
+  })
+
+  const nonce = `${Date.now()}-${Math.random()}`
+  const { ProviderManager } = await import(`./ProviderManager.js?ts=${nonce}`)
+  const mounted = await mountProviderManager(ProviderManager)
+
+  try {
+    await waitForFrameOutput(mounted.getOutput, frame =>
+      frame.includes('Provider manager'),
+    )
+
+    mounted.stdin.write('\r')
+    await waitForFrameOutput(mounted.getOutput, frame =>
+      frame.includes('Choose provider preset'),
+    )
+
+    await navigateToPreset(mounted.stdin, 'OpenAI')
+    mounted.stdin.write('\r')
+    const modelOutput = await waitForFrameOutput(mounted.getOutput, frame =>
+      frame.includes('Create provider profile') &&
+      frame.includes('Step 1 of 2: Default model'),
+    )
+
+    expect(modelOutput).toContain('paste the model and API key together')
+
+    mounted.stdin.write('\u0015')
+    await Bun.sleep(25)
+    mounted.stdin.write('gpt-5.5 sk-openai-inline-test')
+    await Bun.sleep(25)
+    mounted.stdin.write('\r')
+
+    await waitForCondition(() => addProviderProfile.mock.calls.length > 0)
+    expect(addProviderProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'openai',
+        name: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-5.5',
+        apiKey: 'sk-openai-inline-test',
+        apiFormat: 'responses',
+      }),
+      expect.objectContaining({ makeActive: true }),
+    )
+  } finally {
+    await mounted.dispose()
+  }
+})
+
 test('ProviderManager saves OpenAI preset GPT-5 models with Responses API', async () => {
   const addProviderProfile = mock((payload: any) => ({
     id: 'openai_profile',

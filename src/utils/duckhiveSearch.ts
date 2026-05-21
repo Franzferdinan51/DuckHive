@@ -14,13 +14,35 @@ export type DuckHiveSearchProvider =
   | 'exa'
   | 'you'
   | 'jina'
+  | 'brave'
   | 'bing'
   | 'mojeek'
   | 'linkup'
 
+export type DuckHiveSearchCredentialProvider = Exclude<
+  DuckHiveSearchProvider,
+  'auto' | 'native' | 'searxng' | 'ddg'
+>
+
+export const DUCKHIVE_SEARCH_PROVIDER_KEY_ENV_VARS: Partial<
+  Record<DuckHiveSearchProvider, string>
+> = {
+  minimax: 'MINIMAX_API_KEY',
+  firecrawl: 'FIRECRAWL_API_KEY',
+  tavily: 'TAVILY_API_KEY',
+  exa: 'EXA_API_KEY',
+  you: 'YOU_API_KEY',
+  jina: 'JINA_API_KEY',
+  bing: 'BING_API_KEY',
+  mojeek: 'MOJEEK_API_KEY',
+  linkup: 'LINKUP_API_KEY',
+  custom: 'WEB_KEY',
+}
+
 export type DuckHiveSearchConfig = {
   provider?: string
   searxngUrl?: string
+  apiKeys?: Partial<Record<DuckHiveSearchCredentialProvider, string>>
   custom?: {
     provider?: string
     api?: string
@@ -50,6 +72,7 @@ const SEARCH_PROVIDER_ALIASES: Record<string, DuckHiveSearchProvider> = {
   you: 'you',
   youcom: 'you',
   jina: 'jina',
+  brave: 'brave',
   bing: 'bing',
   mojeek: 'mojeek',
   linkup: 'linkup',
@@ -89,6 +112,23 @@ export function getConfiguredDuckHiveSearchProvider(
   return normalizeDuckHiveSearchProvider(config?.search?.provider) ?? 'auto'
 }
 
+export function getDuckHiveSearchProviderKeyEnvVar(
+  provider: DuckHiveSearchProvider,
+): string | undefined {
+  return DUCKHIVE_SEARCH_PROVIDER_KEY_ENV_VARS[provider]
+}
+
+export function providerSupportsDuckHiveSearchApiKey(
+  provider: DuckHiveSearchProvider,
+): provider is DuckHiveSearchCredentialProvider {
+  return Boolean(getDuckHiveSearchProviderKeyEnvVar(provider))
+}
+
+function sanitizeOptionalValue(value?: string): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
 function deepMerge(target: Record<string, unknown>, ...sources: Record<string, unknown>[]): Record<string, unknown> {
   for (const source of sources) {
     for (const key of Object.keys(source)) {
@@ -107,7 +147,13 @@ function deepMerge(target: Record<string, unknown>, ...sources: Record<string, u
 
 export function setDuckHiveSearchPreferenceSync(
   provider: DuckHiveSearchProvider,
-  options?: { searxngUrl?: string },
+  options?: {
+    searxngUrl?: string
+    apiKey?: string
+    customProvider?: string
+    customSearchApi?: string
+    customUrlTemplate?: string
+  },
   configPath = getDuckHiveSearchConfigPath(),
 ): DuckHiveSearchSettings {
   const current = readDuckHiveSearchSettingsSync(configPath)
@@ -121,6 +167,37 @@ export function setDuckHiveSearchPreferenceSync(
     nextSearch.searxngUrl = options.searxngUrl
   }
 
+  if (providerSupportsDuckHiveSearchApiKey(provider)) {
+    const nextApiKey = sanitizeOptionalValue(options?.apiKey)
+    const currentApiKeys = isRecord(currentSearch.apiKeys)
+      ? { ...(currentSearch.apiKeys as Partial<Record<DuckHiveSearchCredentialProvider, string>>) }
+      : {}
+    if (nextApiKey) {
+      currentApiKeys[provider] = nextApiKey
+    }
+    if (Object.keys(currentApiKeys).length > 0) {
+      nextSearch.apiKeys = currentApiKeys
+    }
+  }
+
+  if (provider === 'custom') {
+    const currentCustom = isRecord(currentSearch.custom)
+      ? { ...(currentSearch.custom as Record<string, unknown>) }
+      : {}
+    const nextCustom: DuckHiveSearchConfig['custom'] = {
+      ...currentCustom,
+    }
+    const customProvider = sanitizeOptionalValue(options?.customProvider)
+    const customSearchApi = sanitizeOptionalValue(options?.customSearchApi)
+    const customUrlTemplate = sanitizeOptionalValue(options?.customUrlTemplate)
+    const customKey = sanitizeOptionalValue(options?.apiKey)
+    if (customProvider) nextCustom.provider = customProvider
+    if (customSearchApi) nextCustom.api = customSearchApi
+    if (customUrlTemplate) nextCustom.urlTemplate = customUrlTemplate
+    if (customKey) nextCustom.key = customKey
+    nextSearch.custom = nextCustom
+  }
+
   const nextConfig: DuckHiveSearchSettings = deepMerge({}, current as Record<string, unknown>, { search: nextSearch } as Record<string, unknown>)
 
   mkdirSync(dirname(configPath), { recursive: true })
@@ -132,6 +209,19 @@ export function applyDuckHiveSearchPreferenceToEnv(
   config: DuckHiveSearchSettings,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
+  const savedApiKeys = isRecord(config.search?.apiKeys)
+    ? (config.search?.apiKeys as Partial<Record<DuckHiveSearchCredentialProvider, string>>)
+    : {}
+  for (const [provider, key] of Object.entries(savedApiKeys)) {
+    const envVar = getDuckHiveSearchProviderKeyEnvVar(
+      provider as DuckHiveSearchProvider,
+    )
+    const sanitizedKey = sanitizeOptionalValue(key)
+    if (envVar && sanitizedKey) {
+      env[envVar] = sanitizedKey
+    }
+  }
+
   const provider = getConfiguredDuckHiveSearchProvider(config)
   env.WEB_SEARCH_PROVIDER = provider
 
@@ -141,6 +231,38 @@ export function applyDuckHiveSearchPreferenceToEnv(
       env.WEB_SEARCH_API = config.search.searxngUrl
     }
     allowLocalSearxngIfNeeded(config.search?.searxngUrl, env)
+    return
+  }
+
+  if (provider === 'custom') {
+    const custom = isRecord(config.search?.custom)
+      ? (config.search?.custom as Record<string, unknown>)
+      : {}
+    const customProvider = sanitizeOptionalValue(
+      typeof custom.provider === 'string' ? custom.provider : undefined,
+    )
+    const customSearchApi = sanitizeOptionalValue(
+      typeof custom.api === 'string' ? custom.api : undefined,
+    )
+    const customUrlTemplate = sanitizeOptionalValue(
+      typeof custom.urlTemplate === 'string' ? custom.urlTemplate : undefined,
+    )
+    const customKey = sanitizeOptionalValue(
+      typeof custom.key === 'string' ? custom.key : undefined,
+    )
+    if (customProvider) {
+      env.WEB_PROVIDER = customProvider
+    }
+    if (customSearchApi) {
+      env.WEB_SEARCH_API = customSearchApi
+      allowLocalSearxngIfNeeded(customSearchApi, env)
+    }
+    if (customUrlTemplate) {
+      env.WEB_URL_TEMPLATE = customUrlTemplate
+    }
+    if (customKey) {
+      env.WEB_KEY = customKey
+    }
   }
 }
 

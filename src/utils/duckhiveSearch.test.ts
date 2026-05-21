@@ -62,6 +62,25 @@ test('persists search preference without discarding other config', () => {
   })
 })
 
+test('persists provider API keys in DuckHive config', () => {
+  tempDir = mkdtempSync(join(tmpdir(), 'duckhive-search-'))
+  const configPath = join(tempDir, 'config.json')
+
+  setDuckHiveSearchPreferenceSync(
+    'tavily',
+    { apiKey: 'tvly-test-key' },
+    configPath,
+  )
+
+  const saved = readDuckHiveSearchSettingsSync(configPath)
+  expect(saved.search).toEqual({
+    provider: 'tavily',
+    apiKeys: {
+      tavily: 'tvly-test-key',
+    },
+  })
+})
+
 test('applies searxng env including local endpoint guard overrides', () => {
   const env: NodeJS.ProcessEnv = {}
 
@@ -80,4 +99,23 @@ test('applies searxng env including local endpoint guard overrides', () => {
   expect(env.WEB_SEARCH_API).toBe('http://localhost:8080/search')
   expect(env.WEB_CUSTOM_ALLOW_HTTP).toBe('true')
   expect(env.WEB_CUSTOM_ALLOW_PRIVATE).toBe('true')
+})
+
+test('applies persisted keyed-provider credentials into runtime env', () => {
+  const env: NodeJS.ProcessEnv = {}
+
+  applyDuckHiveSearchPreferenceToEnv(
+    {
+      search: {
+        provider: 'tavily',
+        apiKeys: {
+          tavily: 'tvly-test-key',
+        },
+      },
+    },
+    env,
+  )
+
+  expect(env.WEB_SEARCH_PROVIDER).toBe('tavily')
+  expect(env.TAVILY_API_KEY).toBe('tvly-test-key')
 })

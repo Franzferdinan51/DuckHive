@@ -125,9 +125,19 @@ The prompt-adjacent UI now uses DuckHive branding in active terminal surfaces to
 # First-run: use the interactive setup wizard
 /init
 
+# Re-open provider onboarding later
+duckhive /onboard
+
 # Then just code
 duckhive "Implement a REST API"
 ```
+
+During `/onboard`, provider presets with fixed endpoints now accept a one-line
+model plus API key entry in the first prompt. For example, on the OpenAI preset
+you can paste `gpt-5.5 sk-...` in the model step to save the provider in one
+pass, instead of finishing a separate API-key screen. If the matching provider
+key is already present in your shell environment, DuckHive reuses it and skips
+the extra API-key prompt automatically.
 
 **Windows source checkout:**
 ```powershell

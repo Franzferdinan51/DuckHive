@@ -123,7 +123,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (method === 'GET' && url.pathname === '/api/search-provider') {
-    sendJson(res, 200, searchProvider)
+    sendJson(res, 200, getSearchProviderStatus())
     return
   }
 
@@ -136,14 +136,22 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       return
     }
     try {
-      const { setDuckHiveSearchPreferenceSync, normalizeDuckHiveSearchProvider } =
+      const {
+        applyDuckHiveSearchPreferenceToEnv,
+        normalizeDuckHiveSearchProvider,
+        setDuckHiveSearchPreferenceSync,
+      } =
         await import('../../utils/duckhiveSearch.js')
       const normalized = normalizeDuckHiveSearchProvider(provider)
       if (!normalized) {
         sendJson(res, 400, { error: `Unknown provider: ${provider}` })
         return
       }
-      setDuckHiveSearchPreferenceSync(normalized as DuckHiveSearchProvider, { searxngUrl })
+      const saved = setDuckHiveSearchPreferenceSync(
+        normalized as DuckHiveSearchProvider,
+        { searxngUrl },
+      )
+      applyDuckHiveSearchPreferenceToEnv(saved)
       sendJson(res, 200, { provider: normalized, searxngUrl: searxngUrl ?? null })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
