@@ -619,7 +619,17 @@ async function fetchWithRetry(url: string, init: RequestInit, signal?: AbortSign
         )
       }
 
-      return await res.json()
+      try {
+        return await res.json()
+      } catch (e) {
+        const text = await res.text().catch(() => '')
+        const preview = text.slice(0, 200).trim()
+        throw new Error(
+          `Failed to parse search API response as JSON. ` +
+          `Error: ${errorMessage(e)}. ` +
+          `Preview: ${preview}${preview.length >= 200 ? '...' : ''}`
+        )
+      }
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err))
 

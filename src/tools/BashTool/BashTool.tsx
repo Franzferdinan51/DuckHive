@@ -450,7 +450,13 @@ export const BashTool = buildTool({
     return input.command;
   },
   normalizeInput(input, _agentId) {
-    const parsed = inputSchema().parse(input)
+    // Use fullInputSchema for normalization so we see internal fields too.
+    // Use safeParse to avoid throwing and disrupting the turn if the model
+    // sends something slightly off-schema.
+    const result = fullInputSchema().safeParse(input)
+    if (!result.success) return input
+
+    const parsed = result.data
     const { command, timeout, description } = parsed
     const cwd = getCwd()
     let normalizedCommand = command.replace(`cd ${cwd} && `, '')
@@ -469,14 +475,13 @@ export const BashTool = buildTool({
       logEvent('tengu_bash_tool_simple_echo', {})
     }
 
-    // Check for run_in_background (may not exist in schema if CLAUDE_CODE_DISABLE_BACKGROUND_TASKS is set)
+    // Check for run_in_background
     const run_in_background =
       'run_in_background' in parsed ? parsed.run_in_background : undefined
 
     return {
       ...input,
       command: normalizedCommand,
-      description,
       ...(timeout !== undefined && { timeout }),
       ...(description !== undefined && { description }),
       ...(run_in_background !== undefined && { run_in_background }),
@@ -757,7 +762,7 @@ export const BashTool = buildTool({
         // stderr is merged into stdout (merged fd); outputWithSbFailures
         // already has the full output. Pass '' for stdout to avoid
         // duplication in getErrorParts() and processBashCommand.
-        throw new ShellError('', outputWithSbFailures, result.code, result.interrupted);
+        throw new ShellError('', outputWithSbFailures, result.code, result.interrupted, interpretationResult.message);
       }
       wasInterrupted = result.interrupted;
     } finally {

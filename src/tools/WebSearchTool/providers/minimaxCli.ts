@@ -78,18 +78,31 @@ function parseJsonOutput(stdout: string): unknown {
 
   try {
     return JSON.parse(trimmed)
-  } catch {
+  } catch (e) {
     const firstObject = trimmed.indexOf('{')
     const lastObject = trimmed.lastIndexOf('}')
     if (firstObject >= 0 && lastObject > firstObject) {
-      return JSON.parse(trimmed.slice(firstObject, lastObject + 1))
+      try {
+        return JSON.parse(trimmed.slice(firstObject, lastObject + 1))
+      } catch {
+        /* ignore fallback failure */
+      }
     }
     const firstArray = trimmed.indexOf('[')
     const lastArray = trimmed.lastIndexOf(']')
     if (firstArray >= 0 && lastArray > firstArray) {
-      return JSON.parse(trimmed.slice(firstArray, lastArray + 1))
+      try {
+        return JSON.parse(trimmed.slice(firstArray, lastArray + 1))
+      } catch {
+        /* ignore fallback failure */
+      }
     }
-    throw new Error('MiniMax CLI search did not return JSON. Use mmx search query --output json.')
+    const preview = trimmed.slice(0, 200).trim()
+    throw new Error(
+      `MiniMax CLI search did not return JSON. ` +
+        `Error: ${errorMessage(e)}. ` +
+        `Preview: ${preview}${trimmed.length >= 200 ? '...' : ''}`,
+    )
   }
 }
 
