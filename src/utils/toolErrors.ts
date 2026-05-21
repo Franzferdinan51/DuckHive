@@ -26,7 +26,7 @@ export function formatError(error: unknown): string {
 export function getErrorParts(error: Error): string[] {
   if (error instanceof ShellError) {
     return [
-      `Exit code ${error.code}`,
+      error.description ?? `Exit code ${error.code}`,
       error.interrupted ? INTERRUPT_MESSAGE_FOR_TOOL_USE : '',
       error.stderr,
       error.stdout,

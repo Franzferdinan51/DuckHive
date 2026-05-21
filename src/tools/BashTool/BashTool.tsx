@@ -759,10 +759,9 @@ export const BashTool = buildTool({
         throw new Error(result.preSpawnError);
       }
       if (interpretationResult.isError && !isInterrupt) {
-        // stderr is merged into stdout (merged fd); outputWithSbFailures
-        // already has the full output. Pass '' for stdout to avoid
-        // duplication in getErrorParts() and processBashCommand.
-        throw new ShellError('', outputWithSbFailures, result.code, result.interrupted, interpretationResult.message);
+        // Pass output as stdout so agents see it in <bash-stdout> even on failure.
+        // This is consistent with how successful commands work (merged fd).
+        throw new ShellError(outputWithSbFailures, '', result.code, result.interrupted, interpretationResult.message);
       }
       wasInterrupted = result.interrupted;
     } finally {
