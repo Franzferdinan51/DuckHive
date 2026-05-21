@@ -7,6 +7,24 @@ test('startup screen is skipped for the TUI subcommand', () => {
   expect(shouldPrintStartupScreen(['tui'], tty)).toBe(false)
 })
 
+test('startup screen is skipped for provider-free goal and doctor commands', () => {
+  expect(shouldPrintStartupScreen(['goal'], tty)).toBe(false)
+  expect(shouldPrintStartupScreen(['g'], tty)).toBe(false)
+  expect(shouldPrintStartupScreen(['doctor'], tty)).toBe(false)
+  expect(shouldPrintStartupScreen(['doctor:runtime'], tty)).toBe(false)
+  expect(shouldPrintStartupScreen(['doctor-runtime'], tty)).toBe(false)
+  expect(shouldPrintStartupScreen(['runtime-doctor'], tty)).toBe(false)
+})
+
+test('startup screen skip command parsing honors global options with values', () => {
+  expect(
+    shouldPrintStartupScreen(['--stdin-mode', 'data', 'runtime-doctor'], tty),
+  ).toBe(false)
+  expect(
+    shouldPrintStartupScreen(['--model=mini', 'doctor:runtime'], tty),
+  ).toBe(false)
+})
+
 test('startup screen is skipped for non-interactive print mode', () => {
   expect(shouldPrintStartupScreen(['--print'], tty)).toBe(false)
   expect(shouldPrintStartupScreen(['-p'], tty)).toBe(false)
