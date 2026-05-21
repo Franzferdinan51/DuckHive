@@ -59,6 +59,7 @@ export interface Goal {
   activeAgentRunId?: string
   activeAgentName?: string
   lastActivityAt?: string
+  budgetUSD?: number
 }
 
 export type GoalUpdateType =
@@ -439,12 +440,24 @@ Examples:
   /goal status  (to check progress)`
   }
 
-  const { goalId, message } = await createGoal(args)
+  const budgetIdx = args.indexOf('--budget')
+  let budgetUSD: number | undefined
+  let cleanArgs = args
+  if (budgetIdx !== -1 && args[budgetIdx + 1]) {
+    budgetUSD = parseFloat(args[budgetIdx + 1])
+    cleanArgs = [...args.slice(0, budgetIdx), ...args.slice(budgetIdx + 2)]
+  }
+
+  const { goalId, message } = await createGoal(cleanArgs)
   if (!goalId) return message
 
   const goals = getGoals()
   const goal = goals.find(g => g.id === goalId)
   if (!goal) return message
+
+  if (budgetUSD !== undefined && !isNaN(budgetUSD)) {
+    goal.budgetUSD = budgetUSD
+  }
 
   setActiveGoalId(goal.id)
   // Enable YOLO mode for the current session to ensure the goal is truly autonomous
@@ -916,10 +929,22 @@ function extractSpawnedAgentName(spawnResult: string): string | undefined {
 }
 
 async function pursueGoal(args: string[], context?: ToolUseContext): Promise<string> {
+  const budgetIdx = args.indexOf('--budget')
+  let budgetUSD: number | undefined
+  let cleanArgs = args
+  if (budgetIdx !== -1 && args[budgetIdx + 1]) {
+    budgetUSD = parseFloat(args[budgetIdx + 1])
+    cleanArgs = [...args.slice(0, budgetIdx), ...args.slice(budgetIdx + 2)]
+  }
+
   const goals = getGoals()
-  const { goal, error } = resolveGoalTarget(goals, args[0], ['active', 'paused'])
+  const { goal, error } = resolveGoalTarget(goals, cleanArgs[0], ['active', 'paused'])
   if (!goal) {
-    return error ?? 'Usage: /goal pursue [goal-id]\nStarts autonomous goal pursuit mode.'
+    return error ?? 'Usage: /goal pursue [goal-id] [--budget <usd>]\nStarts autonomous goal pursuit mode.'
+  }
+
+  if (budgetUSD !== undefined && !isNaN(budgetUSD)) {
+    goal.budgetUSD = budgetUSD
   }
 
   // Mark the goal as active and set autonomous mode flag
@@ -1079,6 +1104,9 @@ ${bold('REPL commands:')}
   /goal clear [id]               Delete a goal
   /goal attach [id]              Attach current session to goal
   /goal step add [id] <desc>     Add a step to a goal
+
+${bold('Flags:')}
+  --budget <usd>                 Set a maximum cost for autonomous mode (e.g. /goal "do X" --budget 1.50)
 
 ${bold('Terminal commands:')}
   duckhive goal <description>            Create goal and start autonomous work

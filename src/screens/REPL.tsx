@@ -175,24 +175,37 @@ function ActiveGoalBanner() {
   const completedCount = activeGoal.steps.filter(s => s.status === 'completed').length;
   const totalCount = activeGoal.steps.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const currentCost = getTotalCostUSD();
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1} marginY={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={activeGoal.budgetUSD && currentCost >= activeGoal.budgetUSD ? "red" : "blue"} paddingX={1} marginY={1}>
       <Box justifyContent="space-between">
-        <Text color="blue" bold>ACTIVE AUTONOMOUS GOAL</Text>
-        <Text color="gray">{activeGoal.activeAgentRunId ? `Assigned to: ${activeGoal.activeAgentRunId}` : 'Main Loop Driving'}</Text>
+        <Text color={activeGoal.budgetUSD && currentCost >= activeGoal.budgetUSD ? "red" : "blue"} bold>ACTIVE AUTONOMOUS GOAL</Text>
+        <Box>
+          {activeGoal.budgetUSD !== undefined && (
+            <Text color={currentCost >= activeGoal.budgetUSD ? "red" : "gray"}>
+              Budget: ${currentCost.toFixed(2)} / ${activeGoal.budgetUSD.toFixed(2)}{"  \xB7  "}
+            </Text>
+          )}
+          <Text color="gray">{activeGoal.activeAgentRunId ? `Assigned to: ${activeGoal.activeAgentRunId}` : 'Main Loop Driving'}</Text>
+        </Box>
       </Box>
       <Text bold>{activeGoal.title}</Text>
       <Box marginTop={1}>
         <Text>Progress: </Text>
         <Box width={32}>
           <Text color="gray">{'['}</Text>
-          <Text color="blue">{'█'.repeat(Math.floor(progress / 100 * 30))}</Text>
+          <Text color={activeGoal.budgetUSD && currentCost >= activeGoal.budgetUSD ? "red" : "blue"}>{'█'.repeat(Math.floor(progress / 100 * 30))}</Text>
           <Text color="gray">{' '.repeat(30 - Math.floor(progress / 100 * 30))}</Text>
           <Text color="gray">{']'}</Text>
         </Box>
         <Text> {progress}% ({completedCount}/{totalCount} steps)</Text>
       </Box>
+      {activeGoal.budgetUSD && currentCost >= activeGoal.budgetUSD && (
+        <Box marginTop={1}>
+          <Text color="red" bold>BUDGET EXCEEDED: Autonomous work paused.</Text>
+        </Box>
+      )}
       {currentStep && (
         <Box marginTop={1}>
           <Text color="yellow" bold>Current: </Text>

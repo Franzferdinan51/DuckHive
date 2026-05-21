@@ -41,18 +41,20 @@ function findInPath(executable: string, env: NodeJS.ProcessEnv): string | undefi
 export function resolveMiniMaxCliBinary(
   env: NodeJS.ProcessEnv = process.env,
   platform = process.platform,
+  exists: (path: string) => boolean = executableExists,
 ): string | undefined {
   if (env.MMX_BIN) return env.MMX_BIN
   const executable = mmxExecutableName(platform)
   const candidates = [
     resolve(env.HOME ?? homedir(), '.npm-global/bin', executable),
+    env.APPDATA ? resolve(env.APPDATA, 'npm', executable) : '',
     env.LOCALAPPDATA ? resolve(env.LOCALAPPDATA, 'Programs', 'npm', executable) : '',
     `/usr/local/bin/${executable}`,
     `/usr/bin/${executable}`,
   ].filter(Boolean)
 
   for (const candidate of candidates) {
-    if (executableExists(candidate)) return candidate
+    if (exists(candidate)) return candidate
   }
   return findInPath(executable, env)
 }

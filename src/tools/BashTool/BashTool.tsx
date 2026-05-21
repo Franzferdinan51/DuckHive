@@ -449,6 +449,39 @@ export const BashTool = buildTool({
   toAutoClassifierInput(input) {
     return input.command;
   },
+  normalizeInput(input, _agentId) {
+    const parsed = inputSchema().parse(input)
+    const { command, timeout, description } = parsed
+    const cwd = getCwd()
+    let normalizedCommand = command.replace(`cd ${cwd} && `, '')
+    if (getPlatform() === 'windows') {
+      normalizedCommand = normalizedCommand.replace(
+        `cd ${windowsPathToPosixPath(cwd)} && `,
+        '',
+      )
+    }
+
+    // Replace \\; with \; (commonly needed for find -exec commands)
+    normalizedCommand = normalizedCommand.replace(/\\\\;/g, '\\;')
+
+    // Logging for commands that are only echoing a string. This is to help us understand how often Claude talks via bash
+    if (/^echo\s+["']?[^|&;><]*["']?$/i.test(normalizedCommand.trim())) {
+      logEvent('tengu_bash_tool_simple_echo', {})
+    }
+
+    // Check for run_in_background (may not exist in schema if CLAUDE_CODE_DISABLE_BACKGROUND_TASKS is set)
+    const run_in_background =
+      'run_in_background' in parsed ? parsed.run_in_background : undefined
+
+    return {
+      ...input,
+      command: normalizedCommand,
+      description,
+      ...(timeout !== undefined && { timeout }),
+      ...(description !== undefined && { description }),
+      ...(run_in_background !== undefined && { run_in_background }),
+    }
+  },
   async preparePermissionMatcher({
     command
   }) {

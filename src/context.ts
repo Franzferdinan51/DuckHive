@@ -3,6 +3,8 @@ import memoize from 'lodash-es/memoize.js'
 import {
   getAdditionalDirectoriesForClaudeMd,
   setCachedClaudeMdContent,
+  getTotalCostUSD,
+  getActiveGoalId,
 } from './bootstrap/state.js'
 import { getLocalISODate } from './constants/common.js'
 import {
@@ -60,6 +62,9 @@ function buildGoalPromptSection(): Record<string, string> | null {
       ? activeGoal.steps.find(s => s.id === activeGoal.currentStepId)
       : activeGoal.steps.find(s => s.status === 'active') ?? activeGoal.steps[0]
 
+    const currentCost = getTotalCostUSD()
+    const budgetExceeded = activeGoal.budgetUSD !== undefined && currentCost >= activeGoal.budgetUSD
+
     return {
       goalContext: [
         `## Active Autonomous Goal`,
@@ -68,7 +73,9 @@ function buildGoalPromptSection(): Record<string, string> | null {
         `**Description**: ${activeGoal.description}`,
         `**Status**: ${activeGoal.status}`,
         activeGoal.activeAgentRunId ? `**Assigned Agent**: ${activeGoal.activeAgentRunId}` : '',
+        activeGoal.budgetUSD !== undefined ? `**Budget**: $${activeGoal.budgetUSD.toFixed(2)} (Current Session Cost: $${currentCost.toFixed(2)})` : '',
         ``,
+        budgetExceeded ? `**!!! BUDGET EXCEEDED !!!**` : '',
         currentStep
           ? `**Current step**: ${currentStep.description} [${currentStep.status}]`
           : `**No steps defined yet** — take the first concrete action toward: "${activeGoal.description}"`,
@@ -83,16 +90,18 @@ function buildGoalPromptSection(): Record<string, string> | null {
             ]
           : []),
         `### EXECUTION GUIDELINES`,
-        `1. ROLE & ORCHESTRATION: ${
-          activeGoal.activeAgentRunId
-            ? `Subagent \`${activeGoal.activeAgentRunId}\` is assigned to this goal. If you are the team-lead, you are the COORDINATOR and a CONTRIBUTOR. Work alongside the subagent by tackling parallel steps or handling complex integration. Use 'SendMessage' to divide the work and avoid redundant searching. If YOU are the assigned subagent, you are the primary driver for your current task.`
-            : `You are the primary driver for this goal. Work decisively until complete.`
-        }`,
-        `2. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.`,
-        `3. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.`,
-        `4. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.`,
-        `5. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.`,
-        `Keep working until the ENTIRE goal is met. Don't stop after one step.`,
+        budgetExceeded
+          ? `**CRITICAL: YOUR BUDGET HAS BEEN EXCEEDED ($${currentCost.toFixed(2)} / $${activeGoal.budgetUSD?.toFixed(2)}). YOU MUST STOP ALL WORK IMMEDIATELY. Report this to the user and wait for further instructions. DO NOT use any more tools.**`
+          : `1. ROLE & ORCHESTRATION: ${
+              activeGoal.activeAgentRunId
+                ? `Subagent \`${activeGoal.activeAgentRunId}\` is assigned to this goal. If you are the team-lead, you are the COORDINATOR and a CONTRIBUTOR. Work alongside the subagent by tackling parallel steps or handling complex integration. Use 'SendMessage' to divide the work and avoid redundant searching. If YOU are the assigned subagent, you are the primary driver for your current task.`
+                : `You are the primary driver for this goal. Work decisively until complete.`
+            }`,
+        !budgetExceeded ? `2. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.` : '',
+        !budgetExceeded ? `3. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.` : '',
+        !budgetExceeded ? `4. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.` : '',
+        !budgetExceeded ? `5. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.` : '',
+        !budgetExceeded ? `Keep working until the ENTIRE goal is met. Don't stop after one step.` : '',
       ].filter(line => line !== '').join('\n'),
     }
   } catch {

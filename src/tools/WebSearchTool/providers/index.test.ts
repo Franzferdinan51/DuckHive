@@ -206,4 +206,17 @@ describe('getAvailableProviders', () => {
     expect(providers.some(p => p.name === 'tavily')).toBe(false)
     if (saved !== undefined) process.env.TAVILY_API_KEY = saved
   })
+
+  test('includes minimax when the CLI and auth are configured', () => {
+    const savedBin = process.env.MMX_BIN
+    const savedKey = process.env.MINIMAX_API_KEY
+    process.env.MMX_BIN = '/tmp/mmx-test'
+    process.env.MINIMAX_API_KEY = 'sk-test'
+    const providers = getAvailableProviders()
+    expect(providers.some(p => p.name === 'minimax')).toBe(true)
+    if (savedBin !== undefined) process.env.MMX_BIN = savedBin
+    else delete process.env.MMX_BIN
+    if (savedKey !== undefined) process.env.MINIMAX_API_KEY = savedKey
+    else delete process.env.MINIMAX_API_KEY
+  })
 })

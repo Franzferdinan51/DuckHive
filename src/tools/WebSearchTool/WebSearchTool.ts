@@ -35,6 +35,7 @@ import {
   runSearch,
   getProviderMode,
   getAvailableProviders,
+  getProviderChain,
   type ProviderOutput,
 } from './providers/index.js'
 
@@ -590,7 +591,7 @@ export const WebSearchTool = buildTool({
 
     // Specific provider mode: enabled if any adapter is configured
     if (mode !== 'auto' && mode !== 'native') {
-      return getAvailableProviders().length > 0
+      return getProviderChain(mode).some(provider => provider.isConfigured())
     }
 
     // Auto/native mode: check all paths

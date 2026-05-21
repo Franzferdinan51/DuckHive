@@ -112,6 +112,27 @@ export const FileEditTool = buildTool({
   getPath(input): string {
     return input.file_path
   },
+  normalizeInput(input) {
+    // This is a workaround for tokens claude can't see
+    const { file_path, edits } = normalizeFileEditInput({
+      file_path: input.file_path,
+      edits: [
+        {
+          old_string: input.old_string,
+          new_string: input.new_string,
+          replace_all: input.replace_all,
+        },
+      ],
+    })
+
+    return {
+      ...input,
+      replace_all: edits[0]!.replace_all,
+      file_path,
+      old_string: edits[0]!.old_string,
+      new_string: edits[0]!.new_string,
+    }
+  },
   backfillObservableInput(input) {
     // hooks.mdx documents file_path as absolute; expand so hook allowlists
     // can't be bypassed via ~ or relative paths.

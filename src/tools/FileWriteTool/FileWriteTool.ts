@@ -122,6 +122,15 @@ export const FileWriteTool = buildTool({
   getPath(input): string {
     return input.file_path
   },
+  normalizeInput(input) {
+    // Markdown uses two trailing spaces as a hard line break — don't strip.
+    const isMarkdown = /\.(md|mdx)$/i.test(input.file_path)
+
+    return {
+      ...input,
+      content: isMarkdown ? input.content : stripTrailingWhitespace(input.content),
+    }
+  },
   backfillObservableInput(input) {
     // hooks.mdx documents file_path as absolute; expand so hook allowlists
     // can't be bypassed via ~ or relative paths.

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { resolve } from 'path'
 
 import {
   hasMiniMaxCliAuth,
@@ -36,5 +37,13 @@ describe('MiniMax CLI search provider', () => {
 
   test('uses explicit MMX_BIN before searching PATH', () => {
     expect(resolveMiniMaxCliBinary({ MMX_BIN: '/tmp/mmx-test' })).toBe('/tmp/mmx-test')
+  })
+
+  test('finds Windows global npm installs under APPDATA', () => {
+    expect(resolveMiniMaxCliBinary({
+      APPDATA: 'C:\\Users\\franz\\AppData\\Roaming',
+    }, 'win32', candidate => candidate.endsWith('AppData\\Roaming\\npm\\mmx.cmd'))).toBe(
+      resolve('C:\\Users\\franz\\AppData\\Roaming', 'npm', 'mmx.cmd'),
+    )
   })
 })

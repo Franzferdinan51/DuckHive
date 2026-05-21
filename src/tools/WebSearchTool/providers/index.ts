@@ -92,6 +92,7 @@ const searxngProvider: SearchProvider = {
 }
 
 const ALL_PROVIDERS: SearchProvider[] = [
+  minimaxCliProvider,
   firecrawlProvider,
   tavilyProvider,
   exaProvider,

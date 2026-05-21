@@ -1,12 +1,33 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import type { ProviderOutput } from './providers/types.js'
-import { __test } from './WebSearchTool.js'
+import { __test, WebSearchTool } from './WebSearchTool.js'
 
 const {
   buildAdapterUnavailableError,
   buildEmptyAdapterResultHint,
   formatProviderOutputWithEmptyHint,
 } = __test
+
+const SAVED_ENV = {
+  WEB_SEARCH_PROVIDER: process.env.WEB_SEARCH_PROVIDER,
+  WEB_SEARCH_API: process.env.WEB_SEARCH_API,
+  MMX_BIN: process.env.MMX_BIN,
+  MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
+}
+
+afterEach(() => {
+  if (SAVED_ENV.WEB_SEARCH_PROVIDER === undefined) delete process.env.WEB_SEARCH_PROVIDER
+  else process.env.WEB_SEARCH_PROVIDER = SAVED_ENV.WEB_SEARCH_PROVIDER
+
+  if (SAVED_ENV.WEB_SEARCH_API === undefined) delete process.env.WEB_SEARCH_API
+  else process.env.WEB_SEARCH_API = SAVED_ENV.WEB_SEARCH_API
+
+  if (SAVED_ENV.MMX_BIN === undefined) delete process.env.MMX_BIN
+  else process.env.MMX_BIN = SAVED_ENV.MMX_BIN
+
+  if (SAVED_ENV.MINIMAX_API_KEY === undefined) delete process.env.MINIMAX_API_KEY
+  else process.env.MINIMAX_API_KEY = SAVED_ENV.MINIMAX_API_KEY
+})
 
 describe('buildEmptyAdapterResultHint', () => {
   test('names the active provider and the failing backend', () => {
@@ -95,5 +116,22 @@ describe('buildAdapterUnavailableError', () => {
     const msg = buildAdapterUnavailableError('nvidia-nim', 'timeout')
     expect(msg).toMatch(/Anthropic/)
     expect(msg).toMatch(/Codex/)
+  })
+})
+
+describe('WebSearchTool.isEnabled', () => {
+  test('enables explicit minimax mode when the CLI and auth are configured', () => {
+    process.env.WEB_SEARCH_PROVIDER = 'minimax'
+    process.env.MMX_BIN = '/tmp/mmx-test'
+    process.env.MINIMAX_API_KEY = 'sk-test'
+
+    expect(WebSearchTool.isEnabled()).toBe(true)
+  })
+
+  test('enables explicit searxng mode when an endpoint is configured', () => {
+    process.env.WEB_SEARCH_PROVIDER = 'searxng'
+    process.env.WEB_SEARCH_API = 'http://localhost:8080/search'
+
+    expect(WebSearchTool.isEnabled()).toBe(true)
   })
 })

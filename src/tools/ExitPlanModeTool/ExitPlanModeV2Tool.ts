@@ -182,6 +182,15 @@ export const ExitPlanModeV2Tool: Tool<InputSchema, Output> = buildTool({
   isReadOnly() {
     return false // Now writes to disk
   },
+  normalizeInput(input, agentId) {
+    // Always inject plan content and file path for ExitPlanModeV2 so hooks/SDK get the plan.
+    // The V2 tool reads plan from file instead of input, but hooks/SDK
+    const plan = getPlan(agentId)
+    const planFilePath = getPlanFilePath(agentId)
+    // Persist file snapshot for CCR sessions so the plan survives pod recycling
+    void persistFileSnapshotIfRemote()
+    return plan !== null ? { ...input, plan, planFilePath } : input
+  },
   requiresUserInteraction() {
     // For ALL teammates, no local user interaction needed:
     // - If isPlanModeRequired(): team lead approves via mailbox
