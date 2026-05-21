@@ -80,6 +80,61 @@ export type DiagnosticInfo = {
     mode: 'system' | 'builtin' | 'embedded'
     systemPath: string | null
   }
+  externalTools: {
+    gh: { installed: boolean; authenticated: boolean | null }
+    mmx: { installed: boolean; authenticated: boolean | null }
+    cargo: { installed: boolean }
+    npm: { installed: boolean }
+  }
+}
+
+async function detectExternalToolIssues(): Promise<{
+  tools: DiagnosticInfo['externalTools']
+  warnings: Array<{ issue: string; fix: string }>
+}> {
+  const warnings: Array<{ issue: string; fix: string }> = []
+  const tools: DiagnosticInfo['externalTools'] = {
+    gh: { installed: false, authenticated: null },
+    mmx: { installed: false, authenticated: null },
+    cargo: { installed: false },
+    npm: { installed: false },
+  }
+
+  // Check gh (GitHub CLI)
+  const ghPath = await which('gh')
+  if (ghPath) {
+    tools.gh.installed = true
+    const authResult = await execFileNoThrow('gh', ['auth', 'status'])
+    tools.gh.authenticated = authResult.code === 0
+    if (authResult.code !== 0) {
+      warnings.push({
+        issue: 'GitHub CLI is installed but not authenticated',
+        fix: 'Run: gh auth login',
+      })
+    }
+  }
+
+  // Check mmx (MiniMax CLI)
+  const { resolveMiniMaxCliBinary, hasMiniMaxCliAuth } = await import(
+    '../tools/WebSearchTool/providers/minimaxCli.js'
+  )
+  const mmxPath = resolveMiniMaxCliBinary()
+  if (mmxPath) {
+    tools.mmx.installed = true
+    tools.mmx.authenticated = hasMiniMaxCliAuth()
+    if (!tools.mmx.authenticated) {
+      warnings.push({
+        issue: 'MiniMax CLI is installed but credentials are missing',
+        fix: 'Set MINIMAX_API_KEY environment variable or run: mmx login',
+      })
+    }
+  }
+
+  // Check development toolchains
+  tools.cargo.installed = !!(await which('cargo'))
+  tools.npm.installed = !!(await which('npm'))
+
+  return { tools, warnings }
 }
 
 function getNormalizedPaths(): [invokedPath: string, execPath: string] {
@@ -626,6 +681,10 @@ export async function getDoctorDiagnostic(): Promise<DiagnosticInfo> {
       ? await getPackageManager()
       : undefined
 
+  const { tools: externalTools, warnings: externalToolWarnings } =
+    await detectExternalToolIssues()
+  warnings.push(...externalToolWarnings)
+
   const diagnostic: DiagnosticInfo = {
     installationType,
     version,
@@ -643,6 +702,7 @@ export async function getDoctorDiagnostic(): Promise<DiagnosticInfo> {
     warnings,
     packageManager,
     ripgrepStatus,
+    externalTools,
   }
 
   return diagnostic

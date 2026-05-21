@@ -316,14 +316,67 @@ export function Doctor(t0) {
   const t17 = diagnostic.ripgrepStatus.mode === "embedded" ? "bundled" : diagnostic.ripgrepStatus.mode === "builtin" ? "vendor" : diagnostic.ripgrepStatus.systemPath || "system";
   let t18;
   if ($[29] !== t16 || $[30] !== t17) {
-    t18 = <Text>└ Search: {t16} ({t17})</Text>;
+    t18 = <Text>└ ripgrep: {t16} ({t17})</Text>;
     $[29] = t16;
     $[30] = t17;
     $[31] = t18;
   } else {
     t18 = $[31];
   }
+
+  // External Tools Section
+  const { externalTools } = diagnostic;
+  let t18b;
+  if ($[100] !== externalTools) {
+    t18b = (
+      <Box flexDirection="column" marginTop={1}>
+        <Text bold>External Tools</Text>
+        <Text>
+          └ GitHub CLI (gh):{" "}
+          {!externalTools.gh.installed ? (
+            <Text color="error">Not installed</Text>
+          ) : externalTools.gh.authenticated ? (
+            <Text color="green">Authenticated</Text>
+          ) : (
+            <Text color="warning">Not authenticated</Text>
+          )}
+        </Text>
+        <Text>
+          └ MiniMax CLI (mmx):{" "}
+          {!externalTools.mmx.installed ? (
+            <Text color="gray">Not installed</Text>
+          ) : externalTools.mmx.authenticated ? (
+            <Text color="green">Authenticated</Text>
+          ) : (
+            <Text color="warning">Credentials missing</Text>
+          )}
+        </Text>
+        <Text>
+          └ Cargo (Rust):{" "}
+          {externalTools.cargo.installed ? (
+            <Text color="green">Installed</Text>
+          ) : (
+            <Text color="gray">Not installed</Text>
+          )}
+        </Text>
+        <Text>
+          └ npm (Node.js):{" "}
+          {externalTools.npm.installed ? (
+            <Text color="green">Installed</Text>
+          ) : (
+            <Text color="gray">Not installed</Text>
+          )}
+        </Text>
+      </Box>
+    );
+    $[100] = externalTools;
+    $[101] = t18b;
+  } else {
+    t18b = $[101];
+  }
+
   let t19;
+
   if ($[32] !== diagnostic.recommendation) {
     t19 = diagnostic.recommendation && <><Text /><Text color="warning">Recommendation: {diagnostic.recommendation.split("\n")[0]}</Text><Text dimColor={true}>{diagnostic.recommendation.split("\n")[1]}</Text></>;
     $[32] = diagnostic.recommendation;
