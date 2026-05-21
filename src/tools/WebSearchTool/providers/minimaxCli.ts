@@ -3,6 +3,7 @@ import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { delimiter, join, resolve } from 'path'
 
+import { errorMessage } from '../../../utils/errors.js'
 import { extractHits } from './custom.js'
 import {
   applyDomainFilters,

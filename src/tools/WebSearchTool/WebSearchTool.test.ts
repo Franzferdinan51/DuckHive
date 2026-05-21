@@ -5,6 +5,7 @@ import { __test, WebSearchTool } from './WebSearchTool.js'
 const {
   buildAdapterUnavailableError,
   buildEmptyAdapterResultHint,
+  formatProviderGroundingEvidence,
   formatProviderOutputWithEmptyHint,
 } = __test
 
@@ -61,6 +62,28 @@ describe('buildEmptyAdapterResultHint', () => {
 })
 
 describe('formatProviderOutputWithEmptyHint', () => {
+  test('formats provider results as grounding evidence with source URLs', () => {
+    const po: ProviderOutput = {
+      hits: [
+        {
+          title: 'DuckHive search',
+          url: 'https://example.com/duckhive',
+          description: 'Provider-backed search result.',
+          source: 'example.com',
+        },
+      ],
+      providerName: 'tavily',
+      durationSeconds: 0.4,
+    }
+
+    const evidence = formatProviderGroundingEvidence(po, 'duckhive search')
+
+    expect(evidence).toContain('Grounded search evidence from tavily')
+    expect(evidence).toContain('Use these provider results')
+    expect(evidence).toContain('https://example.com/duckhive')
+    expect(evidence).toContain('Snippet: Provider-backed search result.')
+  })
+
   test('replaces the empty placeholder with a diagnostic when 0 hits', () => {
     const po: ProviderOutput = {
       hits: [],
@@ -87,8 +110,7 @@ describe('formatProviderOutputWithEmptyHint', () => {
       durationSeconds: 1.2,
     }
     const out = formatProviderOutputWithEmptyHint(po, 'cat facts', 'minimax')
-    // hits-present case is delegated to the unmodified formatProviderOutput
-    // path, so the snippet block + tool_use_id are preserved.
+    // hits-present case preserves grounded evidence + tool_use_id links.
     expect(out.results.length).toBe(2)
     expect(typeof out.results[0]).toBe('string')
     expect(out.results[0]).toContain('Cats')

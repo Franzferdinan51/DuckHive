@@ -66,6 +66,15 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
     }),
   ],
 
+  // cmp: 0=same, 1=different, 2+=error
+  [
+    'cmp',
+    (exitCode, _stdout, _stderr) => ({
+      isError: exitCode >= 2,
+      message: exitCode === 1 ? 'Files differ' : undefined,
+    }),
+  ],
+
   // test/[: 0=condition true, 1=condition false, 2+=error
   [
     'test',
@@ -107,7 +116,11 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
  */
 function getCommandSemantic(command: string): CommandSemantic {
   // Extract the base command (first word, handling pipes)
-  const baseCommand = heuristicallyExtractBaseCommand(command)
+  const activeCommand = heuristicallyExtractActiveCommand(command)
+  const gitSemantic = getGitCommandSemantic(activeCommand)
+  if (gitSemantic) return gitSemantic
+
+  const baseCommand = extractBaseCommand(activeCommand)
   const semantic = COMMAND_SEMANTICS.get(baseCommand)
   return semantic !== undefined ? semantic : DEFAULT_SEMANTIC
 }
@@ -119,17 +132,65 @@ function extractBaseCommand(command: string): string {
   return command.trim().split(/\s+/)[0] || ''
 }
 
+function splitShellWords(command: string): string[] {
+  return command.trim().split(/\s+/).filter(Boolean)
+}
+
+function getGitSubcommand(
+  command: string,
+): { subcommand: string; args: string[] } | undefined {
+  const words = splitShellWords(command)
+  if (words[0] !== 'git') return undefined
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i]
+    if (!word) continue
+    if (
+      word === '-C' ||
+      word === '-c' ||
+      word === '--git-dir' ||
+      word === '--work-tree' ||
+      word === '--namespace'
+    ) {
+      i++
+      continue
+    }
+    if (word.startsWith('-')) continue
+    return { subcommand: word, args: words.slice(i + 1) }
+  }
+
+  return undefined
+}
+
+function getGitCommandSemantic(command: string): CommandSemantic | undefined {
+  const parsed = getGitSubcommand(command)
+  if (!parsed) return undefined
+
+  if (parsed.subcommand === 'grep') {
+    return COMMAND_SEMANTICS.get('grep')
+  }
+
+  if (
+    parsed.subcommand === 'diff' &&
+    parsed.args.some(arg => arg === '--quiet' || arg === '--exit-code')
+  ) {
+    return COMMAND_SEMANTICS.get('diff')
+  }
+
+  return undefined
+}
+
 /**
  * Extract the primary command from a complex command line;
  * May get it super wrong - don't depend on this for security
  */
-function heuristicallyExtractBaseCommand(command: string): string {
+function heuristicallyExtractActiveCommand(command: string): string {
   const segments = splitCommand_DEPRECATED(command)
 
   // Take the last command as that's what determines the exit code
   const lastCommand = segments[segments.length - 1] || command
 
-  return extractBaseCommand(lastCommand)
+  return lastCommand.trim()
 }
 
 /**

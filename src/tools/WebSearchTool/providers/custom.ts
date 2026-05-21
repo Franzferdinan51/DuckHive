@@ -28,6 +28,7 @@
 
 import type { SearchInput, SearchProvider } from './types.js'
 import { createCombinedAbortSignal } from '../../../utils/combinedAbortSignal.js'
+import { errorMessage } from '../../../utils/errors.js'
 import {
   applyDomainFilters,
   normalizeHit,

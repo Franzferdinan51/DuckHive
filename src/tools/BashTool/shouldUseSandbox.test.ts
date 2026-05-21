@@ -72,3 +72,18 @@ test('trusted internal approval cannot disable sandbox when policy forbids it', 
     }),
   ).toBe(true)
 })
+
+test('model-facing result includes informational non-error exit code text', () => {
+  const result = BashTool.mapToolResultToToolResultBlockParam(
+    {
+      stdout: '',
+      stderr: '',
+      interrupted: false,
+      returnCodeInterpretation: 'No matches found',
+    },
+    'tool-1',
+  )
+
+  expect(result.content).toBe('No matches found')
+  expect(result.is_error).toBe(false)
+})

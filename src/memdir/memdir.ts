@@ -262,6 +262,29 @@ export function buildMemoryLines(
 
   lines.push(...buildSearchingPastContextSection(memoryDir))
 
+  // Include OpenClaw-style IDENTITY.md personas from .claude/identity/
+  const identityDir = join(getOriginalCwd(), '.claude', 'identity')
+  try {
+    const fs = getFsImplementation()
+    const identityFiles = fs
+      .readdirSync(identityDir)
+      .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+      .map(entry => entry.name)
+      .sort()
+    if (identityFiles.length > 0) {
+      lines.push('## Identity & Persona (from IDENTITY.md)')
+      for (const file of identityFiles) {
+        const content = fs.readFileSync(join(identityDir, file), {
+          encoding: 'utf-8',
+        })
+        lines.push(`### ${file}`)
+        lines.push(content)
+      }
+    }
+  } catch {
+    // Identity dir may not exist
+  }
+
   return lines
 }
 

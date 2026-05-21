@@ -29,11 +29,13 @@ import computerUse from './commands/computer-use/index.js'
 import config from './commands/config/index.js'
 import { context, contextNonInteractive } from './commands/context/index.js'
 import cost from './commands/cost/index.js'
+import cron from './commands/cron/index.js'
 import curate from './commands/curate/index.js'
 import diff from './commands/diff/index.js'
 import dream from './commands/dream/index.js'
 import ctx_viz from './commands/ctx_viz/index.js'
 import doctor from './commands/doctor/index.js'
+import evaluate from './commands/evaluate/index.js'
 import duckcustodian from './commands/duckcustodian/index.js'
 import onboardGithub from './commands/onboard-github/index.js'
 import knowledge from './commands/knowledge/index.js'
@@ -336,12 +338,14 @@ const COMMANDS = memoize((): Command[] => [
   context,
   contextNonInteractive,
   cost,
+  cron,
   curate,
   diff,
   dream,
   doctor,
   duckcustodian,
   effort,
+  evaluate,
   exit,
   fast,
   files,

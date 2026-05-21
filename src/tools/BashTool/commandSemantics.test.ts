@@ -108,6 +108,41 @@ describe('interpretCommandResult', () => {
     })
   })
 
+  // --- cmp: 0=same, 1=different, 2+=error ---
+  describe('cmp', () => {
+    test('exit code 1 = files differ (not error)', () => {
+      const result = interpretCommandResult('cmp -s a.txt b.txt', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('differ')
+    })
+  })
+
+  // --- git commands with informational exit code 1 ---
+  describe('git', () => {
+    test('git grep exit code 1 = no matches (not error)', () => {
+      const result = interpretCommandResult('git grep needle', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('No matches found')
+    })
+
+    test('git diff --quiet exit code 1 = files differ (not error)', () => {
+      const result = interpretCommandResult('git diff --quiet', 1, '', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('differ')
+    })
+
+    test('git -C repo diff --exit-code exit code 1 = files differ (not error)', () => {
+      const result = interpretCommandResult(
+        'git -C repo diff --exit-code',
+        1,
+        '',
+        '',
+      )
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('differ')
+    })
+  })
+
   // --- test/[: 0=true, 1=false, 2+=error ---
   describe('test and [', () => {
     test('test exit code 0 = condition true', () => {

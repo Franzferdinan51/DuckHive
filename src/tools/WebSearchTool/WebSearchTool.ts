@@ -94,14 +94,45 @@ import type { WebSearchProgress } from '../../types/tools.js'
 // Shared formatting: ProviderOutput → Output
 // ---------------------------------------------------------------------------
 
+const MAX_PROVIDER_GROUNDING_HITS = 8
+
+function formatProviderGroundingEvidence(
+  po: ProviderOutput,
+  query: string,
+): string | undefined {
+  const hits = po.hits.slice(0, MAX_PROVIDER_GROUNDING_HITS)
+  if (hits.length === 0) return undefined
+
+  const lines = [
+    `Grounded search evidence from ${po.providerName} for "${query}". Use these provider results as the factual basis and cite the URLs you use.`,
+  ]
+
+  for (const [index, hit] of hits.entries()) {
+    lines.push(`[${index + 1}] ${hit.title}`)
+    lines.push(`URL: ${hit.url}`)
+    if (hit.source) {
+      lines.push(`Source: ${hit.source}`)
+    }
+    if (hit.description) {
+      lines.push(`Snippet: ${hit.description}`)
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n').trim()
+}
+
 function formatProviderOutput(po: ProviderOutput, query: string): Output {
   const results: (SearchResult | string)[] = []
+
+  const groundingEvidence = formatProviderGroundingEvidence(po, query)
+  if (groundingEvidence) results.push(groundingEvidence)
 
   const snippets = po.hits
     .filter(h => h.description)
     .map(h => `**${h.title}** — ${h.description} (${h.url})`)
     .join('\n')
-  if (snippets) results.push(snippets)
+  if (!groundingEvidence && snippets) results.push(snippets)
 
   if (po.hits.length > 0) {
     results.push({
@@ -372,6 +403,7 @@ function buildAdapterUnavailableError(
 export const __test = {
   makeOutputFromCodexWebSearchResponse,
   buildEmptyAdapterResultHint,
+  formatProviderGroundingEvidence,
   formatProviderOutputWithEmptyHint,
   buildAdapterUnavailableError,
 }
