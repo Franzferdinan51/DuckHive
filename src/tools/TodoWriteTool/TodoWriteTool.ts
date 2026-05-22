@@ -1,12 +1,14 @@
 import { feature } from 'bun:bundle'
 import { z } from 'zod/v4'
 import { getSessionId } from '../../bootstrap/state.js'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { isTodoV2Enabled } from '../../utils/tasks.js'
 import { TodoListSchema } from '../../utils/todo/types.js'
-import { VERIFICATION_AGENT_TYPE } from '../AgentTool/constants.js'
+import {
+  CODE_REVIEWER_AGENT_TYPE,
+  VERIFICATION_AGENT_TYPE,
+} from '../AgentTool/constants.js'
 import { TODO_WRITE_TOOL_NAME } from './constants.js'
 import { DESCRIPTION, PROMPT } from './prompt.js'
 
@@ -21,6 +23,7 @@ const outputSchema = lazySchema(() =>
   z.object({
     oldTodos: TodoListSchema().describe('The todo list before the update'),
     newTodos: TodoListSchema().describe('The todo list after the update'),
+    reviewNudgeNeeded: z.boolean().optional(),
     verificationNudgeNeeded: z.boolean().optional(),
   }),
 )
@@ -69,20 +72,21 @@ export const TodoWriteTool = buildTool({
     const allDone = todos.every(_ => _.status === 'completed')
     const newTodos = allDone ? [] : todos
 
-    // Structural nudge: if the main-thread agent is closing out a 3+ item
-    // list and none of those items was a verification step, append a reminder
-    // to the tool result. Fires at the exact loop-exit moment where skips
-    // happen ("when the last task closed, the loop exited").
+    // Structural review/verification nudge: if the main-thread agent is
+    // closing out a 3+ item list, append the workflow reminder at the exact
+    // loop-exit moment where these steps are commonly skipped.
+    let reviewNudgeNeeded = false
     let verificationNudgeNeeded = false
     if (
       feature('VERIFICATION_AGENT') &&
-      getFeatureValue_CACHED_MAY_BE_STALE('tengu_hive_evidence', false) &&
       !context.agentId &&
       allDone &&
-      todos.length >= 3 &&
-      !todos.some(t => /verif/i.test(t.content))
+      todos.length >= 3
     ) {
-      verificationNudgeNeeded = true
+      reviewNudgeNeeded = !todos.some(
+        t => /review|reviewer|code review/i.test(t.content),
+      )
+      verificationNudgeNeeded = !todos.some(t => /verif/i.test(t.content))
     }
 
     context.setAppState(prev => ({
@@ -97,14 +101,29 @@ export const TodoWriteTool = buildTool({
       data: {
         oldTodos,
         newTodos: todos,
+        reviewNudgeNeeded,
         verificationNudgeNeeded,
       },
     }
   },
-  mapToolResultToToolResultBlockParam({ verificationNudgeNeeded }, toolUseID) {
+  mapToolResultToToolResultBlockParam(
+    { reviewNudgeNeeded, verificationNudgeNeeded },
+    toolUseID,
+  ) {
     const base = `Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable`
-    const nudge = verificationNudgeNeeded
-      ? `\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, spawn the verification agent (subagent_type="${VERIFICATION_AGENT_TYPE}"). You cannot self-assign PARTIAL by listing caveats in your summary \u2014 only the verifier issues a verdict.`
+    const nudge = reviewNudgeNeeded || verificationNudgeNeeded
+      ? `\n\nNOTE: You just closed out 3+ tasks and are missing part of the non-trivial completion workflow. Before reporting completion, ${
+          [
+            reviewNudgeNeeded
+              ? `spawn the code reviewer agent (subagent_type="${CODE_REVIEWER_AGENT_TYPE}") and address any real findings`
+              : null,
+            verificationNudgeNeeded
+              ? `spawn the verification agent (subagent_type="${VERIFICATION_AGENT_TYPE}") before writing your final summary`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(', then ')
+        }. You cannot self-assign PARTIAL by listing caveats in your summary \u2014 only the verifier issues that verdict.`
       : ''
     return {
       tool_use_id: toolUseID,

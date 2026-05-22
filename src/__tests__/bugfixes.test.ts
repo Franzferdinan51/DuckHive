@@ -135,11 +135,17 @@ describe('Agent loop continuation nudge', () => {
   test('verification agent guidance is available in the main prompt', async () => {
     const promptContent = await file('constants/prompts.ts').text()
     const builtInAgents = await file('tools/AgentTool/builtInAgents.ts').text()
+    const todoContent = await file('tools/TodoWriteTool/TodoWriteTool.ts').text()
+    const taskUpdateContent = await file('tools/TaskUpdateTool/TaskUpdateTool.ts').text()
 
     expect(promptContent).toContain('subagent_type="code-reviewer"')
     expect(builtInAgents).toContain('agents.push(VERIFICATION_AGENT)')
     expect(builtInAgents).toContain('FILE_PICKER_AGENT')
     expect(builtInAgents).toContain('CODE_REVIEWER_AGENT')
+    expect(todoContent).toContain('CODE_REVIEWER_AGENT_TYPE')
+    expect(todoContent).toContain('missing part of the non-trivial completion workflow')
+    expect(taskUpdateContent).toContain('CODE_REVIEWER_AGENT_TYPE')
+    expect(taskUpdateContent).toContain('missing part of the non-trivial completion workflow')
   })
 
   test('planner schema includes executable implementation details', async () => {
