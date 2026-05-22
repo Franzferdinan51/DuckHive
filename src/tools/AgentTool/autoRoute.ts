@@ -54,6 +54,17 @@ function shouldAutoRouteToVerification(
   return VERIFICATION_SIGNAL.test(combined)
 }
 
+export function isKnownTargetImplementationPrompt(text: string): boolean {
+  if (!IMPLEMENTATION_SIGNAL.test(text)) {
+    return false
+  }
+  return FILE_HINT_SIGNAL.test(text) || KNOWN_TARGET_SIGNAL.test(text)
+}
+
+export function isVerificationLikePrompt(text: string): boolean {
+  return VERIFICATION_SIGNAL.test(text)
+}
+
 function shouldAutoRouteToEditor(
   prompt: string,
   description: string,

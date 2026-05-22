@@ -25,7 +25,7 @@ import {
 } from 'src/services/analytics/index.js'
 import { ImageSizeError } from './utils/imageValidation.js'
 import { ImageResizeError } from './utils/imageResizer.js'
-import { findToolByName, type ToolUseContext } from './Tool.js'
+import { findToolByName, toolMatchesName, type ToolUseContext } from './Tool.js'
 import { asSystemPrompt, type SystemPrompt } from './utils/systemPromptType.js'
 import type {
   AssistantMessage,
@@ -90,6 +90,10 @@ import {
 import { ESCALATED_MAX_TOKENS } from './utils/context.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from './services/analytics/growthbook.js'
 import { SLEEP_TOOL_NAME } from './tools/SleepTool/prompt.js'
+import { BASH_TOOL_NAME } from './tools/BashTool/toolName.js'
+import { FILE_EDIT_TOOL_NAME } from './tools/FileEditTool/constants.js'
+import { FILE_READ_TOOL_NAME } from './tools/FileReadTool/prompt.js'
+import { FILE_WRITE_TOOL_NAME } from './tools/FileWriteTool/prompt.js'
 import {
   AGENT_TOOL_NAME,
   CODE_REVIEWER_AGENT_TYPE,
@@ -97,7 +101,11 @@ import {
   FILE_PICKER_AGENT_TYPE,
   VERIFICATION_AGENT_TYPE,
 } from './tools/AgentTool/constants.js'
-import { resolveAutoRoutedAgentType } from './tools/AgentTool/autoRoute.js'
+import {
+  isKnownTargetImplementationPrompt,
+  isVerificationLikePrompt,
+  resolveAutoRoutedAgentType,
+} from './tools/AgentTool/autoRoute.js'
 import { executePostSamplingHooks } from './utils/hooks/postSamplingHooks.js'
 import { executeStopFailureHooks } from './utils/hooks.js'
 import type { QuerySource } from './constants/querySource.js'
@@ -2298,6 +2306,27 @@ function buildAutoRouteActionHint(
   toolUseContext: ToolUseContext,
 ): string | null {
   const agentTool = findToolByName(toolUseContext.options.tools, AGENT_TOOL_NAME)
+  const hasReadTool = toolUseContext.options.tools.some(tool =>
+    toolMatchesName(tool, FILE_READ_TOOL_NAME),
+  )
+  const hasEditTool = toolUseContext.options.tools.some(tool =>
+    toolMatchesName(tool, FILE_EDIT_TOOL_NAME),
+  )
+  const hasWriteTool = toolUseContext.options.tools.some(tool =>
+    toolMatchesName(tool, FILE_WRITE_TOOL_NAME),
+  )
+  const hasBashTool = toolUseContext.options.tools.some(tool =>
+    toolMatchesName(tool, BASH_TOOL_NAME),
+  )
+
+  if (isKnownTargetImplementationPrompt(text) && hasReadTool && (hasEditTool || hasWriteTool)) {
+    return `Use ${FILE_READ_TOOL_NAME} on the target file if needed, then ${hasEditTool ? FILE_EDIT_TOOL_NAME : FILE_WRITE_TOOL_NAME} to make the change now.`
+  }
+
+  if (isVerificationLikePrompt(text) && hasBashTool) {
+    return `Use ${BASH_TOOL_NAME} to run the narrowest verification command that proves the change works now.`
+  }
+
   if (!agentTool) return null
   const autoAgentType = resolveAutoRoutedAgentType(
     text,

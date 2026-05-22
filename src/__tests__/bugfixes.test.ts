@@ -175,6 +175,10 @@ describe('Agent loop continuation nudge', () => {
     const autoRouteContent = await file('tools/AgentTool/autoRoute.ts').text()
 
     expect(queryContent).toContain('buildAutoRouteActionHint')
+    expect(queryContent).toContain('Use ${FILE_READ_TOOL_NAME} on the target file if needed, then ${hasEditTool ? FILE_EDIT_TOOL_NAME : FILE_WRITE_TOOL_NAME} to make the change now.')
+    expect(queryContent).toContain('Use ${BASH_TOOL_NAME} to run the narrowest verification command that proves the change works now.')
+    expect(autoRouteContent).toContain('isKnownTargetImplementationPrompt')
+    expect(autoRouteContent).toContain('isVerificationLikePrompt')
     expect(queryContent).toContain('You have not completed the task yet. You summarized or declared completion before taking action.')
     expect(queryContent).toContain("transition: { reason: 'premature_completion_nudge' }")
     expect(queryContent).toContain('editedFileAttachmentCount: number')
