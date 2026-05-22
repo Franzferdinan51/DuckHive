@@ -137,15 +137,29 @@ describe('Agent loop continuation nudge', () => {
     const builtInAgents = await file('tools/AgentTool/builtInAgents.ts').text()
     const todoContent = await file('tools/TodoWriteTool/TodoWriteTool.ts').text()
     const taskUpdateContent = await file('tools/TaskUpdateTool/TaskUpdateTool.ts').text()
+    const agentConstants = await file('tools/AgentTool/constants.ts').text()
 
     expect(promptContent).toContain('subagent_type="code-reviewer"')
     expect(builtInAgents).toContain('agents.push(VERIFICATION_AGENT)')
     expect(builtInAgents).toContain('FILE_PICKER_AGENT')
     expect(builtInAgents).toContain('CODE_REVIEWER_AGENT')
+    expect(agentConstants).toContain("export const FILE_PICKER_AGENT_TYPE = 'file-picker'")
+    expect(agentConstants).toContain('FILE_PICKER_AGENT_TYPE')
+    expect(agentConstants).toContain('CODE_REVIEWER_AGENT_TYPE')
     expect(todoContent).toContain('CODE_REVIEWER_AGENT_TYPE')
     expect(todoContent).toContain('missing part of the non-trivial completion workflow')
     expect(taskUpdateContent).toContain('CODE_REVIEWER_AGENT_TYPE')
     expect(taskUpdateContent).toContain('missing part of the non-trivial completion workflow')
+  })
+
+  test('query loop enforces read-only subagent handoffs', async () => {
+    const queryContent = await file('query.ts').text()
+
+    expect(queryContent).toContain('ACTION REQUIRED: File-picker is a read-only targeting pass.')
+    expect(queryContent).toContain('ACTION REQUIRED: Plan is a read-only planning pass.')
+    expect(queryContent).toContain('REVIEW HANDOFF: The code-reviewer pass is complete.')
+    expect(queryContent).toContain('VERIFICATION HANDOFF: You just received an independent verification report.')
+    expect(queryContent).toContain('subagent_type="${FILE_PICKER_AGENT_TYPE}" exactly once')
   })
 
   test('planner schema includes executable implementation details', async () => {

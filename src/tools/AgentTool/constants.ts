@@ -2,6 +2,7 @@ export const AGENT_TOOL_NAME = 'Agent'
 // Legacy wire name for backward compat (permission rules, hooks, resumed sessions)
 export const LEGACY_AGENT_TOOL_NAME = 'Task'
 export const CODE_REVIEWER_AGENT_TYPE = 'code-reviewer'
+export const FILE_PICKER_AGENT_TYPE = 'file-picker'
 export const VERIFICATION_AGENT_TYPE = 'verification'
 
 // Built-in agents that run once and return a report — the parent never
@@ -10,4 +11,6 @@ export const VERIFICATION_AGENT_TYPE = 'verification'
 export const ONE_SHOT_BUILTIN_AGENT_TYPES: ReadonlySet<string> = new Set([
   'Explore',
   'Plan',
+  FILE_PICKER_AGENT_TYPE,
+  CODE_REVIEWER_AGENT_TYPE,
 ])

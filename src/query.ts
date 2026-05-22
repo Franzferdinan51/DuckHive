@@ -90,6 +90,12 @@ import {
 import { ESCALATED_MAX_TOKENS } from './utils/context.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from './services/analytics/growthbook.js'
 import { SLEEP_TOOL_NAME } from './tools/SleepTool/prompt.js'
+import {
+  AGENT_TOOL_NAME,
+  CODE_REVIEWER_AGENT_TYPE,
+  FILE_PICKER_AGENT_TYPE,
+  VERIFICATION_AGENT_TYPE,
+} from './tools/AgentTool/constants.js'
 import { executePostSamplingHooks } from './utils/hooks/postSamplingHooks.js'
 import { executeStopFailureHooks } from './utils/hooks.js'
 import type { QuerySource } from './constants/querySource.js'
@@ -1982,8 +1988,9 @@ async function* queryLoop(
       state.repeatedExplorationSignatureCount
     let currentHasTakenAction = state.hasTakenAction
     let currentExecutionPhase = executionPhase
+    let allTools: ToolUseBlock[] = []
     if (assistantMessages.length > 0) {
-      const allTools = assistantMessages.flatMap(
+      allTools = assistantMessages.flatMap(
         m =>
           m.message.content.filter(
             c => c.type === 'tool_use',
@@ -2061,12 +2068,17 @@ async function* queryLoop(
     }
 
     if (currentExplorationCount >= HARD_EXPLORATION_LIMIT) {
+      const filePickerFallback = !currentHasTakenAction &&
+        canUseFilePickerForActionRecovery(toolUseContext)
+        ? ` If the target file is still unclear, use ${AGENT_TOOL_NAME} with subagent_type="${FILE_PICKER_AGENT_TYPE}" exactly once to name the next file to edit, then act on that result immediately.`
+        : ''
       const actionDirective = createUserMessage({
         content:
           'ACTION REQUIRED: Search/read budget exhausted. Your next step must be exactly one of: ' +
           '(1) edit or write the most likely target file, (2) run a concrete verification command on the likely target, ' +
           'or (3) ask one blocking question that names the missing symbol, file, or line you still need. ' +
-          'Do not perform another broad search or re-read the same area.',
+          'Do not perform another broad search or re-read the same area.' +
+          filePickerFallback,
         isMeta: true,
       })
       toolResults.push(actionDirective)
@@ -2077,6 +2089,15 @@ async function* queryLoop(
         queryChainId: queryChainIdForAnalytics,
         queryDepth: queryTracking.depth,
       })
+    }
+
+    const readOnlySubagentHandoff = buildReadOnlySubagentHandoffMessage(allTools)
+    if (readOnlySubagentHandoff) {
+      const handoffDirective = createUserMessage({
+        content: readOnlySubagentHandoff,
+        isMeta: true,
+      })
+      toolResults.push(handoffDirective)
     }
 
     // Each time we have tool results and are about to recurse, that's a turn
@@ -2143,6 +2164,23 @@ async function* queryLoop(
 function inferExecutionPhaseFromToolBatch(
   toolUseBlocks: ToolUseBlock[],
 ): State['executionPhase'] {
+  const readOnlySubagentTypes = getReadOnlySubagentTypesFromBatch(toolUseBlocks)
+  if (readOnlySubagentTypes.includes(VERIFICATION_AGENT_TYPE)) {
+    return 'verify'
+  }
+  if (readOnlySubagentTypes.includes(CODE_REVIEWER_AGENT_TYPE)) {
+    return 'verify'
+  }
+  if (readOnlySubagentTypes.includes('Plan')) {
+    return 'plan'
+  }
+  if (
+    readOnlySubagentTypes.includes(FILE_PICKER_AGENT_TYPE) ||
+    readOnlySubagentTypes.includes('Explore')
+  ) {
+    return 'explore'
+  }
+
   const names = toolUseBlocks.map(block => block.name.toLowerCase())
   if (names.some(name => name.includes('test') || name.includes('verify'))) {
     return 'verify'
@@ -2151,4 +2189,63 @@ function inferExecutionPhaseFromToolBatch(
     return 'plan'
   }
   return 'implement'
+}
+
+function getReadOnlySubagentTypesFromBatch(toolUseBlocks: ToolUseBlock[]): string[] {
+  const readOnlyTypes = new Set<string>()
+  for (const block of toolUseBlocks) {
+    if (block.name !== AGENT_TOOL_NAME) continue
+    const subagentType = (block.input as { subagent_type?: unknown })
+      ?.subagent_type
+    if (typeof subagentType !== 'string') continue
+    if (
+      subagentType === FILE_PICKER_AGENT_TYPE ||
+      subagentType === 'Explore' ||
+      subagentType === 'Plan' ||
+      subagentType === CODE_REVIEWER_AGENT_TYPE ||
+      subagentType === VERIFICATION_AGENT_TYPE
+    ) {
+      readOnlyTypes.add(subagentType)
+    }
+  }
+  return [...readOnlyTypes]
+}
+
+function buildReadOnlySubagentHandoffMessage(
+  toolUseBlocks: ToolUseBlock[],
+): string | null {
+  const subagentTypes = getReadOnlySubagentTypesFromBatch(toolUseBlocks)
+  if (subagentTypes.length === 0) return null
+
+  if (subagentTypes.includes(VERIFICATION_AGENT_TYPE)) {
+    return 'VERIFICATION HANDOFF: You just received an independent verification report. If it failed, fix the reported problem before doing anything else, then resume verification. If it passed, spot-check the verifier evidence and only then summarize for the user.'
+  }
+
+  if (subagentTypes.includes(CODE_REVIEWER_AGENT_TYPE)) {
+    return `REVIEW HANDOFF: The code-reviewer pass is complete. Address any real findings now. If the review found no significant issues, your next step is independent verification with ${AGENT_TOOL_NAME} subagent_type="${VERIFICATION_AGENT_TYPE}". Do not report completion yet.`
+  }
+
+  if (subagentTypes.includes(FILE_PICKER_AGENT_TYPE)) {
+    return 'ACTION REQUIRED: File-picker is a read-only targeting pass. Your next step must be to edit or verify one of the files it named first. If its report is still ambiguous, ask one blocking question that cites the exact file or symbol still missing. Do not resume broad search.'
+  }
+
+  if (subagentTypes.includes('Plan')) {
+    return 'ACTION REQUIRED: Plan is a read-only planning pass. Your next step must be to act on the plan: edit one of the named target files, run its targeted verification command, or ask one blocker question tied to a specific file, symbol, or line. Do not widen the search again.'
+  }
+
+  if (subagentTypes.includes('Explore')) {
+    return 'ACTION REQUIRED: Explore is a read-only scouting pass. Use its findings to make the next edit or run a targeted verification command on the likely target. Do not launch another broad exploration loop over the same area.'
+  }
+
+  return null
+}
+
+function canUseFilePickerForActionRecovery(
+  toolUseContext: ToolUseContext,
+): boolean {
+  const agentTool = findToolByName(toolUseContext.options.tools, AGENT_TOOL_NAME)
+  if (!agentTool) return false
+  return toolUseContext.options.agentDefinitions.activeAgents.some(
+    agent => agent.agentType === FILE_PICKER_AGENT_TYPE,
+  )
 }
