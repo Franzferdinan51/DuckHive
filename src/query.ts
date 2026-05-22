@@ -97,6 +97,7 @@ import {
   FILE_PICKER_AGENT_TYPE,
   VERIFICATION_AGENT_TYPE,
 } from './tools/AgentTool/constants.js'
+import { resolveAutoRoutedAgentType } from './tools/AgentTool/autoRoute.js'
 import { executePostSamplingHooks } from './utils/hooks/postSamplingHooks.js'
 import { executeStopFailureHooks } from './utils/hooks.js'
 import type { QuerySource } from './constants/querySource.js'
@@ -1522,8 +1523,11 @@ async function* queryLoop(
             logForDebugging(
               `Continuation nudge triggered (${state.continuationNudgeCount + 1}/${MAX_CONTINUATION_NUDGES}): model said "${lastText.slice(-120)}" without tool calls`,
             )
+            const actionHint = buildAutoRouteActionHint(lastText, toolUseContext)
             const nudge = createUserMessage({
-              content: 'Continue with the task. Use the appropriate tools to proceed.',
+              content:
+                'Continue with the task. Use the appropriate tools to proceed.' +
+                (actionHint ? ` ${actionHint}` : ''),
               isMeta: true,
             })
             const next: State = {
@@ -1574,11 +1578,13 @@ async function* queryLoop(
         logForDebugging(
           `Forced action escalation: ${MAX_CONTINUATION_NUDGES} nudges exhausted, model said "${lastText.slice(-120)}"`,
         )
+        const actionHint = buildAutoRouteActionHint(lastText, toolUseContext)
         // Force model to use a specific tool or explicitly say why it can't
         const escalation = createUserMessage({
           content: 'ACTION REQUIRED: You have been explaining what you need to do without taking action. ' +
             'You must now either: (1) Use a tool to accomplish the task, OR (2) If you genuinely cannot proceed, ' +
-            'say "I cannot proceed because: [specific reason]" and nothing else.',
+            'say "I cannot proceed because: [specific reason]" and nothing else.' +
+            (actionHint ? ` ${actionHint}` : ''),
           isMeta: true,
         })
         const next: State = {
@@ -2190,6 +2196,34 @@ function inferExecutionPhaseFromToolBatch(
     return 'plan'
   }
   return 'implement'
+}
+
+function buildAutoRouteActionHint(
+  text: string,
+  toolUseContext: ToolUseContext,
+): string | null {
+  const agentTool = findToolByName(toolUseContext.options.tools, AGENT_TOOL_NAME)
+  if (!agentTool) return null
+  const autoAgentType = resolveAutoRoutedAgentType(
+    text,
+    'stalled main-thread escalation',
+    toolUseContext.options.agentDefinitions.activeAgents,
+  )
+  if (!autoAgentType) return null
+
+  if (autoAgentType === FILE_PICKER_AGENT_TYPE) {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="${FILE_PICKER_AGENT_TYPE}" to identify the next file to edit, then act on that result immediately.`
+  }
+  if (autoAgentType === EDITOR_AGENT_TYPE) {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}" to implement the known-target change now.`
+  }
+  if (autoAgentType === CODE_REVIEWER_AGENT_TYPE) {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="${CODE_REVIEWER_AGENT_TYPE}" to perform the requested review now.`
+  }
+  if (autoAgentType === VERIFICATION_AGENT_TYPE) {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="${VERIFICATION_AGENT_TYPE}" to run independent verification now.`
+  }
+  return null
 }
 
 function getReadOnlySubagentTypesFromBatch(toolUseBlocks: ToolUseBlock[]): string[] {

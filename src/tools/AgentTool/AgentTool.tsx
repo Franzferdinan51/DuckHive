@@ -49,8 +49,9 @@ import { FILE_READ_TOOL_NAME } from '../FileReadTool/prompt.js';
 import { spawnTeammate } from '../shared/spawnMultiAgent.js';
 import { setAgentColor } from './agentColorManager.js';
 import { agentToolResultSchema, classifyHandoffIfNeeded, emitTaskProgress, extractPartialResult, finalizeAgentTool, getLastToolUseName, runAsyncAgentLifecycle } from './agentToolUtils.js';
+import { resolveAutoRoutedAgentType } from './autoRoute.js';
 import { GENERAL_PURPOSE_AGENT } from './built-in/generalPurposeAgent.js';
-import { AGENT_TOOL_NAME, CODE_REVIEWER_AGENT_TYPE, EDITOR_AGENT_TYPE, FILE_PICKER_AGENT_TYPE, LEGACY_AGENT_TOOL_NAME, ONE_SHOT_BUILTIN_AGENT_TYPES, VERIFICATION_AGENT_TYPE } from './constants.js';
+import { AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME, ONE_SHOT_BUILTIN_AGENT_TYPES } from './constants.js';
 import { buildForkedMessages, buildWorktreeNotice, FORK_AGENT, isForkSubagentEnabled, isInForkChild } from './forkSubagent.js';
 import type { AgentDefinition } from './loadAgentsDir.js';
 import { filterAgentsByMcpRequirements, hasRequiredMcpServers, isBuiltInAgent } from './loadAgentsDir.js';
@@ -196,75 +197,6 @@ import type { AgentToolProgress, ShellProgress } from '../../types/tools.js';
 // AgentTool forwards both its own progress events and shell progress
 // events from the sub-agent so the SDK receives tool_progress updates during bash/powershell runs.
 export type Progress = AgentToolProgress | ShellProgress;
-
-const IMPLEMENTATION_SIGNAL = /\b(implement|implementation|fix|edit|change|update|patch|modify|refactor|wire|integrate|add|remove)\b/i;
-const RESEARCH_SIGNAL = /\b(find|search|explore|investigate|understand|analyze|locate|where|read|review|verify|test|plan|think)\b/i;
-const FILE_HINT_SIGNAL = /(?:[A-Za-z]:\\|\/|\\)[^\s'"]+\.[A-Za-z0-9]+|`[^`\n]+\.[A-Za-z0-9]+`|\b[a-z0-9_\-.\/\\]+\.(ts|tsx|js|jsx|mjs|cjs|py|rs|go|java|kt|swift|json|yaml|yml|md|toml|sh)\b/i;
-const KNOWN_TARGET_SIGNAL = /\b(target file|target files|first target file|named file|named files|apply the plan|apply its findings|make the change|write the code|implement the change)\b/i;
-const FILE_PICKER_SIGNAL = /\b(find|locate|identify|which file|what file|next file|relevant files|likely files|target file|target files)\b/i;
-const REVIEW_SIGNAL = /\b(review|reviewer|audit|second opinion|look for bugs|regression|code review|critical read)\b/i;
-const VERIFICATION_SIGNAL = /\b(verify|verification|validate|prove|confirm|spot-check|adversarial|e2e|end-to-end|test the change|independent verification)\b/i;
-
-function hasAgentType(agents: AgentDefinition[], agentType: string): boolean {
-  return agents.some(agent => agent.agentType === agentType);
-}
-
-function shouldAutoRouteToFilePicker(prompt: string, description: string, agents: AgentDefinition[]): boolean {
-  if (!hasAgentType(agents, FILE_PICKER_AGENT_TYPE)) {
-    return false;
-  }
-  const combined = `${description}\n${prompt}`;
-  return FILE_PICKER_SIGNAL.test(combined) && !FILE_HINT_SIGNAL.test(combined);
-}
-
-function shouldAutoRouteToCodeReviewer(prompt: string, description: string, agents: AgentDefinition[]): boolean {
-  if (!hasAgentType(agents, CODE_REVIEWER_AGENT_TYPE)) {
-    return false;
-  }
-  const combined = `${description}\n${prompt}`;
-  return REVIEW_SIGNAL.test(combined) && !VERIFICATION_SIGNAL.test(combined);
-}
-
-function shouldAutoRouteToVerification(prompt: string, description: string, agents: AgentDefinition[]): boolean {
-  if (!hasAgentType(agents, VERIFICATION_AGENT_TYPE)) {
-    return false;
-  }
-  const combined = `${description}\n${prompt}`;
-  return VERIFICATION_SIGNAL.test(combined);
-}
-
-function shouldAutoRouteToEditor(prompt: string, description: string, agents: AgentDefinition[]): boolean {
-  if (!hasAgentType(agents, EDITOR_AGENT_TYPE)) {
-    return false;
-  }
-  const combined = `${description}\n${prompt}`;
-  if (!IMPLEMENTATION_SIGNAL.test(combined)) {
-    return false;
-  }
-  const hasKnownTargetHint = FILE_HINT_SIGNAL.test(combined) || KNOWN_TARGET_SIGNAL.test(combined);
-  if (!hasKnownTargetHint) {
-    return false;
-  }
-  const researchMatches = combined.match(RESEARCH_SIGNAL) ?? [];
-  const implementationMatches = combined.match(IMPLEMENTATION_SIGNAL) ?? [];
-  return implementationMatches.length >= researchMatches.length;
-}
-
-function resolveAutoRoutedAgentType(prompt: string, description: string, agents: AgentDefinition[]): string | null {
-  if (shouldAutoRouteToVerification(prompt, description, agents)) {
-    return VERIFICATION_AGENT_TYPE;
-  }
-  if (shouldAutoRouteToCodeReviewer(prompt, description, agents)) {
-    return CODE_REVIEWER_AGENT_TYPE;
-  }
-  if (shouldAutoRouteToFilePicker(prompt, description, agents)) {
-    return FILE_PICKER_AGENT_TYPE;
-  }
-  if (shouldAutoRouteToEditor(prompt, description, agents)) {
-    return EDITOR_AGENT_TYPE;
-  }
-  return null;
-}
 
 export const AgentTool = buildTool({
   async prompt({
