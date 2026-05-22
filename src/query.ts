@@ -237,6 +237,12 @@ type State = {
   hasTakenAction: boolean
   // Rough execution phase for routing and analytics.
   executionPhase: 'explore' | 'plan' | 'implement' | 'verify'
+  // Number of edited-file attachments observed in this turn.
+  editedFileAttachmentCount: number
+  // Whether the code reviewer agent has run during this turn.
+  hasUsedCodeReviewer: boolean
+  // Whether the verification agent has run during this turn.
+  hasUsedVerificationAgent: boolean
   // Count of consecutive continuation nudges within the current turn.
   // Capped at MAX_CONTINUATION_NUDGES to prevent infinite nudge loops
   // when the model keeps matching continuation signals without tool calls.
@@ -253,6 +259,9 @@ function preserveExecutionState(state: State) {
     repeatedExplorationSignatureCount: state.repeatedExplorationSignatureCount,
     hasTakenAction: state.hasTakenAction,
     executionPhase: state.executionPhase,
+    editedFileAttachmentCount: state.editedFileAttachmentCount,
+    hasUsedCodeReviewer: state.hasUsedCodeReviewer,
+    hasUsedVerificationAgent: state.hasUsedVerificationAgent,
     continuationNudgeCount: state.continuationNudgeCount,
   }
 }
@@ -329,6 +338,9 @@ async function* queryLoop(
     repeatedExplorationSignatureCount: 0,
     hasTakenAction: false,
     executionPhase: 'explore',
+    editedFileAttachmentCount: 0,
+    hasUsedCodeReviewer: false,
+    hasUsedVerificationAgent: false,
     continuationNudgeCount: 0,
     pendingToolUseSummary: undefined,
     transition: undefined,
@@ -1458,11 +1470,11 @@ async function* queryLoop(
           continue
         }
 
-        if (decision.completionEvent) {
-          if (decision.completionEvent.diminishingReturns) {
-            logForDebugging(
-              `Token budget early stop: diminishing returns at ${decision.completionEvent.pct}%`,
-            )
+      if (decision.completionEvent) {
+        if (decision.completionEvent.diminishingReturns) {
+          logForDebugging(
+            `Token budget early stop: diminishing returns at ${decision.completionEvent.pct}%`,
+          )
           }
           logEvent('tengu_token_budget_completed', {
             ...decision.completionEvent,
@@ -1470,6 +1482,46 @@ async function* queryLoop(
             queryDepth: queryTracking.depth,
           })
         }
+      }
+
+      if (
+        assistantMessages.length > 0 &&
+        currentEditedFileAttachmentCount >= 3 &&
+        (!currentHasUsedCodeReviewer || !currentHasUsedVerificationAgent)
+      ) {
+        const missingWorkflowSteps = [
+          !currentHasUsedCodeReviewer
+            ? `spawn ${AGENT_TOOL_NAME} with subagent_type="${CODE_REVIEWER_AGENT_TYPE}" and address any real findings`
+            : null,
+          !currentHasUsedVerificationAgent
+            ? `spawn ${AGENT_TOOL_NAME} with subagent_type="${VERIFICATION_AGENT_TYPE}" and complete independent verification`
+            : null,
+        ].filter(Boolean)
+        const workflowGateNudge = createUserMessage({
+          content:
+            'You have already made a non-trivial code change set in this turn and cannot report completion yet. ' +
+            `Before ending this task, ${missingWorkflowSteps.join(', then ')}.`,
+          isMeta: true,
+        })
+        const next: State = {
+          messages: [...messagesForQuery, ...assistantMessages, workflowGateNudge],
+          toolUseContext,
+          autoCompactTracking: tracking,
+          ...preserveExecutionState(state),
+          editedFileAttachmentCount: currentEditedFileAttachmentCount,
+          hasUsedCodeReviewer: currentHasUsedCodeReviewer,
+          hasUsedVerificationAgent: currentHasUsedVerificationAgent,
+          maxOutputTokensRecoveryCount,
+          hasAttemptedReactiveCompact: false,
+          maxOutputTokensOverride: undefined,
+          pendingToolUseSummary: undefined,
+          stopHookActive: undefined,
+          turnCount,
+          continuationNudgeCount: state.continuationNudgeCount + 1,
+          transition: { reason: 'review_verification_gate' },
+        }
+        state = next
+        continue
       }
 
       // Continuation nudge: detect when the model signals intent to continue
@@ -2024,7 +2076,11 @@ async function* queryLoop(
       state.repeatedExplorationSignatureCount
     let currentHasTakenAction = state.hasTakenAction
     let currentExecutionPhase = executionPhase
+    let currentEditedFileAttachmentCount = state.editedFileAttachmentCount
+    let currentHasUsedCodeReviewer = state.hasUsedCodeReviewer
+    let currentHasUsedVerificationAgent = state.hasUsedVerificationAgent
     let allTools: ToolUseBlock[] = []
+    currentEditedFileAttachmentCount += fileChangeAttachmentCount
     if (assistantMessages.length > 0) {
       allTools = assistantMessages.flatMap(
         m =>
@@ -2033,6 +2089,13 @@ async function* queryLoop(
           ) as ToolUseBlock[],
       )
       if (allTools.length > 0) {
+        const readOnlySubagentTypes = getReadOnlySubagentTypesFromBatch(allTools)
+        currentHasUsedCodeReviewer =
+          currentHasUsedCodeReviewer ||
+          readOnlySubagentTypes.includes(CODE_REVIEWER_AGENT_TYPE)
+        currentHasUsedVerificationAgent =
+          currentHasUsedVerificationAgent ||
+          readOnlySubagentTypes.includes(VERIFICATION_AGENT_TYPE)
         currentHasTakenAction =
           currentHasTakenAction ||
           allTools.some(toolBlock => {
@@ -2185,6 +2248,9 @@ async function* queryLoop(
         currentRepeatedExplorationSignatureCount,
       hasTakenAction: currentHasTakenAction,
       executionPhase: currentExecutionPhase,
+      editedFileAttachmentCount: currentEditedFileAttachmentCount,
+      hasUsedCodeReviewer: currentHasUsedCodeReviewer,
+      hasUsedVerificationAgent: currentHasUsedVerificationAgent,
       maxOutputTokensRecoveryCount: 0,
       hasAttemptedReactiveCompact: false,
       continuationNudgeCount: 0,
