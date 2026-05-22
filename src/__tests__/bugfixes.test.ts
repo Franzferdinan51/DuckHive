@@ -135,6 +135,7 @@ describe('Agent loop continuation nudge', () => {
   test('verification agent guidance is available in the main prompt', async () => {
     const promptContent = await file('constants/prompts.ts').text()
     const builtInAgents = await file('tools/AgentTool/builtInAgents.ts').text()
+    const agentToolContent = await file('tools/AgentTool/AgentTool.tsx').text()
     const agentPromptContent = await file('tools/AgentTool/prompt.ts').text()
     const todoContent = await file('tools/TodoWriteTool/TodoWriteTool.ts').text()
     const taskUpdateContent = await file('tools/TaskUpdateTool/TaskUpdateTool.ts').text()
@@ -146,6 +147,9 @@ describe('Agent loop continuation nudge', () => {
     expect(builtInAgents).toContain('EDITOR_AGENT')
     expect(builtInAgents).toContain('FILE_PICKER_AGENT')
     expect(builtInAgents).toContain('CODE_REVIEWER_AGENT')
+    expect(agentToolContent).toContain('shouldAutoRouteToEditor')
+    expect(agentToolContent).toContain('auto_routed_to_editor')
+    expect(agentToolContent).toContain('EDITOR_AGENT_TYPE')
     expect(agentPromptContent).toContain('"editor": use this agent when the target files are known')
     expect(agentConstants).toContain("export const FILE_PICKER_AGENT_TYPE = 'file-picker'")
     expect(agentConstants).toContain("export const EDITOR_AGENT_TYPE = 'editor'")
