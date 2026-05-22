@@ -1523,14 +1523,14 @@ async function* queryLoop(
 
       if (
         assistantMessages.length > 0 &&
-        currentEditedFileAttachmentCount >= 3 &&
-        (!currentHasUsedCodeReviewer || !currentHasUsedVerificationAgent)
+        state.editedFileAttachmentCount >= 3 &&
+        (!state.hasUsedCodeReviewer || !state.hasUsedVerificationAgent)
       ) {
         const missingWorkflowSteps = [
-          !currentHasUsedCodeReviewer
+          !state.hasUsedCodeReviewer
             ? `spawn ${AGENT_TOOL_NAME} with subagent_type="${CODE_REVIEWER_AGENT_TYPE}" and address any real findings`
             : null,
-          !currentHasUsedVerificationAgent
+          !state.hasUsedVerificationAgent
             ? `spawn ${AGENT_TOOL_NAME} with subagent_type="${VERIFICATION_AGENT_TYPE}" and complete independent verification`
             : null,
         ].filter(Boolean)
@@ -1545,9 +1545,9 @@ async function* queryLoop(
           toolUseContext,
           autoCompactTracking: tracking,
           ...preserveExecutionState(state),
-          editedFileAttachmentCount: currentEditedFileAttachmentCount,
-          hasUsedCodeReviewer: currentHasUsedCodeReviewer,
-          hasUsedVerificationAgent: currentHasUsedVerificationAgent,
+          editedFileAttachmentCount: state.editedFileAttachmentCount,
+          hasUsedCodeReviewer: state.hasUsedCodeReviewer,
+          hasUsedVerificationAgent: state.hasUsedVerificationAgent,
           maxOutputTokensRecoveryCount,
           hasAttemptedReactiveCompact: false,
           maxOutputTokensOverride: undefined,

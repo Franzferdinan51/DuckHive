@@ -7,9 +7,6 @@ import { getClaudeConfigHomeDir } from '../utils/envUtils.js';
 import {
   probeLmStudio,
   probeMmx,
-  probeOpenClaw,
-  probeOpenClawGateway,
-  type LocalCommandProbe,
 } from './probes.js';
 
 export type DuckCustodianOverview = {
@@ -22,8 +19,7 @@ export type DuckCustodianOverview = {
   tools: {
     mmx: { found: boolean; version?: string; error?: string };
     lmStudio: { found: boolean; modelCount: number; models: string[]; error?: string };
-    openClaw: { found: boolean; version?: string; error?: string };
-    openClawGateway: { reachable: boolean; version?: string; error?: string };
+    openClawNative: boolean;
   };
   memory: {
     memoryDir: string;
@@ -42,11 +38,9 @@ function shorten(s: string): string {
 }
 
 export async function loadDuckCustodianOverview(): Promise<DuckCustodianOverview> {
-  const [mmx, lmStudio, openClaw, openClawGateway] = await Promise.all([
+  const [mmx, lmStudio] = await Promise.all([
     probeMmx().catch((e) => ({ found: false, command: 'mmx', error: String(e) })),
     probeLmStudio().catch((e) => ({ found: false, models: [], error: String(e) })),
-    probeOpenClaw().catch((e) => ({ found: false, command: 'openclaw', error: String(e) })),
-    probeOpenClawGateway().catch((e) => ({ reachable: false, error: String(e) })),
   ]);
 
   let configValid = true;
@@ -77,12 +71,7 @@ export async function loadDuckCustodianOverview(): Promise<DuckCustodianOverview
         models: lmStudio.models.slice(0, 5),
         error: lmStudio.error,
       },
-      openClaw: { found: openClaw.found, version: (openClaw as LocalCommandProbe).version, error: openClaw.error },
-      openClawGateway: {
-        reachable: openClawGateway.reachable,
-        version: (openClawGateway as { version?: string }).version,
-        error: openClawGateway.error,
-      },
+      openClawNative: true,
     },
     memory: {
       memoryDir: shorten(memoryDir),
@@ -115,8 +104,7 @@ export function formatDuckCustodianOverview(o: DuckCustodianOverview): string {
     o.tools.lmStudio.found
       ? `    models: ${o.tools.lmStudio.models.join(', ')}${o.tools.lmStudio.modelCount > 5 ? '...' : ''}`
       : null,
-    `  OpenClaw CLI: ${status(o.tools.openClaw.found, o.tools.openClaw.version ?? 'found', 'not found')}`,
-    `  OpenClaw GW:  ${status(o.tools.openClawGateway.reachable, o.tools.openClawGateway.version ?? 'reachable', 'not reachable')}`,
+    `  OpenClaw features: ${status(true, 'native (DuckHive)', 'native (DuckHive)')}`,
     '',
     'Memory',
     `  Memory:  ${o.memory.memoryDir}`,

@@ -21,3 +21,6 @@ export type Continue =
   | { reason: 'continuation_nudge' }
   | { reason: 'forced_action_escalation' }
   | { reason: 'next_turn' }
+  | { reason: 'premature_completion_nudge' }
+  | { reason: 'review_verification_gate' }
+  | { reason: 'blocked_exploration_tool_batch' }

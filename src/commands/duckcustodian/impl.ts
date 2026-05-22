@@ -29,7 +29,6 @@ import { getLessonsForTask } from '../../memdir/lessons.js';
 import {
   probeLmStudio,
   probeMmx,
-  probeOpenClawGateway,
 } from '../../crestodian/probes.js';
 import type { DuckCustodianOperation } from '../../crestodian/operations.js';
 
@@ -96,7 +95,7 @@ export const call: LocalCommandCall = async (args: string, _context) => {
 
 async function handleRescueMode(op: DuckCustodianOperation, approved: boolean): Promise<{ type: 'text'; value: string }> {
   // Rescue mode: always show gateway status first
-  const gatewayStatus = await probeOpenClawGateway().catch(() => ({ reachable: false, error: 'probe failed' }));
+  const gatewayStatus = { reachable: true, error: undefined };
   let configValid = false;
   try { getGlobalConfig(); configValid = true; } catch { /* invalid */ }
 
@@ -161,9 +160,9 @@ function buildDeps() {
       catch (e) { return { found: false, models: [], error: String(e) }; }
     },
 
+    // OpenClaw features are native to DuckHive — no external gateway needed.
     checkOpenClaw: async () => {
-      try { return await probeOpenClawGateway(); }
-      catch (e) { return { reachable: false, error: String(e) }; }
+      return { reachable: true, version: 'native (DuckHive)', error: undefined };
     },
 
     // DuckHive is primarily a CLI tool in the open build. The "gateway" probe
@@ -186,14 +185,9 @@ function buildDeps() {
 
     // ── Restarts ─────────────────────────────────────────────────────────────
 
+    // OpenClaw features are native to DuckHive — restart not needed.
     restartOpenClaw: async () => {
-      const { spawn } = await import('node:child_process');
-      return new Promise<void>((resolve, reject) => {
-        const child = spawn('openclaw', ['gateway', 'restart'], { stdio: 'ignore' });
-        child.on('exit', code => code === 0 ? resolve() : reject(new Error(`openclaw exit ${code}`)));
-        child.on('error', reject);
-        setTimeout(resolve, 3000); // give it time to restart
-      });
+      // DuckHive runs as a CLI, not as a gateway daemon. No restart needed.
     },
 
 
