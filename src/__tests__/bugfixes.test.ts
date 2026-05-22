@@ -175,6 +175,8 @@ describe('Agent loop continuation nudge', () => {
     const autoRouteContent = await file('tools/AgentTool/autoRoute.ts').text()
 
     expect(queryContent).toContain('buildAutoRouteActionHint')
+    expect(queryContent).toContain('You have not completed the task yet. You summarized or declared completion before taking action.')
+    expect(queryContent).toContain("transition: { reason: 'premature_completion_nudge' }")
     expect(queryContent).toContain('Continue with the task. Use the appropriate tools to proceed.')
     expect(queryContent).toContain('Use ${AGENT_TOOL_NAME} with subagent_type="${FILE_PICKER_AGENT_TYPE}" to identify the next file to edit')
     expect(queryContent).toContain('Use ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}" to implement the known-target change now.')

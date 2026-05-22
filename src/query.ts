@@ -1518,7 +1518,36 @@ async function* queryLoop(
           // Don't nudge if the text contains completion markers
           const completionMarkers = /\b(done|finished|completed|complete|summary|that's all|that is all|all set|hope this helps|let me know if)\b/
           if (completionMarkers.test(lastText)) {
-            // Model signaled completion — don't nudge
+            if (!state.hasTakenAction) {
+              const actionHint = buildAutoRouteActionHint(lastText, toolUseContext)
+              const prematureCompletionNudge = createUserMessage({
+                content:
+                  'You have not completed the task yet. You summarized or declared completion before taking action.' +
+                  ' Continue by using the appropriate tool now, or state one specific blocker if you genuinely cannot proceed.' +
+                  (actionHint ? ` ${actionHint}` : ''),
+                isMeta: true,
+              })
+              const next: State = {
+                messages: [
+                  ...messagesForQuery,
+                  ...assistantMessages,
+                  prematureCompletionNudge,
+                ],
+                toolUseContext,
+                autoCompactTracking: tracking,
+                ...preserveExecutionState(state),
+                maxOutputTokensRecoveryCount,
+                hasAttemptedReactiveCompact: false,
+                maxOutputTokensOverride: undefined,
+                pendingToolUseSummary: undefined,
+                stopHookActive: undefined,
+                turnCount,
+                continuationNudgeCount: state.continuationNudgeCount + 1,
+                transition: { reason: 'premature_completion_nudge' },
+              }
+              state = next
+              continue
+            }
           } else if (continuationSignals.some(re => re.test(lastText))) {
             logForDebugging(
               `Continuation nudge triggered (${state.continuationNudgeCount + 1}/${MAX_CONTINUATION_NUDGES}): model said "${lastText.slice(-120)}" without tool calls`,
