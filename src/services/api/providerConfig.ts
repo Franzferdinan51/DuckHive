@@ -14,8 +14,9 @@ import { isEnvTruthy } from '../../utils/envUtils.js'
 import {
   asTrimmedString,
   parseChatgptAccountId,
+  CODEX_HTTP_ORIGINATOR,
 } from './codexOAuthShared.js'
-export { CODEX_HTTP_ORIGINATOR } from './codexOAuthShared.js'
+export { CODEX_HTTP_ORIGINATOR }
 import {
   DEFAULT_GEMINI_BASE_URL,
   DEFAULT_GEMINI_MODEL,
@@ -31,6 +32,27 @@ export const DEFAULT_MISTRAL_BASE_URL = 'https://api.mistral.ai/v1'
 /** Default GitHub Copilot API model when user selects copilot / github:copilot */
 export const DEFAULT_GITHUB_MODELS_API_MODEL = 'gpt-4o'
 const warnedUndefinedEnvNames = new Set<string>()
+
+function normalizeGitlawbOpengatewayBaseUrl(baseUrl: string | undefined): string | undefined {
+  if (!baseUrl) return undefined
+  try {
+    const parsed = new URL(baseUrl)
+    const hostname = parsed.hostname.toLowerCase()
+    if (hostname !== 'opengateway.gitlawb.com' && hostname !== 'opengateway.fly.dev') {
+      return baseUrl
+    }
+    const path = parsed.pathname.replace(/\/+$/, '').toLowerCase()
+    if (path === '/v1/xiaomi-mimo' || path === '/v1/gmi-cloud') {
+      parsed.pathname = '/v1'
+      parsed.search = ''
+      parsed.hash = ''
+      return parsed.toString().replace(/\/+$/, '')
+    }
+  } catch {
+    return baseUrl
+  }
+  return baseUrl
+}
 
 const CODEX_ALIAS_MODELS: Record<
   string,
@@ -420,32 +442,6 @@ export function getLocalFastPathConfig(
   const override = parseLocalFastPathOverride(env[LOCAL_FAST_PATH_ENV])
   const enabled = override ?? isLocalProviderUrl(baseUrl)
   return enabled ? LOCAL_FAST_PATH_ON : LOCAL_FAST_PATH_OFF
-}
-
-/**
- * Normalize Gitlawb Opengateway base URLs.
- * Strips /v1/xiaomi-mimo and /v1/gmi-cloud path segments to /v1
- * since the gateway routes by model name, not path.
- */
-function normalizeGitlawbOpengatewayBaseUrl(baseUrl: string | undefined): string | undefined {
-  if (!baseUrl) return undefined
-  try {
-    const parsed = new URL(baseUrl)
-    const hostname = parsed.hostname.toLowerCase()
-    if (hostname !== 'opengateway.gitlawb.com' && hostname !== 'opengateway.fly.dev') {
-      return baseUrl
-    }
-    const path = parsed.pathname.replace(/\/+$/, '').toLowerCase()
-    if (path === '/v1/xiaomi-mimo' || path === '/v1/gmi-cloud') {
-      parsed.pathname = '/v1'
-      parsed.search = ''
-      parsed.hash = ''
-      return parsed.toString().replace(/\/+$/, '')
-    }
-  } catch {
-    return baseUrl
-  }
-  return baseUrl
 }
 
 function trimTrailingSlash(value: string): string {

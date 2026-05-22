@@ -35,7 +35,6 @@ import { isBareMode, isEnvTruthy } from '../../utils/envUtils.js'
 import { resolveGeminiCredential } from '../../utils/geminiAuth.js'
 import { hydrateGeminiAccessTokenFromSecureStorage } from '../../utils/geminiCredentials.js'
 import { hydrateGithubModelsTokenFromSecureStorage } from '../../utils/githubModelsCredentials.js'
-import { resolveMiniMaxCredentialWithRefresh } from '../../utils/minimaxCredentials.js'
 import { resolveOpenAIShimRuntimeContext } from '../../integrations/runtimeMetadata.js'
 import { resolveRouteCredentialValue } from '../../integrations/routeMetadata.js'
 import {
@@ -144,6 +143,49 @@ function hasGeminiApiHost(baseUrl: string | undefined): boolean {
     return new URL(baseUrl).hostname.toLowerCase() === GEMINI_API_HOST
   } catch {
     return false
+  }
+}
+
+function isGeminiModelName(model: string | undefined): boolean {
+  const normalized = model?.trim().toLowerCase()
+  return (
+    normalized?.startsWith('google/gemini-') === true ||
+    normalized?.startsWith('gemini-') === true
+  )
+}
+
+function shouldPreserveGeminiThoughtSignature(
+  model: string | undefined,
+  baseUrl?: string,
+): boolean {
+  return isGeminiMode() || hasGeminiApiHost(baseUrl) || isGeminiModelName(model)
+}
+
+function geminiThoughtSignatureFromExtraContent(
+  extraContent: unknown,
+): string | undefined {
+  if (!extraContent || typeof extraContent !== 'object') return undefined
+  const google = (extraContent as Record<string, unknown>).google
+  if (!google || typeof google !== 'object') return undefined
+  const signature = (google as Record<string, unknown>).thought_signature
+  return typeof signature === 'string' && signature.length > 0 ? signature : undefined
+}
+
+function mergeGeminiThoughtSignature(
+  extraContent: Record<string, unknown> | undefined,
+  signature: string | undefined,
+): Record<string, unknown> | undefined {
+  if (!signature) return extraContent
+  const existingGoogle =
+    extraContent?.google && typeof extraContent.google === 'object'
+      ? extraContent.google as Record<string, unknown>
+      : {}
+  return {
+    ...extraContent,
+    google: {
+      ...existingGoogle,
+      thought_signature: signature,
+    },
   }
 }
 
@@ -446,10 +488,12 @@ function convertMessages(
   options?: {
     preserveReasoningContent?: boolean
     reasoningContentFallback?: '' | 'omit'
+    preserveGeminiThoughtSignature?: boolean
   },
 ): OpenAIMessage[] {
   const preserveReasoningContent = options?.preserveReasoningContent === true
   const reasoningContentFallback = options?.reasoningContentFallback
+  const preserveGeminiThoughtSignature = options?.preserveGeminiThoughtSignature === true
   const result: OpenAIMessage[] = []
   const knownToolCallIds = new Set<string>()
 
@@ -611,28 +655,20 @@ function convertMessages(
                   toolCall.extra_content = { ...tu.extra_content }
                 }
 
-                // Handle Gemini thought_signature
-                if (isGeminiMode()) {
-                  // If the model provided a signature in the tool_use block itself (e.g. from a previous Turn/Step)
-                  // Use thinkingBlock.signature for ALL tool calls in the same assistant turn if available.
-                  // The API requires the same signature on every replayed function call part in a parallel set.
+                // Gemini OpenAI-compatible endpoints require Google's
+                // thought_signature to be replayed with prior function-call
+                // parts. Preserve only real signatures received from the
+                // provider; synthetic placeholders are rejected by GMI.
+                if (preserveGeminiThoughtSignature) {
                   const signature =
-                    tu.signature ?? (thinkingBlock as any)?.signature
+                    tu.signature ??
+                    geminiThoughtSignatureFromExtraContent(tu.extra_content) ??
+                    (thinkingBlock as { signature?: string } | undefined)?.signature
 
-                  // Merge into existing google-specific metadata if present
-                  const existingGoogle =
-                    (toolCall.extra_content?.google as Record<
-                      string,
-                      unknown
-                    >) ?? {}
-                  toolCall.extra_content = {
-                    ...toolCall.extra_content,
-                    google: {
-                      ...existingGoogle,
-                      thought_signature:
-                        signature ?? 'skip_thought_signature_validator',
-                    },
-                  }
+                  toolCall.extra_content = mergeGeminiThoughtSignature(
+                    toolCall.extra_content,
+                    signature,
+                  )
                 }
 
                 return toolCall
@@ -667,18 +703,6 @@ function convertMessages(
           result.push(assistantMsg)
         }
       }
-    } else if (role === 'system') {
-      result.push({
-        role: 'system',
-        content: (() => {
-          const c = convertContentBlocks(content)
-          return typeof c === 'string'
-            ? c
-            : Array.isArray(c)
-              ? c.map((p: { text?: string }) => p.text ?? '').join('')
-              : ''
-        })(),
-      })
     }
   }
 
@@ -865,6 +889,7 @@ interface OpenAIStreamChunk {
       role?: string
       content?: string | null
       reasoning_content?: string | null
+      extra_content?: Record<string, unknown>
       tool_calls?: Array<{
         index: number
         id?: string
@@ -1283,6 +1308,14 @@ async function* openaiStreamToAnthropic(
               const toolBlockIndex = contentBlockIndex
               const initialArguments = tc.function.arguments ?? ''
               const normalizeAtStop = hasToolFieldMapping(tc.function.name)
+              const toolExtraContent = tc.extra_content ?? delta.extra_content
+              const toolSignature =
+                geminiThoughtSignatureFromExtraContent(tc.extra_content) ??
+                geminiThoughtSignatureFromExtraContent(delta.extra_content)
+              const mergedToolExtraContent = mergeGeminiThoughtSignature(
+                toolExtraContent,
+                toolSignature,
+              )
               processStreamChunk(streamState, tc.function.arguments ?? '')
               activeToolCalls.set(tc.index, {
                 id: tc.id,
@@ -1300,14 +1333,8 @@ async function* openaiStreamToAnthropic(
                   id: tc.id,
                   name: tc.function.name,
                   input: {},
-                  ...(tc.extra_content ? { extra_content: tc.extra_content } : {}),
-                  // Extract Gemini signature from extra_content
-                  ...(((tc.extra_content?.google) as any)?.thought_signature
-                    ? {
-                        signature: ((tc.extra_content?.google) as any)
-                          .thought_signature,
-                      }
-                    : {}),
+                  ...(mergedToolExtraContent ? { extra_content: mergedToolExtraContent } : {}),
+                  ...(toolSignature ? { signature: toolSignature } : {}),
                 },
               }
               contentBlockIndex++
@@ -1752,6 +1779,10 @@ class OpenAIShimMessages {
     const openaiMessages = convertMessages(compressedMessages, params.system, {
       preserveReasoningContent: shimConfig.preserveReasoningContent,
       reasoningContentFallback: shimConfig.reasoningContentFallback,
+      preserveGeminiThoughtSignature: shouldPreserveGeminiThoughtSignature(
+        request.resolvedModel,
+        request.baseUrl,
+      ),
     })
 
     const body: Record<string, unknown> = {
@@ -1941,13 +1972,8 @@ class OpenAIShimMessages {
       baseUrl: request.baseUrl,
       processEnv: process.env,
     })
-    const minimaxCredential =
-      runtimeShimContext.routeId === 'minimax' && !this.providerOverride?.apiKey
-        ? await resolveMiniMaxCredentialWithRefresh(process.env)
-        : null
     const apiKey =
       this.providerOverride?.apiKey ??
-      minimaxCredential?.credential ??
       routeCredential ??
       process.env.OPENAI_API_KEY ??
       ''
@@ -2188,7 +2214,7 @@ class OpenAIShimMessages {
       )
     }
 
-    let response: Response | undefined
+    let response!: Response
     const provider = request.baseUrl.includes('nvidia') ? 'nvidia-nim'
       : request.baseUrl.includes('minimax') ? 'minimax'
       : request.baseUrl.includes('xiaomimimo') || request.baseUrl.includes('mimo-v2') ? 'xiaomi-mimo'
@@ -2232,17 +2258,7 @@ class OpenAIShimMessages {
         throwClassifiedTransportError(error, requestUrl, failure)
       }
 
-      const activeResponse = response
-      if (!activeResponse) {
-        throw APIError.generate(
-          500,
-          undefined,
-          'OpenAI shim: request produced no response',
-          new Headers(),
-        )
-      }
-
-      if (activeResponse.ok) {
+      if (response.ok) {
         let tokensIn = 0
         let tokensOut = 0
         // Skip clone() for streaming responses - it blocks until full body is received,
@@ -2250,22 +2266,22 @@ class OpenAIShimMessages {
         // stream_options: { include_usage: true } and can be extracted from the stream.
         if (!params.stream) {
           try {
-            const clone = activeResponse.clone()
+            const clone = response.clone()
             const data = await clone.json()
             tokensIn = data.usage?.prompt_tokens ?? 0
             tokensOut = data.usage?.completion_tokens ?? 0
           } catch { /* ignore */ }
         }
         logApiCallEnd(correlationId, startTime, request.resolvedModel, 'success', tokensIn, tokensOut, false)
-        return activeResponse
+        return response
       }
 
       if (
         isGithub &&
-        activeResponse.status === 429 &&
+        response.status === 429 &&
         attempt < maxAttempts - 1
       ) {
-        await activeResponse.text().catch(() => {})
+        await response.text().catch(() => {})
         const delaySec = Math.min(
           GITHUB_429_BASE_DELAY_SEC * 2 ** attempt,
           GITHUB_429_MAX_DELAY_SEC,
@@ -2275,48 +2291,44 @@ class OpenAIShimMessages {
       }
       // Read body exactly once here — Response body is a stream that can only
       // be consumed a single time.
-      const errorBody = await activeResponse.text().catch(() => 'unknown error')
+      const errorBody = await response.text().catch(() => 'unknown error')
       const rateHint =
-        isGithub && activeResponse.status === 429
-          ? formatRetryAfterHint(activeResponse)
-          : ''
+        isGithub && response.status === 429 ? formatRetryAfterHint(response) : ''
 
       // If GitHub Copilot returns error about /chat/completions,
       // try the /responses endpoint (needed for GPT-5+ models)
-      if (isGithub && activeResponse.status === 400) {
+      if (isGithub && response.status === 400) {
         if (errorBody.includes('/chat/completions') || errorBody.includes('not accessible')) {
           const responsesUrl = `${request.baseUrl}/responses`
           const responsesBody = buildResponsesBody()
 
-          const responsesResponse = await (async (): Promise<Response> => {
-            try {
-              return await fetchWithProxyRetry(responsesUrl, {
-                method: 'POST',
-                headers,
-                body: stableStringifyJson(responsesBody),
-                signal: options?.signal,
-              })
-            } catch (error) {
-              throwClassifiedTransportError(error, responsesUrl)
-              throw error
-            }
-          })()
-
-          if (responsesResponse.ok) {
-            return responsesResponse
+          let responsesResponse: Response | undefined
+          try {
+            responsesResponse = await fetchWithProxyRetry(responsesUrl, {
+              method: 'POST',
+              headers,
+              body: stableStringifyJson(responsesBody),
+              signal: options?.signal,
+            })
+          } catch (error) {
+            throwClassifiedTransportError(error, responsesUrl)
           }
-          const responsesErrorBody = await responsesResponse.text().catch(() => 'unknown error')
+
+          if (responsesResponse?.ok) {
+            return responsesResponse!
+          }
+          const responsesErrorBody = await responsesResponse!.text().catch(() => 'unknown error')
           const responsesFailure = classifyOpenAIHttpFailure({
-            status: responsesResponse.status,
+            status: responsesResponse!.status,
             body: responsesErrorBody,
           })
           let responsesErrorResponse: object | undefined
           try { responsesErrorResponse = JSON.parse(responsesErrorBody) } catch { /* raw text */ }
           throwClassifiedHttpError(
-            responsesResponse.status,
+            responsesResponse!.status,
             responsesErrorBody,
             responsesErrorResponse,
-            responsesResponse.headers,
+            responsesResponse!.headers,
             responsesUrl,
             '',
             responsesFailure,
@@ -2325,7 +2337,7 @@ class OpenAIShimMessages {
       }
 
       const failure = classifyOpenAIHttpFailure({
-        status: activeResponse.status,
+        status: response.status,
         body: errorBody,
       })
 
@@ -2366,10 +2378,10 @@ class OpenAIShimMessages {
       let errorResponse: object | undefined
       try { errorResponse = JSON.parse(errorBody) } catch { /* raw text */ }
       throwClassifiedHttpError(
-        activeResponse.status,
+        response.status,
         errorBody,
         errorResponse,
-        activeResponse.headers as unknown as Headers,
+        response.headers as unknown as Headers,
         requestUrl,
         rateHint,
         failure,
@@ -2386,20 +2398,20 @@ class OpenAIShimMessages {
     data: {
       id?: string
       model?: string
-      choices?: Array<{
-        message?: {
-          role?: string
-          content?:
-            | string
-            | null
-            | Array<{ type?: string; text?: string }>
-          reasoning_content?: string | null
-          tool_calls?: Array<{
-            id: string
-            function: { name: string; arguments: string }
+      choices?: Array<{          message?: {
+            role?: string
+            content?:
+              | string
+              | null
+              | Array<{ type?: string; text?: string }>
+            reasoning_content?: string | null
             extra_content?: Record<string, unknown>
-          }>
-        }
+            tool_calls?: Array<{
+              id: string
+              function: { name: string; arguments: string }
+              extra_content?: Record<string, unknown>
+            }>
+          }
         finish_reason?: string
       }>
       usage?: {
@@ -2488,16 +2500,21 @@ class OpenAIShimMessages {
           tc.function.name,
           tc.function.arguments,
         )
+        const toolExtraContent = tc.extra_content ?? choice.message.extra_content
+        const toolSignature =
+          geminiThoughtSignatureFromExtraContent(tc.extra_content) ??
+          geminiThoughtSignatureFromExtraContent(choice.message.extra_content)
+        const mergedToolExtraContent = mergeGeminiThoughtSignature(
+          toolExtraContent,
+          toolSignature,
+        )
         content.push({
           type: 'tool_use',
           id: tc.id,
           name: tc.function.name,
           input,
-          ...(tc.extra_content ? { extra_content: tc.extra_content } : {}),
-          // Extract Gemini signature from extra_content
-          ...(((tc.extra_content?.google) as any)?.thought_signature
-            ? { signature: ((tc.extra_content?.google) as any).thought_signature }
-            : {}),
+          ...(mergedToolExtraContent ? { extra_content: mergedToolExtraContent } : {}),
+          ...(toolSignature ? { signature: toolSignature } : {}),
         })
       }
     }
