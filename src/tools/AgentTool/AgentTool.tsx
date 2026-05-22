@@ -51,7 +51,7 @@ import { setAgentColor } from './agentColorManager.js';
 import { agentToolResultSchema, classifyHandoffIfNeeded, emitTaskProgress, extractPartialResult, finalizeAgentTool, getLastToolUseName, runAsyncAgentLifecycle } from './agentToolUtils.js';
 import { resolveAutoRoutedAgentType } from './autoRoute.js';
 import { GENERAL_PURPOSE_AGENT } from './built-in/generalPurposeAgent.js';
-import { AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME, ONE_SHOT_BUILTIN_AGENT_TYPES } from './constants.js';
+import { AGENT_TOOL_NAME, CODE_REVIEWER_AGENT_TYPE, EDITOR_AGENT_TYPE, FILE_PICKER_AGENT_TYPE, LEGACY_AGENT_TOOL_NAME, ONE_SHOT_BUILTIN_AGENT_TYPES, VERIFICATION_AGENT_TYPE } from './constants.js';
 import { buildForkedMessages, buildWorktreeNotice, FORK_AGENT, isForkSubagentEnabled, isInForkChild } from './forkSubagent.js';
 import type { AgentDefinition } from './loadAgentsDir.js';
 import { filterAgentsByMcpRequirements, hasRequiredMcpServers, isBuiltInAgent } from './loadAgentsDir.js';
@@ -1302,6 +1302,27 @@ export const AgentTool = buildTool({
   },
   isReadOnly() {
     return true; // delegates permission checks to its underlying tools
+  },
+  isSearchOrReadCommand(input) {
+    const agentInput = input as AgentToolInput
+    const subagentType = agentInput.subagent_type
+    // Unknown type or fork path: treat as action (not exploration) — safer default
+    if (!subagentType) {
+      return { isRead: false, isSearch: false }
+    }
+    // Read-only subagent types that only explore, never edit.
+    // Matches getReadOnlySubagentTypesFromBatch in query.ts.
+    if (
+      subagentType === 'Explore' ||
+      subagentType === 'Plan' ||
+      subagentType === FILE_PICKER_AGENT_TYPE ||
+      subagentType === CODE_REVIEWER_AGENT_TYPE ||
+      subagentType === VERIFICATION_AGENT_TYPE
+    ) {
+      return { isRead: true }
+    }
+    // Editor, general-purpose, and any custom agents: can make edits, treat as action
+    return { isRead: false, isSearch: false }
   },
   toAutoClassifierInput(input) {
     const i = input as AgentToolInput;
