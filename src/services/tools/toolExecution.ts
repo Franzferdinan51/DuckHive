@@ -126,6 +126,29 @@ export const HOOK_TIMING_DISPLAY_THRESHOLD_MS = 500
  * BashTool's PROGRESS_THRESHOLD_MS — the collapsed view feels stuck past this. */
 const SLOW_PHASE_LOG_THRESHOLD_MS = 2000
 
+// ─── pi-inspired: Tool Lifecycle State Machine ──────────────────────────
+
+/** Tool execution lifecycle states, inspired by pi-agent-core's state machine. */
+export type ToolLifecycleState =
+  | 'pending'     // Tool call received, not yet validated
+  | 'validating'  // Input validation in progress
+  | 'awaiting_permission'  // Waiting for user/hook permission decision
+  | 'running'     // Tool is actively executing
+  | 'success'     // Tool completed successfully
+  | 'failure'     // Tool failed with error
+
+/** Lifecycle event emitted at each state transition. */
+export type ToolLifecycleEvent = {
+  toolUseID: string
+  toolName: string
+  state: ToolLifecycleState
+  timestamp: number
+  /** Duration in ms since entering 'pending' state (only on terminal states) */
+  durationMs?: number
+  /** Error message (only on 'failure' state) */
+  error?: string
+}
+
 /**
  * Classify a tool execution error into a telemetry-safe string.
  *
@@ -630,6 +653,30 @@ async function checkPermissionsAndCallTool(
     progress: ToolProgress<ToolProgressData> | ProgressMessage<HookProgress>,
   ) => void,
 ): Promise<MessageUpdateLazy[]> {
+  const lifecycleStart = Date.now()
+
+  // ─── pi-inspired: emit lifecycle event helper ──────────────────────
+  const emitLifecycle = (state: ToolLifecycleState, error?: string) => {
+    const event: ToolLifecycleEvent = {
+      toolUseID,
+      toolName: tool.name,
+      state,
+      timestamp: Date.now(),
+      ...(state === 'success' || state === 'failure'
+        ? { durationMs: Date.now() - lifecycleStart }
+        : {}),
+      ...(error ? { error } : {}),
+    }
+    onToolProgress({
+      toolUseID,
+      data: { type: 'tool_lifecycle', event } as unknown as ToolProgressData,
+    })
+  }
+
+  // Emit pending → validating transition
+  emitLifecycle('pending')
+  emitLifecycle('validating')
+
   // Validate input types with zod (surprisingly, the model is not great at generating valid input)
   const parsedInput = tool.inputSchema.safeParse(input)
   if (!parsedInput.success) {
@@ -650,6 +697,7 @@ async function checkPermissionsAndCallTool(
       errorContent += schemaHint
     }
 
+    emitLifecycle('failure', `InputValidationError: ${errorContent.slice(0, 200)}`)
     logForDebugging(
       `${tool.name} tool input error: ${errorContent.slice(0, 200)}`,
     )
@@ -709,7 +757,11 @@ async function checkPermissionsAndCallTool(
     parsedInput.data,
     toolUseContext,
   )
+  // Emit awaiting_permission before checking permissions
+  emitLifecycle('awaiting_permission')
+
   if (isValidCall?.result === false) {
+    emitLifecycle('failure', isValidCall.message)
     logForDebugging(
       `${tool.name} tool validation error: ${isValidCall.message?.slice(0, 200)}`,
     )
@@ -996,6 +1048,7 @@ async function checkPermissionsAndCallTool(
   }
 
   if (permissionDecision.behavior !== 'allow') {
+    emitLifecycle('failure', permissionDecision.message || 'Permission denied')
     logForDebugging(`${tool.name} tool permission denied`)
     const decisionInfo = toolUseContext.toolDecisions?.get(toolUseID)
 
@@ -1126,6 +1179,9 @@ async function checkPermissionsAndCallTool(
     ...mcpToolDetailsForAnalytics(tool.name, mcpServerType, mcpServerBaseUrl),
   })
 
+  // ─── pi-inspired: emit running state before tool execution ──────
+  emitLifecycle('running')
+
   // Use the updated input from permissions if provided
   // (Don't overwrite if undefined - processedInput may have been modified by passthrough hooks)
   if (permissionDecision.updatedInput !== undefined) {
@@ -1219,6 +1275,9 @@ async function checkPermissionsAndCallTool(
     )
     const durationMs = Date.now() - startTime
     addToToolDuration(durationMs)
+
+    // ─── pi-inspired: emit success state ────────────────────────────
+    emitLifecycle('success')
 
     // Capture structured output from tool result if present
     if (typeof result === 'object' && 'structured_output' in result) {
@@ -1518,6 +1577,11 @@ async function checkPermissionsAndCallTool(
   } catch (error) {
     const durationMs = Date.now() - startTime
     addToToolDuration(durationMs)
+
+    // ─── pi-inspired: emit failure state ────────────────────────────
+    if (!(error instanceof AbortError)) {
+      emitLifecycle('failure', errorMessage(error))
+    }
 
     // Handle MCP auth errors by updating the client status to 'needs-auth'
     // This updates the /mcp display to show the server needs re-authorization

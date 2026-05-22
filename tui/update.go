@@ -63,6 +63,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.turnCount = msg.TurnCount
 			m.maxTurns = msg.MaxTurns
 		}
+		return m, nil	// ─── pi-inspired: Tool lifecycle event handling ─────────────────
+	case ToolLifecycleMsg:
+		m.applyToolLifecycle(msg.ToolName, msg.State, msg.DurationMs, msg.Error)
 		return m, nil
 
 	case BackendEventMsg:
@@ -72,6 +75,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.StartTimer()
 				return m, StartTimerCmd()
 			}
+		}		// ─── pi-inspired: dispatch tool lifecycle events ───────────
+		if msg.ToolName != "" && msg.ToolLifecycleState != "" {
+			m.applyToolLifecycle(msg.ToolName, msg.ToolLifecycleState, msg.ToolDurationMs, "")
+			return m, nil
 		}
 
 		if msg.Type == MsgTypeProgress || msg.Type == MsgTypeSystem {
@@ -287,12 +294,27 @@ type BackendEventMsg struct {
 	IsActivity  bool // true means a task started/ended - triggers timer
 	TurnCount   int  // current turn number (0 if not applicable)
 	MaxTurns    int  // max turns for this agent (0 if not applicable)
+	// ─── pi-inspired: Tool lifecycle fields ────────────────────────
+	ToolName          string // active tool name (lifecycle events)
+	ToolLifecycleState string // pending, validating, awaiting_permission, running, success, failure
+	ToolDurationMs    int64  // tool execution duration (on terminal states)
 }
 
 // TurnUpdateMsg carries agent turn progress from the backend.
 type TurnUpdateMsg struct {
 	TurnCount int
 	MaxTurns  int
+}
+
+// ─── pi-inspired: Tool lifecycle message ─────────────────────────────
+
+// ToolLifecycleMsg carries a tool state transition event.
+type ToolLifecycleMsg struct {
+	ToolID     string
+	ToolName   string
+	State      string // pending, validating, awaiting_permission, running, success, failure
+	DurationMs int64
+	Error      string // only set on failure
 }
 
 // timerTickMsg is sent to update the timer display every second.
@@ -316,4 +338,43 @@ func newID() string {
 // now returns the current time.
 func now() time.Time {
 	return time.Now()
+}
+
+// ternary returns a if cond is true, otherwise b.
+func ternary(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
+}
+
+// ─── pi-inspired: shared tool lifecycle state applicator ───────────
+
+// applyToolLifecycle updates model state in response to a tool lifecycle transition.
+func (m *Model) applyToolLifecycle(toolName, state string, durationMs int64, errorDetail string) {
+	m.toolLifecycleState = state
+	if state == "pending" || state == "validating" ||
+		state == "awaiting_permission" || state == "running" {
+		m.activeTool = toolName
+		m.isLoading = true
+	} else {
+		// Terminal states: success or failure — clear active tool tracking
+		m.toolDurationMs = durationMs
+		m.isLoading = false
+		m.activeTool = ""
+		m.activeToolID = ""
+	}
+	if state == "failure" {
+		errMsg := "Tool " + toolName + " failed"
+		if errorDetail != "" {
+			errMsg += ": " + errorDetail
+		}
+		m.AddMessage(Message{
+			ID:      newID(),
+			Type:    MsgTypeSystem,
+			Content: errMsg,
+			IsError: true,
+		})
+	}
+	m.isDirty = true
 }

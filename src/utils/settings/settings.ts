@@ -882,6 +882,89 @@ export function getSettingsWithErrors(): SettingsWithErrors {
   return result
 }
 
+// ─── pi-inspired: Config Deep-Merge Layering ──────────────────────────
+
+/**
+ * Layer origin tracking for each setting key.
+ * Shows which source (user/project/local/flag/policy) provided the effective value.
+ */
+export type SettingLayer = 'global' | 'project' | 'local' | 'flag' | 'policy' | 'plugin'
+
+export type LayeredSettings = {
+  /** The effective merged settings */
+  effective: SettingsJson
+  /** Map of each top-level key to the layer that provided it */
+  layerOrigin: Record<string, SettingLayer>
+  /** Per-source raw settings, in merge-priority order (lowest first) */
+  sources: Array<{ source: SettingSource; settings: SettingsJson; label: SettingLayer }>
+  /** Keys that were modified during the current session (dirty tracking) */
+  dirtyKeys: Set<string>
+}
+
+const SOURCE_TO_LAYER: Record<SettingSource, SettingLayer> = {
+  userSettings: 'global',
+  projectSettings: 'project',
+  localSettings: 'local',
+  flagSettings: 'flag',
+  policySettings: 'policy',
+}
+
+/** Session-scoped dirty-tracking set for settings modified mid-session */
+const sessionDirtyKeys = new Set<string>()
+
+/**
+ * Mark a setting key as dirty (modified during the current session).
+ * Called by updateSettingsForSource after a successful write.
+ */
+export function markSettingDirty(key: string): void {
+  sessionDirtyKeys.add(key)
+}
+
+/**
+ * Get settings with full layer attribution — pi-style deep-merge layering.
+ *
+ * Returns the effective merged settings alongside:
+ * - layerOrigin: which layer (global/project/local/flag/policy) provided each value
+ * - sources: raw per-source settings
+ * - dirtyKeys: which keys were modified during the current session
+ *
+ * This enables UIs to show "this setting comes from project config" and
+ * highlight session-dirty values.
+ */
+export function getSettingsLayered(): LayeredSettings {
+  // Reset cache to get fresh per-source reads
+  resetSettingsCache()
+
+  const sources: LayeredSettings['sources'] = []
+  const layerOrigin: Record<string, SettingLayer> = {}
+
+  for (const source of getEnabledSettingSources()) {
+    const settings = getSettingsForSource(source)
+    if (settings && Object.keys(settings).length > 0) {
+      const label = SOURCE_TO_LAYER[source]
+      sources.push({ source, settings, label })
+      // Later sources override earlier ones — record the layer for each key
+      for (const key of Object.keys(settings)) {
+        layerOrigin[key] = label
+      }
+    }
+  }
+
+  return {
+    effective: getInitialSettings(),
+    layerOrigin,
+    sources,
+    dirtyKeys: new Set(sessionDirtyKeys),
+  }
+}
+
+/**
+ * Clear all session-dirty markers. Called on session reset.
+ */
+export function clearDirtySettings(): void {
+  sessionDirtyKeys.clear()
+}
+
 /**
  * Check if any raw settings file contains a specific key, regardless of validation.
  * This is useful for detecting user intent even when settings validation fails.

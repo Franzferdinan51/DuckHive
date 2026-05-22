@@ -20,6 +20,7 @@ const (
 	MsgTypeToolUse
 	MsgTypeToolResult
 	MsgTypeProgress
+	MsgTypeToolLifecycle // pi-inspired: tool lifecycle state event
 )
 
 // Message represents a single message in the conversation.
@@ -81,6 +82,17 @@ type Model struct {
 	pendingConfirmation bool
 	confirmationMsg     string
 	onConfirm           func(bool)
+
+	// ─── pi-inspired: Tool Lifecycle Tracking ──────────────────────
+	// Active tool currently executing (empty if idle)
+	activeTool    string
+	activeToolID  string
+	// Tool lifecycle state: pending, validating, awaiting_permission, running, success, failure
+	toolLifecycleState string
+	// Duration of current tool in ms (set on terminal states)
+	toolDurationMs int64
+	// Dirty flag for differential rendering
+	isDirty       bool
 }
 
 // NewModel creates a fresh DuckHive TUI model.
@@ -131,6 +143,7 @@ func (m *Model) AddMessage(msg Message) {
 	if len(m.messages) > 200 {
 		m.messages = m.messages[len(m.messages)-200:]
 	}
+	m.isDirty = true
 }
 
 // AddStreamingMessage adds or updates a streaming message.

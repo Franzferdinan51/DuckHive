@@ -86,10 +86,15 @@ func (b *Bridge) readLoop() {
 			return
 		}
 
-		// Parse SSE-like frame: {type, id, content, isStreaming, isError}
+		// Parse SSE-like frame: {type, id, content, isStreaming, isError, toolName, toolLifecycleState, toolDurationMs}
 		var evt BackendEventMsg
 		if err := json.Unmarshal(raw, &evt); err != nil {
 			b.config.OnError(err)
+			continue
+		}
+		// ─── pi-inspired: detect tool lifecycle events ──────────────
+		if evt.ToolName != "" && evt.ToolLifecycleState != "" {
+			b.config.OnMessage(evt)
 			continue
 		}
 		b.config.OnMessage(evt)
@@ -118,8 +123,8 @@ func SendUserInputCmd(bridge *Bridge, text string) tea.Cmd {
 	return func() tea.Msg {
 		err := bridge.Send(map[string]interface{}{
 			"type":  "user_message",
-			"text":  text,
-			"time":  time.Now().Unix(),
+		"text":  text,
+		"time":  time.Now().Unix(),
 		})
 		if err != nil {
 			return BridgeErrMsg{Err: err}

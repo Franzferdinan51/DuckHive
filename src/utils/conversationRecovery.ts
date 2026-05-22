@@ -80,6 +80,118 @@ const SEND_USER_FILE_TOOL_NAME: string | null = feature('KAIROS')
 // enough room for normal compacted sessions plus resume hook context.
 const MAX_RESUME_MESSAGE_BYTES = 8 * 1024 * 1024
 
+// ─── pi-inspired: Durable Turn Persistence ────────────────────────────
+
+/** Serialized turn checkpoint saved to disk for crash recovery. */
+export type TurnCheckpoint = {
+  messages: SerializedMessage[]
+  sessionId: string
+  turnCount: number
+  timestamp: number
+  lastUserPrompt: string
+}
+
+/** Directory for turn checkpoint files, relative to session storage. */
+let _checkpointDir: string | null = null
+
+/** Set the checkpoint directory (called at session init). */
+export function setCheckpointDir(dir: string): void {
+  _checkpointDir = dir
+}
+
+/**
+ * Save a turn-level checkpoint for crash recovery.
+ * Writes the current conversation state so a crashed turn can resume
+ * from where it left off rather than restarting entirely.
+ *
+ * Inspired by pi's Absurd-integrated turn persistence.
+ */
+export async function saveTurnCheckpoint(
+  messages: Message[],
+  sessionId: string,
+  turnCount: number,
+  lastUserPrompt: string,
+): Promise<void> {
+  if (!_checkpointDir) return
+  try {
+    const checkpoint: TurnCheckpoint = {
+      messages: messages.map(m => ({ ...m } as SerializedMessage)),
+      sessionId,
+      turnCount,
+      timestamp: Date.now(),
+      lastUserPrompt,
+    }
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const filePath = path.join(_checkpointDir, `turn-${turnCount}.json`)
+    await fs.mkdir(_checkpointDir, { recursive: true })
+    await fs.writeFile(filePath, jsonStringify(checkpoint))
+  } catch {
+    // Best-effort checkpoint — never throw from persistence
+  }
+}
+
+/**
+ * Load the most recent turn checkpoint if it exists.
+ * Returns null if no checkpoint is available.
+ */
+export async function loadTurnCheckpoint(): Promise<TurnCheckpoint | null> {
+  if (!_checkpointDir) return null
+  try {
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    // Find the highest turn-N.json file
+    let entries: string[] = []
+    try {
+      entries = await fs.readdir(_checkpointDir)
+    } catch {
+      return null
+    }
+    const checkpointFiles = entries
+      .filter(f => /^turn-\d+\.json$/.test(f))
+      .sort()
+      .reverse() // newest first
+    if (checkpointFiles.length === 0) return null
+
+    const filePath = path.join(_checkpointDir, checkpointFiles[0]!)
+    const content = await fs.readFile(filePath, 'utf-8')
+    return JSON.parse(content) as TurnCheckpoint
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Clean up old turn checkpoints, keeping only the most recent N.
+ */
+export async function cleanupTurnCheckpoints(keepCount = 5): Promise<void> {
+  if (!_checkpointDir) return
+  try {
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    let entries: string[] = []
+    try {
+      entries = await fs.readdir(_checkpointDir)
+    } catch {
+      return
+    }
+    const checkpointFiles = entries
+      .filter(f => /^turn-\d+\.json$/.test(f))
+      .sort()
+      .reverse()
+    // Remove all but the most recent `keepCount`
+    for (const file of checkpointFiles.slice(keepCount)) {
+      try {
+        await fs.unlink(path.join(_checkpointDir, file))
+      } catch {
+        // Ignore individual unlink failures
+      }
+    }
+  } catch {
+    // Best-effort cleanup
+  }
+}
+
 export class ResumeTranscriptTooLargeError extends Error {
   constructor(
     readonly bytes: number,

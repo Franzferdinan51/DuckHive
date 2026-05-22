@@ -13,6 +13,12 @@ func (m *Model) View() string {
 		return Styles.DimText.Render("\nDuckHive suspended. Run `fg` to bring it back.\n")
 	}
 
+	// ─── pi-inspired: differential rendering — skip rebuild if clean ───
+	if !m.isDirty && m.viewport.Height > 0 {
+		return m.viewport.View()
+	}
+	m.isDirty = false
+
 	var sb strings.Builder
 
 	sb.WriteString(m.headerView())
@@ -68,6 +74,15 @@ func (m *Model) statusView() string {
 
 	if m.isLoading {
 		segments = append(segments, m.spinner.View()+" processing")
+	}
+	// ─── pi-inspired: show active tool and lifecycle state ─────────
+	if m.activeTool != "" && m.isLoading {
+		stateLabel := m.toolLifecycleState
+		if stateLabel == "" {
+			stateLabel = "running"
+		}
+		segments = append(segments,
+			Styles.ToolLifecycle.Render(m.activeTool+" ["+stateLabel+"]"))
 	}
 	if m.isStreaming {
 		segments = append(segments, "streaming...")

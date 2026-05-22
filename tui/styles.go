@@ -25,6 +25,7 @@ var Styles = struct {
 	HelpText         lipgloss.Style
 	ModeIndicator    lipgloss.Style
 	AccentTimer      lipgloss.Style // Timer display style
+	ToolLifecycle    lipgloss.Style // Tool lifecycle state indicator (pi-inspired)
 }{
 	Header: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FAFAFA")).
@@ -102,6 +103,10 @@ var Styles = struct {
 
 	AccentTimer: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#6FD3A3")), // Green timer
+
+	ToolLifecycle: lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#A6ACCD")).
+		Italic(true), // Tool lifecycle state indicator
 }
 
 const (

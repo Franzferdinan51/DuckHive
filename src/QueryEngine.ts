@@ -33,7 +33,10 @@ import type { CanUseToolFn } from './hooks/useCanUseTool.js'
 import { loadMemoryPrompt } from './memdir/memdir.js'
 import { hasAutoMemPathOverride } from './memdir/paths.js'
 import { query } from './query.js'
-import { categorizeRetryableAPIError } from './services/api/errors.js'
+import {
+  categorizeRetryableAPIError,
+} from './services/api/errors.js'
+import { FallbackChain, type FallbackConfig } from './orchestrator/fallback/fallback-chain.js'
 import type { MCPServerConnection } from './services/mcp/types.js'
 import type { AppState } from './state/AppState.js'
 import { type Tools, type ToolUseContext, toolMatchesName } from './Tool.js'
@@ -169,6 +172,16 @@ export type QueryEngineConfig = {
     yieldedSystemMsg: Message,
     store: Message[],
   ) => { messages: Message[]; executed: boolean } | undefined
+  /**
+   * Provider failover chain config (pi-inspired). When set, automatic
+   * cross-provider failover is enabled via FallbackChain.
+   */
+  providerFallbackChain?: FallbackConfig & { providers: string[] }
+  /**
+   * Per-turn token budget (0 = no limit). When set, a warning is emitted
+   * at 80% usage and the agent may trigger early compaction.
+   */
+  turnTokenBudget?: number
 }
 
 /**
@@ -196,6 +209,18 @@ export class QueryEngine {
   private discoveredSkillNames = new Set<string>()
   private loadedNestedMemoryPaths = new Set<string>()
 
+  // ─── pi-inspired: Context Window Budget Tracking ──────────────────
+  /** Token usage for the current turn (resets per submitMessage). */
+  private turnTokenUsage = 0
+  /** Cumulative token usage across all turns. */
+  private cumulativeTokenUsage = 0
+  /** Maximum token budget per turn (0 = no limit). */
+  private turnTokenBudget = 0
+  /** Whether a token budget warning was already emitted this turn. */
+  private tokenBudgetWarningEmitted = false
+  /** Provider failover chain for cross-provider retry. */
+  private fallbackChain: FallbackChain | null = null
+
   constructor(config: QueryEngineConfig) {
     this.config = config
     this.mutableMessages = config.initialMessages ?? []
@@ -203,6 +228,19 @@ export class QueryEngine {
     this.permissionDenials = []
     this.readFileState = config.readFileCache
     this.totalUsage = EMPTY_USAGE
+
+    // ─── pi-inspired: init provider failover chain ──────────────────
+    if (config.providerFallbackChain?.providers?.length) {
+      this.fallbackChain = new FallbackChain({
+        maxRetries: config.providerFallbackChain.maxRetries ?? 2,
+        baseDelayMs: config.providerFallbackChain.baseDelayMs ?? 500,
+        maxDelayMs: config.providerFallbackChain.maxDelayMs ?? 8000,
+        timeoutMs: config.providerFallbackChain.timeoutMs ?? 30000,
+      })
+    }
+    if (config.turnTokenBudget) {
+      this.turnTokenBudget = config.turnTokenBudget
+    }
   }
 
   async *submitMessage(
@@ -238,6 +276,10 @@ export class QueryEngine {
     setCwd(cwd)
     const persistSession = !isSessionPersistenceDisabled()
     const startTime = Date.now()
+
+    // ─── pi-inspired: reset per-turn token tracking ──────────────────
+    this.turnTokenUsage = 0
+    this.tokenBudgetWarningEmitted = false
 
     // Wrap canUseTool to track permission denials
     const wrappedCanUseTool: CanUseToolFn = async (
@@ -806,12 +848,34 @@ export class QueryEngine {
               currentMessageUsage,
               message.event.message.usage,
             )
+            // ─── pi-inspired: track per-turn token budget ───────────
+            if (message.event.message.usage) {
+              const inputTokens = message.event.message.usage.input_tokens ?? 0
+              this.turnTokenUsage += inputTokens
+              this.cumulativeTokenUsage += inputTokens
+            }
           }
           if (message.event.type === 'message_delta') {
             currentMessageUsage = updateUsage(
               currentMessageUsage,
               message.event.usage,
             )
+            // ─── pi-inspired: track output token budget ────────────
+            if (message.event.usage?.output_tokens) {
+              this.turnTokenUsage += message.event.usage.output_tokens
+              this.cumulativeTokenUsage += message.event.usage.output_tokens
+              // Emit budget warning when approaching limit (80% threshold)
+              if (
+                this.turnTokenBudget > 0 &&
+                !this.tokenBudgetWarningEmitted &&
+                this.turnTokenUsage >= this.turnTokenBudget * 0.8
+              ) {
+                this.tokenBudgetWarningEmitted = true
+                logForDebugging(
+                  `Token budget: ${this.turnTokenUsage}/${this.turnTokenBudget} tokens used this turn (${Math.round(this.turnTokenUsage / this.turnTokenBudget * 100)}%)`,
+                )
+              }
+            }
             // Capture stop_reason from message_delta. The assistant message
             // is yielded at content_block_stop with stop_reason=null; the
             // real value only arrives here (see claude.ts message_delta
@@ -1284,6 +1348,30 @@ export class QueryEngine {
 
   getSessionId(): string {
     return getSessionId()
+  }
+
+  // ─── pi-inspired: Token budget accessors ──────────────────────────
+
+  /** Get current turn's token usage. */
+  getTurnTokenUsage(): number {
+    return this.turnTokenUsage
+  }
+
+  /** Get cumulative token usage across all turns. */
+  getCumulativeTokenUsage(): number {
+    return this.cumulativeTokenUsage
+  }
+
+  /** Set the per-turn token budget. */
+  setTurnTokenBudget(budget: number): void {
+    this.turnTokenBudget = budget
+  }
+
+  // ─── pi-inspired: Provider failover accessor ────────────────────
+
+  /** Get the provider fallback chain (null if not configured). */
+  getFallbackChain(): FallbackChain | null {
+    return this.fallbackChain
   }
 
   setModel(model: string): void {
