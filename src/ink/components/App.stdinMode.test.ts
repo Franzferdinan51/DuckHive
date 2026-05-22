@@ -3,7 +3,6 @@ import { PassThrough } from 'node:stream'
 import React from 'react'
 import { createRoot } from '../root.js'
 import useInput from '../hooks/use-input.js'
-import { determineStdinMode } from './App.js'
 
 type TestStdin = PassThrough & {
   isTTY: boolean
@@ -49,70 +48,6 @@ async function waitForCondition(
   throw new Error(errorMessage)
 }
 
-describe('determineStdinMode', () => {
-  test('uses data events on Windows by default so PowerShell typing reaches the REPL', () => {
-    expect(determineStdinMode({ env: {}, platform: 'win32' })).toBe('data')
-  })
-
-  test('keeps readable events on Windows with explicit opt-in', () => {
-    expect(
-      determineStdinMode({
-        env: { DUCKHIVE_USE_READABLE_STDIN: '1' },
-        platform: 'win32',
-      }),
-    ).toBe('readable')
-  })
-
-  test('honors explicit DuckHive stdin mode override', () => {
-    expect(
-      determineStdinMode({
-        env: { DUCKHIVE_STDIN_MODE: 'data' },
-        platform: 'win32',
-      }),
-    ).toBe('data')
-    expect(
-      determineStdinMode({
-        env: {
-          DUCKHIVE_STDIN_MODE: 'readable',
-          DUCKHIVE_USE_DATA_STDIN: '1',
-        },
-        platform: 'win32',
-      }),
-    ).toBe('readable')
-  })
-
-  test('keeps readable events on non-Windows by default', () => {
-    expect(determineStdinMode({ env: {}, platform: 'linux' })).toBe('readable')
-  })
-
-  test('honors explicit data-mode opt-in on non-Windows', () => {
-    expect(
-      determineStdinMode({
-        env: { DUCKHIVE_USE_DATA_STDIN: '1' },
-        platform: 'linux',
-      }),
-    ).toBe('data')
-  })
-
-  test('honors explicit readable-mode opt-out on non-Windows', () => {
-    expect(
-      determineStdinMode({
-        env: { DUCKHIVE_USE_READABLE_STDIN: '0' },
-        platform: 'linux',
-      }),
-    ).toBe('data')
-  })
-
-  test('preserves OpenClaude stdin env compatibility', () => {
-    expect(
-      determineStdinMode({
-        env: { OPENCLAUDE_USE_DATA_STDIN: '1' },
-        platform: 'linux',
-      }),
-    ).toBe('data')
-  })
-})
-
 describe('Ink stdin delivery', () => {
   test('default stdin delivers typed characters to useInput listeners', async () => {
     const received: string[] = []
@@ -149,8 +84,8 @@ describe('Ink stdin delivery', () => {
   })
 
   test('forced data stdin mode delivers typed characters to useInput listeners', async () => {
-    const previous = process.env.DUCKHIVE_USE_DATA_STDIN
-    process.env.DUCKHIVE_USE_DATA_STDIN = '1'
+    const previous = process.env.OPENCLAUDE_USE_DATA_STDIN
+    process.env.OPENCLAUDE_USE_DATA_STDIN = '1'
 
     const received: string[] = []
     const { stdout, stdin } = createTestStreams()
@@ -179,9 +114,9 @@ describe('Ink stdin delivery', () => {
       expect(received.join('')).toBe('xyz')
     } finally {
       if (previous === undefined) {
-        delete process.env.DUCKHIVE_USE_DATA_STDIN
+        delete process.env.OPENCLAUDE_USE_DATA_STDIN
       } else {
-        process.env.DUCKHIVE_USE_DATA_STDIN = previous
+        process.env.OPENCLAUDE_USE_DATA_STDIN = previous
       }
       root.unmount()
       stdin.end()

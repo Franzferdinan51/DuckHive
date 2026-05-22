@@ -422,6 +422,32 @@ export function getLocalFastPathConfig(
   return enabled ? LOCAL_FAST_PATH_ON : LOCAL_FAST_PATH_OFF
 }
 
+/**
+ * Normalize Gitlawb Opengateway base URLs.
+ * Strips /v1/xiaomi-mimo and /v1/gmi-cloud path segments to /v1
+ * since the gateway routes by model name, not path.
+ */
+function normalizeGitlawbOpengatewayBaseUrl(baseUrl: string | undefined): string | undefined {
+  if (!baseUrl) return undefined
+  try {
+    const parsed = new URL(baseUrl)
+    const hostname = parsed.hostname.toLowerCase()
+    if (hostname !== 'opengateway.gitlawb.com' && hostname !== 'opengateway.fly.dev') {
+      return baseUrl
+    }
+    const path = parsed.pathname.replace(/\/+$/, '').toLowerCase()
+    if (path === '/v1/xiaomi-mimo' || path === '/v1/gmi-cloud') {
+      parsed.pathname = '/v1'
+      parsed.search = ''
+      parsed.hash = ''
+      return parsed.toString().replace(/\/+$/, '')
+    }
+  } catch {
+    return baseUrl
+  }
+  return baseUrl
+}
+
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')
 }
@@ -666,10 +692,11 @@ export function resolveProviderRequest(options?: {
   const isCodexAliasModel =
     isOpenAICodexShortcutAlias(requestedModel) || requestedMatchesEnvCodexShortcut
   const hasUserSetBaseUrl = rawBaseUrl && rawBaseUrl !== DEFAULT_OPENAI_BASE_URL
-  const finalBaseUrl =
+  const finalBaseUrlRaw =
     !isGithubMode && isCodexAliasModel && !hasUserSetBaseUrl
       ? DEFAULT_CODEX_BASE_URL
       : rawBaseUrl
+  const finalBaseUrl = normalizeGitlawbOpengatewayBaseUrl(finalBaseUrlRaw)
 
   const githubEndpointType = isGithubMode
     ? getGithubEndpointType(rawBaseUrl)

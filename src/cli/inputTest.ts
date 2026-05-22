@@ -1,5 +1,4 @@
 import type { ReadStream } from 'tty'
-import { determineStdinMode } from '../ink/components/App.js'
 import { createStdinOverride } from '../utils/renderOptions.js'
 
 const HELP = `DuckHive input-test
@@ -35,7 +34,7 @@ export async function inputTestHandler(args: readonly string[]): Promise<void> {
 
   const stdin = createStdinOverride() ?? process.stdin
   const stdout = process.stdout
-  const mode = determineStdinMode()
+  const mode: 'readable' | 'data' = process.env.OPENCLAUDE_USE_DATA_STDIN === '1' || process.env.OPENCLAUDE_USE_READABLE_STDIN === '0' ? 'data' : 'readable'
 
   if (!stdin.isTTY || !stdout.isTTY) {
     process.stderr.write(

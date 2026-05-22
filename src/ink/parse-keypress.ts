@@ -185,6 +185,8 @@ export type KeyParseState = {
   pasteBuffer: string
   // Internal tokenizer instance
   _tokenizer?: Tokenizer
+  // Buffer for incomplete UTF-8 multi-byte sequences split across reads
+  utf8Incomplete?: Buffer
 }
 
 export const INITIAL_STATE: KeyParseState = {
@@ -193,21 +195,81 @@ export const INITIAL_STATE: KeyParseState = {
   pasteBuffer: '',
 }
 
-function inputToString(input: Buffer | string): string {
-  if (Buffer.isBuffer(input)) {
-    if (input[0]! > 127 && input[1] === undefined) {
-      ;(input[0] as unknown as number) -= 128
-      return '\x1b' + String(input)
-    } else {
-      return String(input)
+/** Return the expected UTF-8 sequence length from the leading byte, or 1 for ASCII. */
+function utf8SequenceLength(byte: number): number {
+  if (byte < 0x80) return 1
+  if ((byte & 0xe0) === 0xc0) return 2
+  if ((byte & 0xf0) === 0xe0) return 3
+  if ((byte & 0xf8) === 0xf0) return 4
+  return 1
+}
+
+/**
+ * Split a Buffer into complete UTF-8 sequences and any trailing incomplete bytes.
+ * Returns { complete: Buffer, incomplete?: Buffer } where `complete` contains
+ * only whole code-point boundaries and `incomplete` holds trailing bytes that
+ * need to be prepended to the next read.
+ */
+function splitCompleteUtf8(buf: Buffer): { complete: Buffer; incomplete?: Buffer } {
+  let pos = 0
+  while (pos < buf.length) {
+    const seqLen = utf8SequenceLength(buf[pos]!)
+    if (pos + seqLen > buf.length) {
+      return {
+        complete: buf.subarray(0, pos),
+        incomplete: buf.subarray(pos),
+      }
     }
-  } else if (input !== undefined && typeof input !== 'string') {
-    return String(input)
-  } else if (!input) {
-    return ''
-  } else {
-    return input
+    pos += seqLen
   }
+  return { complete: buf }
+}
+
+function inputToString(
+  input: Buffer | string,
+  pendingUtf8?: Buffer,
+): { value: string; pendingUtf8?: Buffer } {
+  if (Buffer.isBuffer(input)) {
+    // Prepend any incomplete bytes from the previous read
+    const merged = pendingUtf8 && pendingUtf8.length > 0
+      ? Buffer.concat([pendingUtf8, input])
+      : input
+
+    const { complete, incomplete } = splitCompleteUtf8(merged)
+
+    if (complete.length === 0) {
+      return { value: '', pendingUtf8: incomplete }
+    }
+
+    // Handle the legacy 8-bit meta-key fallback for lone high-bit bytes
+    if (complete[0]! > 127 && complete[1] === undefined && !incomplete) {
+      ;(complete[0] as unknown as number) -= 128
+      return { value: '\x1b' + String(complete), pendingUtf8: incomplete }
+    }
+
+    return { value: String(complete), pendingUtf8: incomplete }
+  } else if (input !== undefined && typeof input !== 'string') {
+    return { value: String(input) }
+  } else if (!input) {
+    return { value: '' }
+  } else {
+    return { value: input }
+  }
+}
+
+/**
+ * Flush any remaining incomplete UTF-8 bytes at stream end.
+ * Preserves the legacy behavior of treating a lone high-bit byte (128+)
+ * as an 8-bit meta-key escape (Esc + the character).
+ */
+function flushPendingUtf8(pending: Buffer | undefined): string {
+  if (!pending || pending.length === 0) return ''
+  if (pending.length === 1 && pending[0]! > 127) {
+    ;(pending[0] as unknown as number) -= 128
+    return '\x1b' + String(pending)
+  }
+  // Force-convert remaining bytes — they're incomplete and unrecoverable
+  return String(pending)
 }
 
 export function parseMultipleKeypresses(
@@ -215,7 +277,17 @@ export function parseMultipleKeypresses(
   input: Buffer | string | null = '',
 ): [ParsedInput[], KeyParseState] {
   const isFlush = input === null
-  const inputString = isFlush ? '' : inputToString(input)
+  let inputString: string
+  let pendingUtf8: Buffer | undefined
+
+  if (isFlush) {
+    inputString = flushPendingUtf8(prevState.utf8Incomplete)
+    pendingUtf8 = undefined
+  } else {
+    const converted = inputToString(input, prevState.utf8Incomplete)
+    inputString = converted.value
+    pendingUtf8 = converted.pendingUtf8
+  }
 
   // Get or create tokenizer
   const tokenizer = prevState._tokenizer ?? createTokenizer({ x10Mouse: true })
@@ -296,6 +368,7 @@ export function parseMultipleKeypresses(
     incomplete: tokenizer.buffer(),
     pasteBuffer,
     _tokenizer: tokenizer,
+    utf8Incomplete: pendingUtf8,
   }
 
   return [keys, newState]

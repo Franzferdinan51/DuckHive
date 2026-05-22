@@ -26,10 +26,14 @@
  */
 import { createSignal } from './signal.js'
 
+/** Maximum time a query can stay in 'running' state before force-ending. */
+const QUERY_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+
 export class QueryGuard {
   private _status: 'idle' | 'dispatching' | 'running' = 'idle'
   private _generation = 0
   private _changed = createSignal()
+  private _timeoutId: ReturnType<typeof setTimeout> | null = null
 
   /**
    * Reserve the guard for queue processing. Transitions idle → dispatching.
@@ -62,6 +66,7 @@ export class QueryGuard {
     if (this._status === 'running') return null
     this._status = 'running'
     ++this._generation
+    this._startTimeout()
     this._notify()
     return this._generation
   }
@@ -75,6 +80,7 @@ export class QueryGuard {
     if (this._generation !== generation) return false
     if (this._status !== 'running') return false
     this._status = 'idle'
+    this._clearTimeout()
     this._notify()
     return true
   }
@@ -89,6 +95,7 @@ export class QueryGuard {
     if (this._status === 'idle') return
     this._status = 'idle'
     ++this._generation
+    this._clearTimeout()
     this._notify()
   }
 
@@ -113,6 +120,22 @@ export class QueryGuard {
   /** Snapshot for useSyncExternalStore. Returns `isActive`. */
   getSnapshot = (): boolean => {
     return this._status !== 'idle'
+  }
+
+  private _startTimeout(): void {
+    this._clearTimeout()
+    this._timeoutId = setTimeout(() => {
+      if (this._status === 'running') {
+        this.forceEnd()
+      }
+    }, QUERY_TIMEOUT_MS)
+  }
+
+  private _clearTimeout(): void {
+    if (this._timeoutId !== null) {
+      clearTimeout(this._timeoutId)
+      this._timeoutId = null
+    }
   }
 
   private _notify(): void {

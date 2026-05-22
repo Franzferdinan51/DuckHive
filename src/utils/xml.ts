@@ -3,7 +3,8 @@
  * text content (between tags). Use when untrusted strings (process stdout,
  * user input, external data) go inside `<tag>${here}</tag>`.
  */
-export function escapeXml(s: string): string {
+export function escapeXml(s: string | null | undefined): string {
+  if (s == null) return ''
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
@@ -11,6 +12,6 @@ export function escapeXml(s: string): string {
  * Escape for interpolation into a double- or single-quoted attribute value:
  * `<tag attr="${here}">`. Escapes quotes in addition to `& < >`.
  */
-export function escapeXmlAttr(s: string): string {
+export function escapeXmlAttr(s: string | null | undefined): string {
   return escapeXml(s).replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }

@@ -235,8 +235,7 @@ export const PROVIDER_PRESET_MANIFEST = [
     "vendorId": "minimax",
     "description": "MiniMax API endpoint",
     "apiKeyEnvVars": [
-      "MINIMAX_API_KEY",
-      "MMX_API_KEY"
+      "MINIMAX_API_KEY"
     ]
   },
   {
@@ -259,8 +258,7 @@ export const PROVIDER_PRESET_MANIFEST = [
     "label": "Moonshot AI - API",
     "name": "Moonshot AI - API",
     "apiKeyEnvVars": [
-      "MOONSHOT_API_KEY",
-      "KIMI_API_KEY"
+      "MOONSHOT_API_KEY"
     ]
   },
   {
