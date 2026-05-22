@@ -4,6 +4,7 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/gr
 import { isEnvTruthy } from '../../utils/envUtils.js'
 import { CLAUDE_CODE_GUIDE_AGENT } from './built-in/claudeCodeGuideAgent.js'
 import { CODE_REVIEWER_AGENT } from './built-in/codeReviewerAgent.js'
+import { EDITOR_AGENT } from './built-in/editorAgent.js'
 import { EXPLORE_AGENT } from './built-in/exploreAgent.js'
 import { FILE_PICKER_AGENT } from './built-in/filePickerAgent.js'
 import { GENERAL_PURPOSE_AGENT } from './built-in/generalPurposeAgent.js'
@@ -46,6 +47,7 @@ export function getBuiltInAgents(): AgentDefinition[] {
 
   const agents: AgentDefinition[] = [
     GENERAL_PURPOSE_AGENT,
+    EDITOR_AGENT,
     STATUSLINE_SETUP_AGENT,
     FILE_PICKER_AGENT,
     CODE_REVIEWER_AGENT,

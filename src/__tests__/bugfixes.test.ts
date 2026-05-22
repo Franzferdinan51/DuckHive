@@ -135,15 +135,20 @@ describe('Agent loop continuation nudge', () => {
   test('verification agent guidance is available in the main prompt', async () => {
     const promptContent = await file('constants/prompts.ts').text()
     const builtInAgents = await file('tools/AgentTool/builtInAgents.ts').text()
+    const agentPromptContent = await file('tools/AgentTool/prompt.ts').text()
     const todoContent = await file('tools/TodoWriteTool/TodoWriteTool.ts').text()
     const taskUpdateContent = await file('tools/TaskUpdateTool/TaskUpdateTool.ts').text()
     const agentConstants = await file('tools/AgentTool/constants.ts').text()
 
     expect(promptContent).toContain('subagent_type="code-reviewer"')
+    expect(promptContent).toContain('subagent_type="editor"')
     expect(builtInAgents).toContain('agents.push(VERIFICATION_AGENT)')
+    expect(builtInAgents).toContain('EDITOR_AGENT')
     expect(builtInAgents).toContain('FILE_PICKER_AGENT')
     expect(builtInAgents).toContain('CODE_REVIEWER_AGENT')
+    expect(agentPromptContent).toContain('"editor": use this agent when the target files are known')
     expect(agentConstants).toContain("export const FILE_PICKER_AGENT_TYPE = 'file-picker'")
+    expect(agentConstants).toContain("export const EDITOR_AGENT_TYPE = 'editor'")
     expect(agentConstants).toContain('FILE_PICKER_AGENT_TYPE')
     expect(agentConstants).toContain('CODE_REVIEWER_AGENT_TYPE')
     expect(todoContent).toContain('CODE_REVIEWER_AGENT_TYPE')
@@ -157,6 +162,7 @@ describe('Agent loop continuation nudge', () => {
 
     expect(queryContent).toContain('ACTION REQUIRED: File-picker is a read-only targeting pass.')
     expect(queryContent).toContain('ACTION REQUIRED: Plan is a read-only planning pass.')
+    expect(queryContent).toContain('subagent_type="${EDITOR_AGENT_TYPE}"')
     expect(queryContent).toContain('REVIEW HANDOFF: The code-reviewer pass is complete.')
     expect(queryContent).toContain('VERIFICATION HANDOFF: You just received an independent verification report.')
     expect(queryContent).toContain('subagent_type="${FILE_PICKER_AGENT_TYPE}" exactly once')

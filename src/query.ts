@@ -93,6 +93,7 @@ import { SLEEP_TOOL_NAME } from './tools/SleepTool/prompt.js'
 import {
   AGENT_TOOL_NAME,
   CODE_REVIEWER_AGENT_TYPE,
+  EDITOR_AGENT_TYPE,
   FILE_PICKER_AGENT_TYPE,
   VERIFICATION_AGENT_TYPE,
 } from './tools/AgentTool/constants.js'
@@ -2226,11 +2227,11 @@ function buildReadOnlySubagentHandoffMessage(
   }
 
   if (subagentTypes.includes(FILE_PICKER_AGENT_TYPE)) {
-    return 'ACTION REQUIRED: File-picker is a read-only targeting pass. Your next step must be to edit or verify one of the files it named first. If its report is still ambiguous, ask one blocking question that cites the exact file or symbol still missing. Do not resume broad search.'
+    return `ACTION REQUIRED: File-picker is a read-only targeting pass. Your next step must be to edit or verify one of the files it named first. If implementation is non-trivial, spawn ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}" and tell it to change the first target file. If its report is still ambiguous, ask one blocking question that cites the exact file or symbol still missing. Do not resume broad search.`
   }
 
   if (subagentTypes.includes('Plan')) {
-    return 'ACTION REQUIRED: Plan is a read-only planning pass. Your next step must be to act on the plan: edit one of the named target files, run its targeted verification command, or ask one blocker question tied to a specific file, symbol, or line. Do not widen the search again.'
+    return `ACTION REQUIRED: Plan is a read-only planning pass. Your next step must be to act on the plan: edit one of the named target files, hand the implementation to ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}", run its targeted verification command, or ask one blocker question tied to a specific file, symbol, or line. Do not widen the search again.`
   }
 
   if (subagentTypes.includes('Explore')) {

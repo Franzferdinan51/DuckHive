@@ -2,6 +2,7 @@ export const AGENT_TOOL_NAME = 'Agent'
 // Legacy wire name for backward compat (permission rules, hooks, resumed sessions)
 export const LEGACY_AGENT_TOOL_NAME = 'Task'
 export const CODE_REVIEWER_AGENT_TYPE = 'code-reviewer'
+export const EDITOR_AGENT_TYPE = 'editor'
 export const FILE_PICKER_AGENT_TYPE = 'file-picker'
 export const VERIFICATION_AGENT_TYPE = 'verification'
 
