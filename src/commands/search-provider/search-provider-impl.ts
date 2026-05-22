@@ -120,6 +120,7 @@ function usage(error?: string): string {
     '  /search-provider [auto|minimax|native|ddg|searxng|firecrawl|tavily|exa|you|jina|brave|bing|mojeek|linkup|custom] [flags]',
     '',
     'Examples:',
+    '  /search-provider auto',
     '  /search-provider minimax',
     '  /search-provider tavily tvly-...',
     '  /search-provider searxng http://localhost:8080/search',
