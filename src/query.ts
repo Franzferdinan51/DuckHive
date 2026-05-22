@@ -274,6 +274,35 @@ function preserveExecutionState(state: State) {
   }
 }
 
+function buildToolErrorResultMessages(
+  assistantMessages: AssistantMessage[],
+  errorMessage: string,
+): UserMessage[] {
+  const messages: UserMessage[] = []
+  for (const assistantMessage of assistantMessages) {
+    const toolUseBlocks = assistantMessage.message.content.filter(
+      content => content.type === 'tool_use',
+    ) as ToolUseBlock[]
+    for (const toolUse of toolUseBlocks) {
+      messages.push(
+        createUserMessage({
+          content: [
+            {
+              type: 'tool_result',
+              content: errorMessage,
+              is_error: true,
+              tool_use_id: toolUse.id,
+            },
+          ],
+          toolUseResult: errorMessage,
+          sourceToolAssistantUUID: assistantMessage.uuid,
+        }),
+      )
+    }
+  }
+  return messages
+}
+
 export async function* query(
   params: QueryParams,
 ): AsyncGenerator<
@@ -1701,6 +1730,60 @@ async function* queryLoop(
 
     queryCheckpoint('query_tool_execution_start')
 
+    if (
+      state.explorationCount >= HARD_EXPLORATION_LIMIT &&
+      isSearchOrReadOnlyToolBatch(toolUseBlocks, toolUseContext)
+    ) {
+      const blockedSearchMessage =
+        'Search/read budget exhausted. This tool batch was blocked because you have already spent too many consecutive turns exploring without acting. Your next step must be an edit, a targeted verification command, or one concrete blocker question.'
+      const blockedToolResults = buildToolErrorResultMessages(
+        assistantMessages,
+        blockedSearchMessage,
+      )
+      for (const blockedToolResult of blockedToolResults) {
+        yield blockedToolResult
+      }
+      const actionHint = buildAutoRouteActionHint(
+        assistantMessages
+          .flatMap(message =>
+            message.message.content
+              .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+              .map(b => b.text),
+          )
+          .join(' ')
+          .toLowerCase(),
+        toolUseContext,
+      )
+      const blockedExplorationNudge = createUserMessage({
+        content:
+          'ACTION REQUIRED: Repeated exploration-only tool calls are now blocked for this task. ' +
+          'Do not issue another pure search/read batch here.' +
+          (actionHint ? ` ${actionHint}` : ''),
+        isMeta: true,
+      })
+      const next: State = {
+        messages: [
+          ...messagesForQuery,
+          ...assistantMessages,
+          ...blockedToolResults,
+          blockedExplorationNudge,
+        ],
+        toolUseContext,
+        autoCompactTracking: tracking,
+        ...preserveExecutionState(state),
+        maxOutputTokensRecoveryCount,
+        hasAttemptedReactiveCompact: false,
+        maxOutputTokensOverride: undefined,
+        pendingToolUseSummary: undefined,
+        stopHookActive: true,
+        turnCount,
+        continuationNudgeCount: state.continuationNudgeCount + 1,
+        transition: { reason: 'blocked_exploration_tool_batch' },
+      }
+      state = next
+      continue
+    }
+
 
     if (streamingToolExecutor) {
       logEvent('tengu_streaming_tool_execution_used', {
@@ -2348,6 +2431,20 @@ function buildAutoRouteActionHint(
     return `Use ${AGENT_TOOL_NAME} with subagent_type="${VERIFICATION_AGENT_TYPE}" to run independent verification now.`
   }
   return null
+}
+
+function isSearchOrReadOnlyToolBatch(
+  toolUseBlocks: ToolUseBlock[],
+  toolUseContext: ToolUseContext,
+): boolean {
+  return (
+    toolUseBlocks.length > 0 &&
+    toolUseBlocks.every(toolBlock => {
+      const tool = findToolByName(toolUseContext.options.tools, toolBlock.name)
+      const searchOrRead = tool?.isSearchOrReadCommand?.(toolBlock.input as any)
+      return searchOrRead?.isRead || searchOrRead?.isSearch
+    })
+  )
 }
 
 function getReadOnlySubagentTypesFromBatch(toolUseBlocks: ToolUseBlock[]): string[] {
