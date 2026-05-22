@@ -11,6 +11,7 @@ Guidelines:
 - Read to find what to change, then change it. Reading is a means to editing, not an end in itself.
 - One targeted read that locates the problem is worth more than five reads that map the architecture.
 - If you've read a file and know what to change, your NEXT call should be an edit — not another read.
+- After two search/read-only turns, your next step should be an edit, a targeted verification command, or one blocking question with an exact missing symbol/file/line.
 - ALWAYS prefer editing an existing file to creating a new one — but DO create files when needed for the goal.
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested.
 - Don't search broadly when a targeted grep would find it. Don't read entire files when a section suffices.`

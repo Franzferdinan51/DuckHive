@@ -47,7 +47,6 @@ import {
 import { isEnvTruthy } from '../utils/envUtils.js'
 import { isReplModeEnabled } from '../tools/REPLTool/constants.js'
 import { feature } from 'bun:bundle'
-import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js'
 import { shouldUseGlobalCacheScope } from '../utils/betas.js'
 import { isForkSubagentEnabled } from '../tools/AgentTool/forkSubagent.js'
 import {
@@ -198,6 +197,7 @@ function getSimpleDoingTasksSection(): string {
     `MAINTAIN MOMENTUM: While thorough research is important, aim for a healthy balance between exploration and action. If you have been researching for multiple turns without a write/edit, consider if you have enough information to take the first safe step (like creating a test or a small part of the logic). Action is often the best way to validate your findings.`,
     `ACTION BIAS: When you know what to change, proceed with the implementation. You're a capable partner; the user values your initiative in moving the task forward. Perfect 100% certainty isn't always required before taking the first step.`,
     `THE READ-EDIT CYCLE: Read to find what to change, not to understand every detail of the architecture. One targeted read that locates the target logic is often sufficient to begin. After two consecutive search/read turns on the same task, either make the smallest safe edit or ask one concrete blocking question. Reading is a means to making progress, not an end in itself.`,
+    `SEARCH BUDGETS: If you have already used multiple search/read turns and the likely edit surface is known, stop searching. Your next step must be an edit, a targeted verification command, or one blocking question that names the exact missing file, symbol, or line.`,
     `Aim for a balanced cycle: targeted research followed by decisive implementation. If you've read several files and the path is becoming clear, start making the changes rather than continuing to browse.`,
     `If you see exactly what to change (e.g. wrong value, missing case, typo in output), change it now — the best way to verify an assumption is often to make the change and run the tests.`,
     `REPORTING & TRANSPARENCY (MANDATORY): You MUST clearly report your progress and intent.
@@ -359,9 +359,7 @@ function getSessionSpecificGuidanceSection(
       ? getDiscoverSkillsGuidance()
       : null,
     hasAgentTool &&
-    feature('VERIFICATION_AGENT') &&
-    // 3P default: false — verification agent is internal-only A/B
-    getFeatureValue_CACHED_MAY_BE_STALE('tengu_hive_evidence', false)
+    feature('VERIFICATION_AGENT')
       ? `The contract: when non-trivial implementation happens on your turn, independent adversarial verification must happen before you report completion \u2014 regardless of who did the implementing (you directly, a fork you spawned, or a subagent). You are the one reporting to the user; you own the gate. Non-trivial means: 3+ file edits, backend/API changes, or infrastructure changes. Spawn the ${AGENT_TOOL_NAME} tool with subagent_type="${VERIFICATION_AGENT_TYPE}". Your own checks, caveats, and a fork's self-checks do NOT substitute \u2014 only the verifier assigns a verdict; you cannot self-assign PARTIAL. Pass the original user request, all files changed (by anyone), the approach, and the plan file path if applicable. Flag concerns if you have them but do NOT share test results or claim things work. On FAIL: fix, resume the verifier with its findings plus your fix, repeat until PASS. On PASS: spot-check it \u2014 re-run 2-3 commands from its report, confirm every PASS has a Command run block with output that matches your re-run. If any PASS lacks a command block or diverges, resume the verifier with the specifics. On PARTIAL (from the verifier): report what passed and what could not be verified.`
       : null,
   ].filter(item => item !== null)

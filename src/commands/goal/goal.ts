@@ -326,8 +326,16 @@ async function planGoal(goal: Goal): Promise<void> {
     `> ${goal.description}`,
     ``,
     `## Steps`,
-    ...goal.steps.map(
-      (s, i) => `${i + 1}. [${s.status === 'completed' ? 'x' : ' '}] ${s.description}`,
+    ...plan.steps.map((s, i) =>
+      [
+        `${i + 1}. [${goal.steps[i]?.status === 'completed' ? 'x' : ' '}] ${s.description}`,
+        s.targetFiles && s.targetFiles.length > 0
+          ? `   Files: ${s.targetFiles.join(', ')}`
+          : null,
+        s.changeIntent ? `   Change: ${s.changeIntent}` : null,
+        s.verificationCommand ? `   Verify: ${s.verificationCommand}` : null,
+        s.exitCriteria ? `   Done when: ${s.exitCriteria}` : null,
+      ].filter(Boolean).join('\n'),
     ),
     ``,
     `*Generated via DuckHive Autonomous Planning*`,

@@ -23,6 +23,11 @@ export interface PlanStep {
   estimatedComplexity: number  // 1-10 per step
   activeForm?: string   // present-continuous for spinners
   notes?: string
+  targetFiles?: string[]
+  changeIntent?: string
+  verificationCommand?: string
+  searchJustification?: string
+  exitCriteria?: string
 }
 
 export interface Plan {
@@ -151,6 +156,15 @@ export class SimplePlanner {
         dependsOn,
         estimatedComplexity: this.estimateStepComplexity(baseDescription),
         activeForm: pattern.activeForms[0],
+        changeIntent: this.buildChangeIntent(baseDescription, pattern.taskType),
+        verificationCommand: this.buildVerificationCommand(
+          baseDescription,
+          pattern.taskType,
+        ),
+        searchJustification: pattern.taskType === 'local_agent'
+          ? 'Only search until the likely edit surface or implementation pattern is identified.'
+          : undefined,
+        exitCriteria: this.buildExitCriteria(baseDescription, pattern.taskType),
         ...override,
       })
     }
@@ -211,6 +225,13 @@ export class SimplePlanner {
         dependsOn: [],
         estimatedComplexity: 5,
         activeForm: 'Processing',
+        changeIntent:
+          'Identify the primary implementation surface and make the smallest safe change.',
+        verificationCommand: 'bun test <targeted-file-or-suite>',
+        searchJustification:
+          'Search only until the target file, adjacent tests, or the command surface is known.',
+        exitCriteria:
+          'The intended code path has been changed and at least one targeted verification command has run.',
       })
     }
 
@@ -245,6 +266,47 @@ export class SimplePlanner {
     if (/document|docs/i.test(lower)) return 3
     if (/migrate|convert/i.test(lower)) return 7
     return 5
+  }
+
+  private buildChangeIntent(
+    description: string,
+    taskType: PlanStepType,
+  ): string {
+    if (taskType === 'local_bash') {
+      return 'Run the narrowest command needed to verify or bootstrap the targeted change.'
+    }
+    if (/test|verify|check/i.test(description)) {
+      return 'Confirm the targeted behavior with the smallest relevant validation step.'
+    }
+    if (/research|investigate|explore/i.test(description)) {
+      return 'Locate the implementation surface and stop once the next edit target is clear.'
+    }
+    return 'Change the primary implementation surface directly and avoid broad exploratory detours.'
+  }
+
+  private buildVerificationCommand(
+    description: string,
+    taskType: PlanStepType,
+  ): string {
+    if (/typecheck/i.test(description)) return 'bun run typecheck'
+    if (/build|compile/i.test(description)) return 'bun run build'
+    if (/test|verify|check/i.test(description) || taskType === 'local_bash') {
+      return 'bun test'
+    }
+    return 'bun test <targeted-file-or-suite>'
+  }
+
+  private buildExitCriteria(
+    description: string,
+    taskType: PlanStepType,
+  ): string {
+    if (taskType === 'local_bash') {
+      return 'The command completed and its output confirms the targeted milestone.'
+    }
+    if (/research|investigate|explore/i.test(description)) {
+      return 'A concrete next file or code path to edit has been identified.'
+    }
+    return 'The change is implemented and a targeted verification step has passed or produced a concrete failure to address.'
   }
 }
 
@@ -303,6 +365,8 @@ Rules:
 - Use these task types: local_bash, local_agent, remote_agent, in_process_teammate, local_workflow, monitor_mcp, dream
 - Estimate complexity 1-10 for each step (harder tasks = higher).
 - Identify which steps depend on other steps completing first.
+- Prefer implementation-ready steps over generic research.
+- Every non-trivial step should include the most likely target files, the intended change, a verification command, and a concrete exit criterion.
 
 Output format — return ONLY valid JSON (no markdown, no explanation):
 {
@@ -312,7 +376,12 @@ Output format — return ONLY valid JSON (no markdown, no explanation):
       "taskType": "local_agent",
       "estimatedComplexity": 6,
       "dependsOn": [],
-      "activeForm": "Verb-ing form for spinner"
+      "activeForm": "Verb-ing form for spinner",
+      "targetFiles": ["src/example.ts"],
+      "changeIntent": "What to change and why",
+      "verificationCommand": "bun test src/example.test.ts",
+      "searchJustification": "Why any additional search is still necessary before editing",
+      "exitCriteria": "What must be true before this step is done"
     }
   ],
   "summary": "One sentence summary of the entire plan"
@@ -368,6 +437,15 @@ Return valid JSON only:`
           dependsOn: remappedDeps,
           estimatedComplexity: normalizeComplexity(Number(step.estimatedComplexity ?? 5)),
           activeForm: String(step.activeForm ?? step.description ?? ''),
+          targetFiles: normalizeStringArray(step.targetFiles),
+          changeIntent: normalizeOptionalString(step.changeIntent),
+          verificationCommand: normalizeOptionalString(
+            step.verificationCommand,
+          ),
+          searchJustification: normalizeOptionalString(
+            step.searchJustification,
+          ),
+          exitCriteria: normalizeOptionalString(step.exitCriteria),
         })
       }
 
@@ -498,6 +576,20 @@ function normalizeComplexity(n: number): number {
   if (isNaN(n) || n < 1) return 5
   if (n > 10) return 10
   return Math.round(n)
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const normalized = value
+    .map(item => String(item).trim())
+    .filter(item => item.length > 0)
+  return normalized.length > 0 ? normalized : undefined
 }
 
 /**

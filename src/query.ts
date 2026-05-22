@@ -167,6 +167,7 @@ function* yieldMissingToolResultBlocks(
  */
 const MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3
 const MAX_CONTINUATION_NUDGES = 3
+const HARD_EXPLORATION_LIMIT = 3
 
 /**
  * Is this a max_output_tokens error message? If so, the streaming loop should
@@ -220,6 +221,14 @@ type State = {
   turnCount: number
   // Count of consecutive exploration-only tool calls.
   explorationCount: number
+  // Signature of the most recent exploration-only tool batch.
+  lastExplorationSignature: string | undefined
+  // Count of repeated exploration-only batches using the same signature.
+  repeatedExplorationSignatureCount: number
+  // Whether a state-changing tool has been used in this turn.
+  hasTakenAction: boolean
+  // Rough execution phase for routing and analytics.
+  executionPhase: 'explore' | 'plan' | 'implement' | 'verify'
   // Count of consecutive continuation nudges within the current turn.
   // Capped at MAX_CONTINUATION_NUDGES to prevent infinite nudge loops
   // when the model keeps matching continuation signals without tool calls.
@@ -227,6 +236,17 @@ type State = {
   // Why the previous iteration continued. Undefined on first iteration.
   // Lets tests assert recovery paths fired without inspecting message contents.
   transition: Continue | undefined
+}
+
+function preserveExecutionState(state: State) {
+  return {
+    explorationCount: state.explorationCount,
+    lastExplorationSignature: state.lastExplorationSignature,
+    repeatedExplorationSignatureCount: state.repeatedExplorationSignatureCount,
+    hasTakenAction: state.hasTakenAction,
+    executionPhase: state.executionPhase,
+    continuationNudgeCount: state.continuationNudgeCount,
+  }
 }
 
 export async function* query(
@@ -297,6 +317,10 @@ async function* queryLoop(
     hasAttemptedReactiveCompact: false,
     turnCount: 1,
     explorationCount: 0,
+    lastExplorationSignature: undefined,
+    repeatedExplorationSignatureCount: 0,
+    hasTakenAction: false,
+    executionPhase: 'explore',
     continuationNudgeCount: 0,
     pendingToolUseSummary: undefined,
     transition: undefined,
@@ -343,6 +367,7 @@ async function* queryLoop(
       pendingToolUseSummary,
       stopHookActive,
       turnCount,
+      executionPhase,
     } = state
 
     // Skill discovery prefetch — per-iteration (uses findWritePivot guard
@@ -1179,14 +1204,13 @@ async function* queryLoop(
               messages: drained.messages,
               toolUseContext,
               autoCompactTracking: tracking,
-              explorationCount: state.explorationCount,
+              ...preserveExecutionState(state),
               maxOutputTokensRecoveryCount,
               hasAttemptedReactiveCompact,
               maxOutputTokensOverride: undefined,
               pendingToolUseSummary: undefined,
               stopHookActive: undefined,
               turnCount,
-              continuationNudgeCount: state.continuationNudgeCount,
               transition: {
                 reason: 'collapse_drain_retry',
                 committed: drained.committed,
@@ -1234,14 +1258,13 @@ async function* queryLoop(
             messages: postCompactMessages,
             toolUseContext,
             autoCompactTracking: undefined,
-            explorationCount: state.explorationCount,
+            ...preserveExecutionState(state),
             maxOutputTokensRecoveryCount,
             hasAttemptedReactiveCompact: true,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
             stopHookActive: undefined,
             turnCount,
-            continuationNudgeCount: state.continuationNudgeCount,
             transition: { reason: 'reactive_compact_retry' },
           }
           state = next
@@ -1291,14 +1314,13 @@ async function* queryLoop(
             messages: messagesForQuery,
             toolUseContext,
             autoCompactTracking: tracking,
-            explorationCount: state.explorationCount,
+            ...preserveExecutionState(state),
             maxOutputTokensRecoveryCount,
             hasAttemptedReactiveCompact,
             maxOutputTokensOverride: ESCALATED_MAX_TOKENS,
             pendingToolUseSummary: undefined,
             stopHookActive: undefined,
             turnCount,
-            continuationNudgeCount: state.continuationNudgeCount,
             transition: { reason: 'max_output_tokens_escalate' },
           }
           state = next
@@ -1321,14 +1343,13 @@ async function* queryLoop(
             ],
             toolUseContext,
             autoCompactTracking: tracking,
-            explorationCount: state.explorationCount,
+            ...preserveExecutionState(state),
             maxOutputTokensRecoveryCount: maxOutputTokensRecoveryCount + 1,
             hasAttemptedReactiveCompact,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
             stopHookActive: undefined,
             turnCount,
-            continuationNudgeCount: state.continuationNudgeCount,
             transition: {
               reason: 'max_output_tokens_recovery',
               attempt: maxOutputTokensRecoveryCount + 1,
@@ -1375,7 +1396,7 @@ async function* queryLoop(
           ],
           toolUseContext,
           autoCompactTracking: tracking,
-          explorationCount: state.explorationCount,
+          ...preserveExecutionState(state),
           maxOutputTokensRecoveryCount: 0,
           // Preserve the reactive compact guard — if compact already ran and
           // couldn't recover from prompt-too-long, retrying after a stop-hook
@@ -1387,7 +1408,6 @@ async function* queryLoop(
           pendingToolUseSummary: undefined,
           stopHookActive: true,
           turnCount,
-          continuationNudgeCount: state.continuationNudgeCount,
           transition: { reason: 'stop_hook_blocking' },
         }
         state = next
@@ -1418,14 +1438,13 @@ async function* queryLoop(
             ],
             toolUseContext,
             autoCompactTracking: tracking,
-            explorationCount: state.explorationCount,
+            ...preserveExecutionState(state),
             maxOutputTokensRecoveryCount,
             hasAttemptedReactiveCompact: false,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
             stopHookActive: undefined,
             turnCount,
-            continuationNudgeCount: state.continuationNudgeCount,
             transition: { reason: 'token_budget_continuation' },
           }
           continue
@@ -1504,7 +1523,7 @@ async function* queryLoop(
               messages: [...messagesForQuery, ...assistantMessages, nudge],
               toolUseContext,
               autoCompactTracking: tracking,
-              explorationCount: state.explorationCount,
+              ...preserveExecutionState(state),
               maxOutputTokensRecoveryCount,
               hasAttemptedReactiveCompact: false,
               maxOutputTokensOverride: undefined,
@@ -1559,14 +1578,13 @@ async function* queryLoop(
           messages: [...messagesForQuery, ...assistantMessages, escalation],
           toolUseContext,
           autoCompactTracking: tracking,
-          explorationCount: state.explorationCount,
+          ...preserveExecutionState(state),
           maxOutputTokensRecoveryCount,
           hasAttemptedReactiveCompact: false,
           maxOutputTokensOverride: undefined,
           pendingToolUseSummary: undefined,
           stopHookActive: true, // Mark that we just escalated — prevent re-escalation
           turnCount,
-          continuationNudgeCount: state.continuationNudgeCount,
           transition: { reason: 'forced_action_escalation' },
         }
         state = next
@@ -1959,6 +1977,11 @@ async function* queryLoop(
 
     // exploration loop detection
     let currentExplorationCount = state.explorationCount
+    let currentExplorationSignature = state.lastExplorationSignature
+    let currentRepeatedExplorationSignatureCount =
+      state.repeatedExplorationSignatureCount
+    let currentHasTakenAction = state.hasTakenAction
+    let currentExecutionPhase = executionPhase
     if (assistantMessages.length > 0) {
       const allTools = assistantMessages.flatMap(
         m =>
@@ -1967,6 +1990,18 @@ async function* queryLoop(
           ) as ToolUseBlock[],
       )
       if (allTools.length > 0) {
+        currentHasTakenAction =
+          currentHasTakenAction ||
+          allTools.some(toolBlock => {
+            const tool = findToolByName(
+              toolUseContext.options.tools,
+              toolBlock.name,
+            )
+            const searchOrRead = tool?.isSearchOrReadCommand?.(
+              toolBlock.input as any,
+            )
+            return !(searchOrRead?.isRead || searchOrRead?.isSearch)
+          })
         const isExplorationTurn = allTools.every(toolBlock => {
           const tool = findToolByName(
             toolUseContext.options.tools,
@@ -1976,9 +2011,36 @@ async function* queryLoop(
           return searchOrRead?.isRead || searchOrRead?.isSearch
         })
         if (isExplorationTurn) {
-          currentExplorationCount++
+          const explorationSignature = allTools
+            .map(toolBlock => {
+              const tool = findToolByName(
+                toolUseContext.options.tools,
+                toolBlock.name,
+              )
+              const searchOrRead = tool?.isSearchOrReadCommand?.(
+                toolBlock.input as any,
+              )
+              const kind = searchOrRead?.isRead
+                ? 'read'
+                : searchOrRead?.isSearch
+                  ? 'search'
+                  : 'other'
+              return `${toolBlock.name}:${kind}:${JSON.stringify(toolBlock.input)}`
+            })
+            .join('||')
+          const repeatedSignature =
+            currentExplorationSignature === explorationSignature
+          currentExplorationSignature = explorationSignature
+          currentRepeatedExplorationSignatureCount = repeatedSignature
+            ? currentRepeatedExplorationSignatureCount + 1
+            : 0
+          currentExplorationCount += repeatedSignature ? 2 : 1
+          currentExecutionPhase = currentHasTakenAction ? 'verify' : 'explore'
         } else {
           currentExplorationCount = 0
+          currentExplorationSignature = undefined
+          currentRepeatedExplorationSignatureCount = 0
+          currentExecutionPhase = inferExecutionPhaseFromToolBatch(allTools)
         }
       }
     }
@@ -1990,11 +2052,31 @@ async function* queryLoop(
       const reminder = createSystemMessage(
         'SYSTEM NUDGE: You have used only search/read tools for multiple consecutive turns. ' +
           'Stop broadening context unless a specific missing symbol or line is blocking you. ' +
-          'If you know the target file, make the smallest safe Edit/Write now and verify it; if you do not, ask one concrete blocking question instead of re-reading the same area.',
+          'If you know the target file, make the smallest safe Edit/Write now and verify it; if you do not, ask one concrete blocking question instead of re-reading the same area. ' +
+          'Repeatedly issuing the same search/read command is treated as stalling and will trigger action escalation sooner.',
         'info',
       )
       yield reminder
       toolResults.push(reminder)
+    }
+
+    if (currentExplorationCount >= HARD_EXPLORATION_LIMIT) {
+      const actionDirective = createUserMessage({
+        content:
+          'ACTION REQUIRED: Search/read budget exhausted. Your next step must be exactly one of: ' +
+          '(1) edit or write the most likely target file, (2) run a concrete verification command on the likely target, ' +
+          'or (3) ask one blocking question that names the missing symbol, file, or line you still need. ' +
+          'Do not perform another broad search or re-read the same area.',
+        isMeta: true,
+      })
+      toolResults.push(actionDirective)
+      currentExecutionPhase = currentHasTakenAction ? 'verify' : 'implement'
+      logEvent('tengu_hard_exploration_limit_reached', {
+        explorationCount: currentExplorationCount,
+        repeatedSignatureCount: currentRepeatedExplorationSignatureCount,
+        queryChainId: queryChainIdForAnalytics,
+        queryDepth: queryTracking.depth,
+      })
     }
 
     // Each time we have tool results and are about to recurse, that's a turn
@@ -2041,6 +2123,11 @@ async function* queryLoop(
       autoCompactTracking: tracking,
       turnCount: nextTurnCount,
       explorationCount: currentExplorationCount,
+      lastExplorationSignature: currentExplorationSignature,
+      repeatedExplorationSignatureCount:
+        currentRepeatedExplorationSignatureCount,
+      hasTakenAction: currentHasTakenAction,
+      executionPhase: currentExecutionPhase,
       maxOutputTokensRecoveryCount: 0,
       hasAttemptedReactiveCompact: false,
       continuationNudgeCount: 0,
@@ -2051,4 +2138,17 @@ async function* queryLoop(
     }
     state = next
   } // while (true)
+}
+
+function inferExecutionPhaseFromToolBatch(
+  toolUseBlocks: ToolUseBlock[],
+): State['executionPhase'] {
+  const names = toolUseBlocks.map(block => block.name.toLowerCase())
+  if (names.some(name => name.includes('test') || name.includes('verify'))) {
+    return 'verify'
+  }
+  if (names.some(name => name.includes('plan'))) {
+    return 'plan'
+  }
+  return 'implement'
 }

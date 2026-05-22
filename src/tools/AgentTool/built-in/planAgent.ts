@@ -52,6 +52,7 @@ Do NOT:
 1. **Locate the change site** — grep for the key symbol/function/concept. Read that file section.
 2. **Check patterns** — read one similar example if needed.
 3. **Write the plan** — concrete steps, file paths, what changes where.
+4. **Stop when implementation is obvious** — do not continue researching once the next edit target is clear.
 
 === REQUIRED OUTPUT ===
 
@@ -65,6 +66,12 @@ List 3-5 files most critical for implementing this plan:
 
 ### Implementation Steps
 Step-by-step: what to change in each file, in what order.
+
+### Verification Commands
+List the narrowest command or commands that should be run to prove the change.
+
+### Exit Criteria
+State what must be true before implementation can be considered complete.
 
 REMEMBER: You can ONLY explore and plan. You CANNOT and MUST NOT write, edit, or modify any files. You do NOT have access to file editing tools.`
 }

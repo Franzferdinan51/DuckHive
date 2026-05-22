@@ -124,9 +124,29 @@ describe('Agent loop continuation nudge', () => {
     expect(queryContent).toContain(
       'make the smallest safe Edit/Write now and verify it',
     )
+    expect(queryContent).toContain('ACTION REQUIRED: Search/read budget exhausted.')
+    expect(queryContent).toContain('HARD_EXPLORATION_LIMIT = 3')
     expect(promptContent).toContain(
       'After two consecutive search/read turns on the same task',
     )
+    expect(promptContent).toContain('SEARCH BUDGETS:')
+  })
+
+  test('verification agent guidance is available in the main prompt', async () => {
+    const promptContent = await file('constants/prompts.ts').text()
+    const builtInAgents = await file('tools/AgentTool/builtInAgents.ts').text()
+
+    expect(promptContent).toContain('independent adversarial verification must happen')
+    expect(builtInAgents).toContain('agents.push(VERIFICATION_AGENT)')
+  })
+
+  test('planner schema includes executable implementation details', async () => {
+    const plannerContent = await file('coordinator/planner.ts').text()
+
+    expect(plannerContent).toContain('targetFiles?: string[]')
+    expect(plannerContent).toContain('changeIntent?: string')
+    expect(plannerContent).toContain('verificationCommand?: string')
+    expect(plannerContent).toContain('exitCriteria?: string')
   })
 })
 
