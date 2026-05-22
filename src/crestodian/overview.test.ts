@@ -13,8 +13,7 @@ describe('formatDuckCustodianOverview', () => {
       tools: {
         mmx: { found: true, version: '1.0.0' },
         lmStudio: { found: true, modelCount: 2, models: ['model-a', 'model-b'] },
-        openClaw: { found: false },
-        openClawGateway: { reachable: false },
+        openClawNative: true,
       },
       memory: {
         memoryDir: 'C:/DuckHive/memory',

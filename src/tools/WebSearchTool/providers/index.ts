@@ -5,20 +5,21 @@
  *
  *   "auto"      (default) — try providers in priority order, fall through on failure
  *   "custom"    — use WEB_SEARCH_API / WEB_PROVIDER preset only (fail loudly)
- *   "firecrawl" — use Firecrawl only (fail loudly)
- *   "tavily"    — use Tavily only (fail loudly)
- *   "exa"       — use Exa only (fail loudly)
- *   "you"       — use You.com only (fail loudly)
- *   "jina"      — use Jina only (fail loudly)
- *   "brave"     — use Brave only (fail loudly)
- *   "bing"      — use Bing only (fail loudly)
- *   "mojeek"    — use Mojeek only (fail loudly)
- *   "linkup"    — use Linkup only (fail loudly)
- *   "ddg"       — use DuckDuckGo only (fail loudly)
+ *   "firecrawl" — try Firecrawl, fall back to auto chain on transient errors
+ *   "tavily"    — try Tavily, fall back to auto chain on transient errors
+ *   "exa"       — try Exa, fall back to auto chain on transient errors
+ *   "you"       — try You.com, fall back to auto chain on transient errors
+ *   "jina"      — try Jina, fall back to auto chain on transient errors
+ *   "brave"     — try Brave, fall back to auto chain on transient errors
+ *   "bing"      — try Bing, fall back to auto chain on transient errors
+ *   "mojeek"    — try Mojeek, fall back to auto chain on transient errors
+ *   "linkup"    — try Linkup, fall back to auto chain on transient errors
+ *   "ddg"       — try DuckDuckGo, fall back to auto chain on transient errors
  *   "native"    — use Anthropic native / Codex only (fail loudly)
  *
- * "auto" mode is the only mode that silently falls through to the next provider.
- * All other modes throw on failure — no silent backend switching.
+ * Specific providers fall back to the auto chain on transient failures
+ * (connection errors, timeouts, HTTP 5xx/429). Auth/config errors (401, 403)
+ * still throw immediately so users can fix their setup.
  *
  * NOTE: "custom" is NOT included in the "auto" fallback chain.
  *       It is only used when WEB_SEARCH_PROVIDER=custom is explicitly selected.
@@ -172,18 +173,55 @@ export function getProviderChain(mode: ProviderMode): SearchProvider[] {
 }
 
 /**
+ * Returns true if the error is a transient failure (network, timeout, server overload)
+ * rather than a configuration/auth issue. Transient failures should trigger fallback
+ * to the auto chain; auth/config errors should throw immediately.
+ */
+function isTransientError(error: Error): boolean {
+  const msg = error.message.toLowerCase()
+  // Connection/network errors
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('etimedout') ||
+    msg.includes('enotfound') ||
+    msg.includes('econnreset') ||
+    msg.includes('econnaborted') ||
+    msg.includes('fetch failed') ||
+    msg.includes('connection refused') ||
+    msg.includes('timed out') ||
+    msg.includes('unreachable')
+  ) {
+    return true
+  }
+  // HTTP status: 429 (rate limit), 5xx (server error) are transient
+  const statusMatch = msg.match(/\b([45]\d\d)\b/)
+  if (statusMatch) {
+    const status = parseInt(statusMatch[1], 10)
+    if (status === 401 || status === 403) return false // Auth/config errors
+    if (status === 429 || status >= 500) return true
+  }
+  // Rate limiting hints
+  if (msg.includes('rate limit') || msg.includes('too many request')) {
+    return true
+  }
+  return false
+}
+
+/**
  * Run a search using the configured provider chain.
  *
  * - Auto mode: tries each provider in order, falls through on failure.
  *   If ALL providers fail, throws the last error.
- * - Specific mode: runs the single provider, throws immediately on failure.
+ * - Specific mode: runs the single provider first. On transient failure
+ *   (network errors, timeouts, HTTP 5xx/429), falls back to the auto chain
+ *   instead of throwing. Auth/config errors still throw immediately.
  */
 export async function runSearch(
   input: SearchInput,
   signal?: AbortSignal,
 ): Promise<ProviderOutput> {
   const mode = getProviderMode()
-  const chain = getProviderChain(mode)
+  let chain = getProviderChain(mode)
 
   if (chain.length === 0) {
     throw new Error(
@@ -207,7 +245,9 @@ export async function runSearch(
     }
   }
 
-  for (const provider of chain) {
+  let fellBackToAuto = false
+  for (let i = 0; i < chain.length; i++) {
+    const provider = chain[i]!
     try {
       return await provider.search(input, signal)
     } catch (err) {
@@ -220,17 +260,30 @@ export async function runSearch(
 
       errors.push(error)
 
-      // Specific mode: fail loudly, no fallback
-      if (mode !== 'auto') {
+      // Specific mode fallback: on transient errors, extend the chain with auto providers
+      if (mode !== 'auto' && mode !== 'native' && !fellBackToAuto) {
+        if (isTransientError(error)) {
+          console.error(
+            `[web-search] ${provider.name} (mode=${mode}) failed (transient): ${error.message}. ` +
+            `Falling back to auto chain.`,
+          )
+          const triedNames = chain.map(p => p.name)
+          const autoChain = getProviderChain('auto').filter(
+            p => !triedNames.includes(p.name),
+          )
+          chain = chain.concat(autoChain)
+          fellBackToAuto = true
+          continue
+        }
         throw error
       }
 
-      // Auto mode: log and try next
+      // Auto mode (or fallen back to auto): log and try next
       console.error(`[web-search] ${provider.name} failed: ${error.message}`)
     }
   }
 
-  // All providers failed in auto mode
+  // All providers failed
   const lastErr = errors[errors.length - 1]
   if (!lastErr) throw new Error('All search providers failed with no error details.')
   if (errors.length === 1) throw lastErr
