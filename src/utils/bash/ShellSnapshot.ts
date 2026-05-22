@@ -421,7 +421,7 @@ export const createAndSaveSnapshot = async (
 
   logForDebugging(`Creating shell snapshot for ${shellType} (${binShell})`)
 
-  return new Promise(async resolve => {
+  return new Promise(async (resolve, reject) => {
     try {
       const configFile = getConfigFile(binShell)
       logForDebugging(`Looking for shell config file: ${configFile}`)
@@ -469,7 +469,7 @@ export const createAndSaveSnapshot = async (
           maxBuffer: 1024 * 1024, // 1MB buffer
           encoding: 'utf8',
         },
-        async (error, stdout, stderr) => {
+        (error, stdout, stderr) => {
           if (error) {
             const execError = error as Error & {
               killed?: boolean
@@ -520,7 +520,7 @@ export const createAndSaveSnapshot = async (
           } else {
             let snapshotSize: number | undefined
             try {
-              snapshotSize = (await stat(shellSnapshotPath)).size
+              snapshotSize = statSync(shellSnapshotPath).size
             } catch {
               // Snapshot file not found
             }
@@ -554,7 +554,7 @@ export const createAndSaveSnapshot = async (
               )
               try {
                 const dirContents =
-                  await getFsImplementation().readdir(snapshotsDir)
+                  getFsImplementation().readdirSync(snapshotsDir)
                 logForDebugging(
                   `Directory contains ${dirContents.length} files`,
                 )
