@@ -77,11 +77,17 @@ function shouldAutoRouteToEditor(
   if (!IMPLEMENTATION_SIGNAL.test(combined)) {
     return false
   }
+  // Route to editor whenever implementation work has a known target —
+  // no longer requires implementation signals to outnumber research signals.
+  // If we know WHAT to change (file hint or known target) and we're asked
+  // to implement something, the editor is the right agent.
   const hasKnownTargetHint =
     FILE_HINT_SIGNAL.test(combined) || KNOWN_TARGET_SIGNAL.test(combined)
-  if (!hasKnownTargetHint) {
-    return false
+  if (hasKnownTargetHint) {
+    return true
   }
+  // Fallback: route to editor even without explicit file hints if the
+  // implementation signal is stronger than research.
   const researchMatches = combined.match(RESEARCH_SIGNAL) ?? []
   const implementationMatches = combined.match(IMPLEMENTATION_SIGNAL) ?? []
   return implementationMatches.length >= researchMatches.length

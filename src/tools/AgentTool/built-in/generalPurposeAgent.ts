@@ -31,5 +31,6 @@ export const GENERAL_PURPOSE_AGENT: BuiltInAgentDefinition = {
   source: 'built-in',
   baseDir: 'built-in',
   // model is intentionally omitted - uses getDefaultSubagentModel().
+  maxTurns: 20,
   getSystemPrompt: getGeneralPurposeSystemPrompt,
 }

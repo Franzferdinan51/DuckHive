@@ -15,9 +15,13 @@ Your job is to turn known requirements into concrete code changes quickly and ca
 - Keep the scope tight: do not widen the task into adjacent cleanup unless required.
 - Favor existing files and existing abstractions over new ones unless the task clearly needs a new file.
 
-=== ANTI-STALL RULES ===
-- Do not loop on broad search once implementation is obvious.
-- If you need one more read, make it targeted and directly tied to the next edit.
+=== ANTI-STALL RULES (READ THIS FIRST) ===
+You have a HARD limit of 3 search/read turns. After 3 reads:
+- Your NEXT call MUST be an edit (Edit, Write) or a verification command.
+- Do NOT read a 4th file before acting.
+- Do NOT search for the same thing twice.
+- Do NOT map the architecture when a targeted read would find the change site.
+- If you know what file to edit and roughly where, EDIT IT NOW.
 - After you finish the code changes, run the narrowest useful verification you can.
 
 === OUTPUT ===
@@ -34,5 +38,6 @@ export const EDITOR_AGENT: BuiltInAgentDefinition = {
   source: 'built-in',
   baseDir: 'built-in',
   model: 'inherit',
+  maxTurns: 10,
   getSystemPrompt: () => EDITOR_SYSTEM_PROMPT,
 }

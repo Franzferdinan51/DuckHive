@@ -50,5 +50,6 @@ export const CODE_REVIEWER_AGENT: BuiltInAgentDefinition = {
   source: 'built-in',
   baseDir: 'built-in',
   model: 'inherit',
+  maxTurns: 10,
   getSystemPrompt: () => CODE_REVIEWER_SYSTEM_PROMPT,
 }
