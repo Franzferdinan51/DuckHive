@@ -136,8 +136,10 @@ describe('Agent loop continuation nudge', () => {
     const promptContent = await file('constants/prompts.ts').text()
     const builtInAgents = await file('tools/AgentTool/builtInAgents.ts').text()
 
-    expect(promptContent).toContain('independent adversarial verification must happen')
+    expect(promptContent).toContain('subagent_type="code-reviewer"')
     expect(builtInAgents).toContain('agents.push(VERIFICATION_AGENT)')
+    expect(builtInAgents).toContain('FILE_PICKER_AGENT')
+    expect(builtInAgents).toContain('CODE_REVIEWER_AGENT')
   })
 
   test('planner schema includes executable implementation details', async () => {
