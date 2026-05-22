@@ -40,6 +40,9 @@ func (m *Model) headerView() string {
 	if m.isTimerActive && !m.sessionStartTime.IsZero() {
 		status += " " + m.ElapsedString()
 	}
+	if m.maxTurns > 0 {
+		status += fmt.Sprintf(" Turn %d/%d", m.turnCount, m.maxTurns)
+	}
 
 	left := fmt.Sprintf(" %s %s", title, version)
 	right := status

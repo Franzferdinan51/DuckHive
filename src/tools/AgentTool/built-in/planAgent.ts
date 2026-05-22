@@ -94,5 +94,7 @@ export const PLAN_AGENT: BuiltInAgentDefinition = {
   // Plan is read-only and can Read CLAUDE.md directly if it needs conventions.
   // Dropping it from context saves tokens without blocking access.
   omitClaudeMd: true,
+  // Prompt enforces HARD BUDGET: 5 TOOL CALLS MAX — maxTurns is a backstop
+  maxTurns: 10,
   getSystemPrompt: () => getPlanV2SystemPrompt(),
 }

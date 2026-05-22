@@ -73,6 +73,10 @@ type Model struct {
 	// Timer display
 	isTimerActive bool
 
+	// Turn counter (agent turn tracking)
+	turnCount int
+	maxTurns  int
+
 	// Pending confirmations / dialogs
 	pendingConfirmation bool
 	confirmationMsg     string
@@ -115,6 +119,8 @@ func NewModel(size ...int) *Model {
 		sessionId:        "",
 		sessionStartTime: time.Time{},
 		isTimerActive:    false,
+		turnCount:        0,
+		maxTurns:         0,
 	}
 }
 

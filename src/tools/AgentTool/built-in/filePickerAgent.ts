@@ -56,5 +56,7 @@ export const FILE_PICKER_AGENT: BuiltInAgentDefinition = {
   baseDir: 'built-in',
   model: 'haiku',
   omitClaudeMd: true,
+  // Prompt enforces BUDGET: 4 tool calls — maxTurns is a backstop
+  maxTurns: 8,
   getSystemPrompt: () => getFilePickerSystemPrompt(),
 }

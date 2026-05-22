@@ -58,6 +58,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		return m, nil
 
+	case TurnUpdateMsg:
+		if msg.MaxTurns > 0 {
+			m.turnCount = msg.TurnCount
+			m.maxTurns = msg.MaxTurns
+		}
+		return m, nil
+
 	case BackendEventMsg:
 		// Trigger timer on activity (task start/end)
 		if msg.IsActivity {
@@ -85,6 +92,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Timestamp: now(),
 				})
 			}
+		}
+		// Update turn counter from backend events
+		if msg.MaxTurns > 0 {
+			m.turnCount = msg.TurnCount
+			m.maxTurns = msg.MaxTurns
 		}
 		return m, nil
 
@@ -273,6 +285,14 @@ type BackendEventMsg struct {
 	IsStreaming bool
 	IsError     bool
 	IsActivity  bool // true means a task started/ended - triggers timer
+	TurnCount   int  // current turn number (0 if not applicable)
+	MaxTurns    int  // max turns for this agent (0 if not applicable)
+}
+
+// TurnUpdateMsg carries agent turn progress from the backend.
+type TurnUpdateMsg struct {
+	TurnCount int
+	MaxTurns  int
 }
 
 // timerTickMsg is sent to update the timer display every second.

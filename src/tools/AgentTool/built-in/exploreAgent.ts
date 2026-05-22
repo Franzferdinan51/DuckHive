@@ -83,5 +83,7 @@ export const EXPLORE_AGENT: BuiltInAgentDefinition = {
   // Explore is a fast read-only search agent — it doesn't need commit/PR/lint
   // rules from CLAUDE.md. The main agent has full context and interprets results.
   omitClaudeMd: true,
+  // Prompt enforces HARD BUDGET: 3 TOOL CALLS MAX — maxTurns is a backstop
+  maxTurns: 6,
   getSystemPrompt: () => getExploreSystemPrompt(),
 }
