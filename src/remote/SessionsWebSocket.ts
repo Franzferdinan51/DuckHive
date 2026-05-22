@@ -87,6 +87,11 @@ export class SessionsWebSocket {
   private sessionNotFoundRetries = 0
   private pingInterval: NodeJS.Timeout | null = null
   private reconnectTimer: NodeJS.Timeout | null = null
+  // Bound event handler references so we can remove them on close/reconnect
+  private bunOpenHandler: (() => void) | null = null
+  private bunMessageHandler: ((event: MessageEvent) => void) | null = null
+  private bunErrorHandler: (() => void) | null = null
+  private bunCloseHandler: ((event: CloseEvent) => void) | null = null
 
   constructor(
     private readonly sessionId: string,
@@ -128,7 +133,7 @@ export class SessionsWebSocket {
       } as unknown as string[])
       this.ws = ws
 
-      ws.addEventListener('open', () => {
+      this.bunOpenHandler = () => {
         logForDebugging(
           '[SessionsWebSocket] Connection opened, authenticated via headers',
         )
@@ -137,27 +142,29 @@ export class SessionsWebSocket {
         this.sessionNotFoundRetries = 0
         this.startPingInterval()
         this.callbacks.onConnected?.()
-      })
-
-      ws.addEventListener('message', (event: MessageEvent) => {
+      }
+      this.bunMessageHandler = (event: MessageEvent) => {
         const data =
           typeof event.data === 'string' ? event.data : String(event.data)
         this.handleMessage(data)
-      })
-
-      ws.addEventListener('error', () => {
+      }
+      this.bunErrorHandler = () => {
         const err = new Error('[SessionsWebSocket] WebSocket error')
         logError(err)
         this.callbacks.onError?.(err)
-      })
-
-      // eslint-disable-next-line eslint-plugin-n/no-unsupported-features/node-builtins
-      ws.addEventListener('close', (event: CloseEvent) => {
+      }
+      this.bunCloseHandler = (event: CloseEvent) => {
         logForDebugging(
           `[SessionsWebSocket] Closed: code=${event.code} reason=${event.reason}`,
         )
         this.handleClose(event.code)
-      })
+      }
+
+      ws.addEventListener('open', this.bunOpenHandler)
+      ws.addEventListener('message', this.bunMessageHandler)
+      ws.addEventListener('error', this.bunErrorHandler)
+      // eslint-disable-next-line eslint-plugin-n/no-unsupported-features/node-builtins
+      ws.addEventListener('close', this.bunCloseHandler)
 
       ws.addEventListener('pong', () => {
         logForDebugging('[SessionsWebSocket] Pong received')
@@ -378,10 +385,25 @@ export class SessionsWebSocket {
     }
 
     if (this.ws) {
-      // Null out event handlers to prevent race conditions during reconnect.
-      // Under Bun (native WebSocket), onX handlers are the clean way to detach.
-      // Under Node (ws package), the listeners were attached with .on() in connect(),
-      // but since we're about to close and null out this.ws, no cleanup is needed.
+      // Remove Bun event listeners to prevent leaks on reconnect
+      if (this.bunOpenHandler) {
+        this.ws.removeEventListener('open', this.bunOpenHandler)
+        this.bunOpenHandler = null
+      }
+      if (this.bunMessageHandler) {
+        this.ws.removeEventListener('message', this.bunMessageHandler)
+        this.bunMessageHandler = null
+      }
+      if (this.bunErrorHandler) {
+        this.ws.removeEventListener('error', this.bunErrorHandler)
+        this.bunErrorHandler = null
+      }
+      if (this.bunCloseHandler) {
+        this.ws.removeEventListener('close', this.bunCloseHandler)
+        this.bunCloseHandler = null
+      }
+      // Under Bun (native WebSocket) or Node (ws package), closing the socket
+      // is sufficient; listeners are tied to the socket's lifetime.
       this.ws.close()
       this.ws = null
     }

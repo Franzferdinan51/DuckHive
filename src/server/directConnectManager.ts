@@ -41,6 +41,11 @@ export class DirectConnectSessionManager {
   private ws: WebSocket | null = null
   private config: DirectConnectConfig
   private callbacks: DirectConnectCallbacks
+  // Bound handler references so we can remove them on disconnect
+  private openHandler: (() => void) | null = null
+  private messageHandler: ((event: MessageEvent) => void) | null = null
+  private errorHandler: (() => void) | null = null
+  private closeHandler: (() => void) | null = null
 
   constructor(config: DirectConnectConfig, callbacks: DirectConnectCallbacks) {
     this.config = config
@@ -57,11 +62,11 @@ export class DirectConnectSessionManager {
       headers,
     } as unknown as string[])
 
-    this.ws.addEventListener('open', () => {
+    // Bound handlers so we can remove them on disconnect
+    this.openHandler = () => {
       this.callbacks.onConnected?.()
-    })
-
-    this.ws.addEventListener('message', event => {
+    }
+    this.messageHandler = event => {
       const data = typeof event.data === 'string' ? event.data : ''
       const lines = data.split('\n').filter((l: string) => l.trim())
 
@@ -111,15 +116,18 @@ export class DirectConnectSessionManager {
           this.callbacks.onMessage(parsed)
         }
       }
-    })
-
-    this.ws.addEventListener('close', () => {
+    }
+    this.closeHandler = () => {
       this.callbacks.onDisconnected?.()
-    })
-
-    this.ws.addEventListener('error', () => {
+    }
+    this.errorHandler = () => {
       this.callbacks.onError?.(new Error('WebSocket connection error'))
-    })
+    }
+
+    this.ws.addEventListener('open', this.openHandler)
+    this.ws.addEventListener('message', this.messageHandler)
+    this.ws.addEventListener('close', this.closeHandler)
+    this.ws.addEventListener('error', this.errorHandler)
   }
 
   sendMessage(content: RemoteMessageContent): boolean {
@@ -202,6 +210,22 @@ export class DirectConnectSessionManager {
 
   disconnect(): void {
     if (this.ws) {
+      if (this.openHandler) {
+        this.ws.removeEventListener('open', this.openHandler)
+        this.openHandler = null
+      }
+      if (this.messageHandler) {
+        this.ws.removeEventListener('message', this.messageHandler)
+        this.messageHandler = null
+      }
+      if (this.closeHandler) {
+        this.ws.removeEventListener('close', this.closeHandler)
+        this.closeHandler = null
+      }
+      if (this.errorHandler) {
+        this.ws.removeEventListener('error', this.errorHandler)
+        this.errorHandler = null
+      }
       this.ws.close()
       this.ws = null
     }
