@@ -131,6 +131,8 @@ import {
 } from './bootstrap/state.js'
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
+import { readFile } from 'fs/promises'
+import { getSessionMemoryPath } from './utils/permissions/filesystem.js'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
   ? (require('./services/compact/snipCompact.js') as typeof import('./services/compact/snipCompact.js'))
@@ -408,6 +410,12 @@ async function* queryLoop(
     state.messages,
     state.toolUseContext,
   )
+
+  // Session memory injection: read summary from previous turns once
+  // per query and inject as a system_reminder attachment. Declared
+  // outside the while loop so it persists across nudge/tool-execution
+  // loop iterations and only fires once per query.
+  let sessionMemoryInjectedThisQuery = false
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -2096,6 +2104,34 @@ async function* queryLoop(
         toolResults.push(msg)
       }
       pendingMemoryPrefetch.consumedOnIteration = turnCount - 1
+    }
+
+    // Inject session memory from previous turns as a system_reminder.
+    // The session memory file (summary.md) is written by the post-sampling
+    // hook after each turn and contains a structured summary of key
+    // decisions, context, and current task state. Read once per query to
+    // avoid re-injecting on nudge/tool-execution loop iterations.
+    if (!sessionMemoryInjectedThisQuery) {
+      sessionMemoryInjectedThisQuery = true
+      try {
+        const sessionMemoryContent = await readFile(
+          getSessionMemoryPath(),
+          'utf-8',
+        )
+        if (sessionMemoryContent.trim()) {
+          // Cap at ~2000 tokens to prevent context bloat
+          const capped = sessionMemoryContent.slice(0, 8000)
+          const msg = createAttachmentMessage({
+            type: 'critical_system_reminder',
+            content: `<system-reminder>\nThe following is a summary of the conversation from previous turns (session memory):\n\n${capped}${sessionMemoryContent.length > 8000 ? '\n\n[Session memory was truncated to 8000 characters]' : ''}\n</system-reminder>`,
+          })
+          yield msg
+          toolResults.push(msg)
+        }
+      } catch {
+        // File doesn't exist yet (first turn of a new session) or
+        // can't be read — skip silently.
+      }
     }
 
 
