@@ -140,7 +140,7 @@ function normalizeSession(session: unknown): DeliberationSession | null {
     : []
 
   const votes =
-    raw.votes && typeof raw.votes === 'object'
+    raw.votes && typeof raw.votes === 'object' && !Array.isArray(raw.votes)
       ? (raw.votes as Record<string, unknown>)
       : {}
 
