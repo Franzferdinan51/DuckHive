@@ -235,7 +235,7 @@ export async function startMCPServer(
             content: [
               {
                 type: 'text',
-                text: `Tool ${name} input is invalid:\n${error.errors.map(e => `- ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+                text: `Tool ${name} input is invalid:\n${(error.issues ?? error.errors ?? []).map(e => `- ${e.path.join('.')}: ${e.message}`).join('\n')}`,
               },
             ],
           }
