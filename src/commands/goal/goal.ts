@@ -34,6 +34,11 @@ export interface GoalStep {
   description: string
   status: GoalStatus
   createdAt: string
+  targetFiles?: string[]
+  changeIntent?: string
+  verificationCommand?: string
+  searchJustification?: string
+  exitCriteria?: string
   completedAt?: string
   result?: string
   error?: string
@@ -305,6 +310,11 @@ async function planGoal(goal: Goal): Promise<void> {
       description: s.description,
       status: index === 0 ? 'active' : 'paused',
       createdAt: new Date().toISOString(),
+      targetFiles: s.targetFiles,
+      changeIntent: s.changeIntent,
+      verificationCommand: s.verificationCommand,
+      searchJustification: s.searchJustification,
+      exitCriteria: s.exitCriteria,
     }))
     goal.currentStepId = goal.steps[0].id
   } else {
@@ -409,6 +419,10 @@ function formatGoal(goal: Goal, detailed = false): string {
         const status = formatStepStatusLabel(step.status)
         const desc = isCurrent ? bold(step.description) : step.description
         output += `${prefix}${label} (${status}) ${desc}\n`
+        const details = formatGoalStepDetails(step)
+        if (details.length > 0) {
+          output += details.map(detail => `     ${detail}\n`).join('')
+        }
       }
     }
   }
@@ -877,7 +891,10 @@ async function completeStep(
 
 function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined): string {
   const stepGuidance = currentStep
-    ? `Current step: ${currentStep.description}`
+    ? [
+        `Current step: ${currentStep.description}`,
+        ...formatGoalStepDetails(currentStep),
+      ].join('\n')
     : 'First step: identify the most concrete action that advances the goal and take it now.'
 
   return [
@@ -927,6 +944,18 @@ function buildAutonomousGoalTask(goal: Goal, currentStep: GoalStep | undefined):
     `=== STOPPING ===`,
     `Stop only when ALL goal steps are complete or you are genuinely blocked by an external dependency.`,
   ].join('\n')
+}
+
+function formatGoalStepDetails(step: GoalStep): string[] {
+  return [
+    step.targetFiles && step.targetFiles.length > 0
+      ? `Files: ${step.targetFiles.join(', ')}`
+      : null,
+    step.changeIntent ? `Change: ${step.changeIntent}` : null,
+    step.verificationCommand ? `Verify: ${step.verificationCommand}` : null,
+    step.searchJustification ? `Search: ${step.searchJustification}` : null,
+    step.exitCriteria ? `Done when: ${step.exitCriteria}` : null,
+  ].filter((detail): detail is string => detail !== null)
 }
 
 function extractSpawnedAgentRunId(spawnResult: string): string | undefined {

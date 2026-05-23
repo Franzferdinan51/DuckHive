@@ -19,6 +19,11 @@ type GoalRecord = {
     description: string
     status?: string
     createdAt?: string
+    targetFiles?: string[]
+    changeIntent?: string
+    verificationCommand?: string
+    searchJustification?: string
+    exitCriteria?: string
     completedAt?: string
   }>
 }
@@ -171,7 +176,16 @@ describe('/goal command', () => {
       LLMPlanner: class {},
       TaskPlanner: class {
         async createPlan(description: string) {
-          return { steps: [{ description }] }
+          return {
+            steps: [{
+              description,
+              targetFiles: ['src/example.ts', 'src/example.test.ts'],
+              changeIntent: 'Apply the planned change directly in the primary target file.',
+              verificationCommand: 'bun test src/example.test.ts',
+              searchJustification: 'Search only until the edit surface is confirmed.',
+              exitCriteria: 'The targeted change is implemented and the targeted test passes.',
+            }],
+          }
         }
       },
     }))
@@ -521,6 +535,17 @@ describe('/goal command', () => {
     expect(goal?.lastActivityAt).toBeTruthy()
     expect(goal?.steps[0]?.description).toBe('Stabilize the CLI')
     expect(goal?.steps[0]?.status).toBe('active')
+    expect(goal?.steps[0]?.targetFiles).toEqual([
+      'src/example.ts',
+      'src/example.test.ts',
+    ])
+    expect(goal?.steps[0]?.changeIntent).toContain('Apply the planned change directly')
+    expect(goal?.steps[0]?.verificationCommand).toBe(
+      'bun test src/example.test.ts',
+    )
+    expect(goal?.steps[0]?.exitCriteria).toContain(
+      'targeted change is implemented',
+    )
     expect(sessionCronTasks).toHaveLength(1)
     expect(sessionCronTasks[0]?.id).toBe(`heartbeat-${goal?.id}`)
     expect(sessionCronTasks[0]?.cron).toBe('*/30 * * * *')
@@ -833,5 +858,41 @@ describe('/goal command', () => {
     const goals = getStoredGoals()
     expect(goals[0].activeAgentName).toBe('goal-worker')
     expect(goals[0].activeAgentRunId).toBe('agent_goal_123')
+  })
+
+  test('autonomous teammate task includes executable step metadata from the planner', async () => {
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Implement', 'goal', 'workflow'])
+    await goalCommand(['pursue'], {} as any)
+
+    expect(spawnedTasks).toHaveLength(1)
+    expect(spawnedTasks[0]?.task).toContain('Current step: Implement goal workflow')
+    expect(spawnedTasks[0]?.task).toContain('Files: src/example.ts, src/example.test.ts')
+    expect(spawnedTasks[0]?.task).toContain(
+      'Change: Apply the planned change directly in the primary target file.',
+    )
+    expect(spawnedTasks[0]?.task).toContain(
+      'Verify: bun test src/example.test.ts',
+    )
+    expect(spawnedTasks[0]?.task).toContain(
+      'Done when: The targeted change is implemented and the targeted test passes.',
+    )
+  })
+
+  test('detailed goal status renders persisted planner metadata for the active step', async () => {
+    const goalCommand = await importFreshGoalCommand()
+    await goalCommand(['create', 'Render', 'goal', 'details'])
+    await goalCommand(['pursue'], {} as any)
+
+    const result = await goalCommand(['status'])
+
+    expect(result).toContain('Files: src/example.ts, src/example.test.ts')
+    expect(result).toContain(
+      'Change: Apply the planned change directly in the primary target file.',
+    )
+    expect(result).toContain('Verify: bun test src/example.test.ts')
+    expect(result).toContain(
+      'Done when: The targeted change is implemented and the targeted test passes.',
+    )
   })
 })
