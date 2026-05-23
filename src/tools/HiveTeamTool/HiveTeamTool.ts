@@ -2,10 +2,10 @@
 import { z } from 'zod/v4'
 import { buildTool, type Tool } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
-import { HiveBridge } from '../../services/hive-bridge/hive-bridge.js'
+import { getHiveBridge } from '../../services/hive-bridge/hive-bridge.js'
 import { DESCRIPTION } from './prompt.js'
 
-const hive = new HiveBridge()
+const hive = getHiveBridge()
 
 const TEMPLATES = ['research', 'code', 'security', 'emergency', 'planning', 'analysis', 'devops', 'swarm'] as const
 

@@ -147,6 +147,7 @@ type SpawnInput = {
   agent_type?: string
   description?: string
   invokingRequestId?: string
+  permissionMode?: PermissionMode
 }
 
 // ============================================================================
@@ -202,7 +203,8 @@ function getTeammateCommand(): string {
  * This ensures teammates inherit important settings like permission mode,
  * model selection, and plugin configuration from their parent.
  *
- * @param options.planModeRequired - If true, don't inherit bypass permissions (plan mode takes precedence)
+ * @param options.planModeRequired - Autonomous goal agent; plan mode takes precedence but
+ *        bypass permissions (--dangerously-skip-permissions) may also be needed for Codex-style goals
  * @param options.permissionMode - Permission mode to propagate
  */
 function buildInheritedCliFlags(options?: {
@@ -877,7 +879,7 @@ function registerOutOfProcessTeammateTask(
     prompt,
     abortController,
     awaitingPlanApproval: false,
-    permissionMode: plan_mode_required ? 'plan' : 'default',
+    permissionMode: plan_mode_required ? 'plan' : (input.permissionMode ?? 'default'),
     isIdle: false,
     shutdownRequested: false,
     lastReportedToolCount: 0,

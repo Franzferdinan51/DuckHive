@@ -581,7 +581,7 @@ export class HiveBridge {
       parts.push('')
       parts.push('## ACTIVE DECREES (' + decrees.length + ')')
       for (const d of decrees) {
-        parts.push('  - [' + d.priority.toUpperCase() + '] ' + d.title + ': ' + d.content.substring(0, 80))
+        parts.push('  - [' + (d.priority ?? 'normal').toUpperCase() + '] ' + d.title + ': ' + d.content.substring(0, 80))
       }
     }
 
