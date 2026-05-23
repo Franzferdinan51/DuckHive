@@ -34,7 +34,8 @@ export type DuckCustodianOverview = {
 };
 
 function shorten(s: string): string {
-  return s.replace(process.env.HOME ?? '', '~');
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  return home ? s.replace(home, '~') : s;
 }
 
 export async function loadDuckCustodianOverview(): Promise<DuckCustodianOverview> {

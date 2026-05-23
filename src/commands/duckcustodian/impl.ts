@@ -210,10 +210,10 @@ function buildDeps() {
           () => getGlobalConfig(),
           current => ({ ...current, [key]: value }),
         );
-        return { ok: true };
       } catch (e) {
         return { ok: false, error: String(e) };
       }
+      return { ok: true };
     },
 
     validateConfig: async () => {
