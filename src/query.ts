@@ -187,6 +187,7 @@ function* yieldMissingToolResultBlocks(
 const MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3
 const MAX_CONTINUATION_NUDGES = 3
 const HARD_EXPLORATION_LIMIT = 3
+const HARD_READ_ONLY_SUBAGENT_LIMIT = 2
 
 /**
  * Is this a max_output_tokens error message? If so, the streaming loop should
@@ -248,6 +249,8 @@ type State = {
   hasTakenAction: boolean
   // Rough execution phase for routing and analytics.
   executionPhase: 'explore' | 'plan' | 'implement' | 'verify'
+  // Count of read-only subagent passes without a real action.
+  readOnlySubagentPassCount: number
   // Number of edited-file attachments observed in this turn.
   editedFileAttachmentCount: number
   // Whether the code reviewer agent has run during this turn.
@@ -270,6 +273,7 @@ function preserveExecutionState(state: State) {
     repeatedExplorationSignatureCount: state.repeatedExplorationSignatureCount,
     hasTakenAction: state.hasTakenAction,
     executionPhase: state.executionPhase,
+    readOnlySubagentPassCount: state.readOnlySubagentPassCount,
     editedFileAttachmentCount: state.editedFileAttachmentCount,
     hasUsedCodeReviewer: state.hasUsedCodeReviewer,
     hasUsedVerificationAgent: state.hasUsedVerificationAgent,
@@ -378,6 +382,7 @@ async function* queryLoop(
     repeatedExplorationSignatureCount: 0,
     hasTakenAction: false,
     executionPhase: 'explore',
+    readOnlySubagentPassCount: 0,
     editedFileAttachmentCount: 0,
     hasUsedCodeReviewer: false,
     hasUsedVerificationAgent: false,
@@ -1793,6 +1798,49 @@ async function* queryLoop(
       continue
     }
 
+    if (
+      state.readOnlySubagentPassCount >= HARD_READ_ONLY_SUBAGENT_LIMIT &&
+      !state.hasTakenAction &&
+      isReadOnlySubagentOnlyBatch(toolUseBlocks)
+    ) {
+      const blockedReadOnlySubagentMessage =
+        'Read-only subagent budget exhausted. This batch was blocked because you already used multiple read-only agent passes without acting on their results. Your next step must be an edit, an implementation handoff, a targeted verification command, or one concrete blocker question.'
+      const blockedToolResults = buildToolErrorResultMessages(
+        assistantMessages,
+        blockedReadOnlySubagentMessage,
+      )
+      for (const blockedToolResult of blockedToolResults) {
+        yield blockedToolResult
+      }
+      const blockedSubagentNudge = createUserMessage({
+        content:
+          'ACTION REQUIRED: Repeated read-only subagent calls are now blocked for this task. ' +
+          `Act on the current findings with ${FILE_EDIT_TOOL_NAME}, ${FILE_WRITE_TOOL_NAME}, ${BASH_TOOL_NAME}, or ${AGENT_TOOL_NAME} subagent_type="${EDITOR_AGENT_TYPE}".`,
+        isMeta: true,
+      })
+      const next: State = {
+        messages: [
+          ...messagesForQuery,
+          ...assistantMessages,
+          ...blockedToolResults,
+          blockedSubagentNudge,
+        ],
+        toolUseContext,
+        autoCompactTracking: tracking,
+        ...preserveExecutionState(state),
+        maxOutputTokensRecoveryCount,
+        hasAttemptedReactiveCompact: false,
+        maxOutputTokensOverride: undefined,
+        pendingToolUseSummary: undefined,
+        stopHookActive: true,
+        turnCount,
+        continuationNudgeCount: state.continuationNudgeCount + 1,
+        transition: { reason: 'blocked_read_only_subagent_batch' },
+      }
+      state = next
+      continue
+    }
+
 
     if (streamingToolExecutor) {
       logEvent('tengu_streaming_tool_execution_used', {
@@ -2204,6 +2252,7 @@ async function* queryLoop(
       state.repeatedExplorationSignatureCount
     let currentHasTakenAction = state.hasTakenAction
     let currentExecutionPhase = executionPhase
+    let currentReadOnlySubagentPassCount = state.readOnlySubagentPassCount
     let currentEditedFileAttachmentCount = state.editedFileAttachmentCount
     let currentHasUsedCodeReviewer = state.hasUsedCodeReviewer
     let currentHasUsedVerificationAgent = state.hasUsedVerificationAgent
@@ -2218,6 +2267,10 @@ async function* queryLoop(
       )
       if (allTools.length > 0) {
         const readOnlySubagentTypes = getReadOnlySubagentTypesFromBatch(allTools)
+        const hasActionTakingToolUse = allTools.some(toolBlock =>
+          isActionTakingToolUse(toolBlock, toolUseContext),
+        )
+        const isReadOnlySubagentTurn = isReadOnlySubagentOnlyBatch(allTools)
         currentHasUsedCodeReviewer =
           currentHasUsedCodeReviewer ||
           readOnlySubagentTypes.includes(CODE_REVIEWER_AGENT_TYPE)
@@ -2225,17 +2278,7 @@ async function* queryLoop(
           currentHasUsedVerificationAgent ||
           readOnlySubagentTypes.includes(VERIFICATION_AGENT_TYPE)
         currentHasTakenAction =
-          currentHasTakenAction ||
-          allTools.some(toolBlock => {
-            const tool = findToolByName(
-              toolUseContext.options.tools,
-              toolBlock.name,
-            )
-            const searchOrRead = tool?.isSearchOrReadCommand?.(
-              toolBlock.input as any,
-            )
-            return !(searchOrRead?.isRead || searchOrRead?.isSearch)
-          })
+          currentHasTakenAction || hasActionTakingToolUse
         const isExplorationTurn = allTools.every(toolBlock => {
           const tool = findToolByName(
             toolUseContext.options.tools,
@@ -2275,6 +2318,11 @@ async function* queryLoop(
           currentExplorationSignature = undefined
           currentRepeatedExplorationSignatureCount = 0
           currentExecutionPhase = inferExecutionPhaseFromToolBatch(allTools)
+        }
+        if (isReadOnlySubagentTurn && !currentHasTakenAction) {
+          currentReadOnlySubagentPassCount += 1
+        } else if (hasActionTakingToolUse) {
+          currentReadOnlySubagentPassCount = 0
         }
       }
     }
@@ -2327,6 +2375,20 @@ async function* queryLoop(
       toolResults.push(handoffDirective)
     }
 
+    if (
+      currentReadOnlySubagentPassCount >= HARD_READ_ONLY_SUBAGENT_LIMIT &&
+      !currentHasTakenAction
+    ) {
+      const readOnlySubagentLoopDirective = createUserMessage({
+        content:
+          'ACTION REQUIRED: You have already used multiple read-only subagent passes without taking a real action. ' +
+          `Your next step must be to edit a target file, hand implementation to ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}", run a concrete verification command, or ask one blocker question tied to a specific file or symbol. ` +
+          'Do not launch another read-only subagent until you have acted on the current findings.',
+        isMeta: true,
+      })
+      toolResults.push(readOnlySubagentLoopDirective)
+    }
+
     // Each time we have tool results and are about to recurse, that's a turn
     const nextTurnCount = turnCount + 1
 
@@ -2376,6 +2438,7 @@ async function* queryLoop(
         currentRepeatedExplorationSignatureCount,
       hasTakenAction: currentHasTakenAction,
       executionPhase: currentExecutionPhase,
+      readOnlySubagentPassCount: currentReadOnlySubagentPassCount,
       editedFileAttachmentCount: currentEditedFileAttachmentCount,
       hasUsedCodeReviewer: currentHasUsedCodeReviewer,
       hasUsedVerificationAgent: currentHasUsedVerificationAgent,
@@ -2474,6 +2537,39 @@ function buildAutoRouteActionHint(
     return `Use ${AGENT_TOOL_NAME} with subagent_type="${VERIFICATION_AGENT_TYPE}" to run independent verification now.`
   }
   return null
+}
+
+function isReadOnlySubagentToolUse(toolUseBlock: ToolUseBlock): boolean {
+  if (toolUseBlock.name !== AGENT_TOOL_NAME) return false
+  const subagentType = (toolUseBlock.input as { subagent_type?: unknown })
+    ?.subagent_type
+  return (
+    subagentType === FILE_PICKER_AGENT_TYPE ||
+    subagentType === THINKER_AGENT_TYPE ||
+    subagentType === 'Explore' ||
+    subagentType === 'Plan' ||
+    subagentType === CODE_REVIEWER_AGENT_TYPE ||
+    subagentType === VERIFICATION_AGENT_TYPE
+  )
+}
+
+function isReadOnlySubagentOnlyBatch(toolUseBlocks: ToolUseBlock[]): boolean {
+  return (
+    toolUseBlocks.length > 0 &&
+    toolUseBlocks.every(toolUseBlock => isReadOnlySubagentToolUse(toolUseBlock))
+  )
+}
+
+function isActionTakingToolUse(
+  toolUseBlock: ToolUseBlock,
+  toolUseContext: ToolUseContext,
+): boolean {
+  if (isReadOnlySubagentToolUse(toolUseBlock)) {
+    return false
+  }
+  const tool = findToolByName(toolUseContext.options.tools, toolUseBlock.name)
+  const searchOrRead = tool?.isSearchOrReadCommand?.(toolUseBlock.input as any)
+  return !(searchOrRead?.isRead || searchOrRead?.isSearch)
 }
 
 function isSearchOrReadOnlyToolBatch(
