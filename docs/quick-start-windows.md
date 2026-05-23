@@ -1,10 +1,10 @@
-# DuckHive Quick Start for Windows
+# OpenClaude Quick Start for Windows
 
 This guide uses Windows PowerShell.
 
 ## 1. Install Node.js
 
-Install Node.js 22 or newer from:
+Install Node.js 20 or newer from:
 
 - `https://nodejs.org/`
 
@@ -15,20 +15,10 @@ node --version
 npm --version
 ```
 
-## 2. Install DuckHive
+## 2. Install OpenClaude
 
 ```powershell
-npm install -g github:Franzferdinan51/DuckHive
-```
-
-For a source checkout:
-
-```powershell
-git clone https://github.com/Franzferdinan51/DuckHive.git
-cd DuckHive
-.\install.ps1
-duckhive --version
-duckhive --yolo
+npm install -g @gitlawb/openclaude
 ```
 
 ## 3. Pick One Provider
@@ -42,7 +32,7 @@ $env:CLAUDE_CODE_USE_OPENAI="1"
 $env:OPENAI_API_KEY="sk-your-key-here"
 $env:OPENAI_MODEL="gpt-4o"
 
-duckhive
+openclaude
 ```
 
 ### Option B: DeepSeek
@@ -53,7 +43,7 @@ $env:OPENAI_API_KEY="sk-your-key-here"
 $env:OPENAI_BASE_URL="https://api.deepseek.com/v1"
 $env:OPENAI_MODEL="deepseek-v4-flash"
 
-duckhive
+openclaude
 ```
 
 Use `deepseek-v4-pro` when you want the stronger model. `deepseek-chat` and `deepseek-reasoner` still work as DeepSeek's legacy API aliases.
@@ -73,7 +63,7 @@ $env:CLAUDE_CODE_USE_OPENAI="1"
 $env:OPENAI_BASE_URL="http://localhost:11434/v1"
 $env:OPENAI_MODEL="llama3.1:8b"
 
-duckhive
+openclaude
 ```
 
 No API key is needed for Ollama local models.
@@ -98,106 +88,39 @@ $env:OPENAI_BASE_URL="http://localhost:1234/v1"
 $env:OPENAI_MODEL="your-model-name"
 # $env:OPENAI_API_KEY="lmstudio"  # optional: some users need a dummy key
 
-duckhive
+openclaude
 ```
 
 Replace `your-model-name` with the model name shown in LM Studio.
 
 No API key is needed for LM Studio local models (but uncomment the `OPENAI_API_KEY` line if you hit auth errors).
 
-## 4. If `duckhive` Is Not Found
+## 4. If `openclaude` Is Not Found
 
 Close PowerShell, open a new one, and try again:
 
 ```powershell
-duckhive
+openclaude
 ```
 
-If PowerShell still says `duckhive` is not recognized, use the local source
-launcher from the repository root:
+If PowerShell still says `openclaude` is not recognized, npm's global bin
+folder may be missing from your user `Path`. Add it, then open a new
+PowerShell window:
 
 ```powershell
-.\bin\duckhive.cmd --dangerously-skip-permissions
+$npmPrefix = npm config get prefix
+$currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+if (($currentUserPath -split ';') -notcontains $npmPrefix) {
+    [Environment]::SetEnvironmentVariable(
+        "Path",
+        "$currentUserPath;$npmPrefix",
+        "User"
+    )
+}
 ```
 
-Or rerun the source installer, which creates a stable launcher at
-`$env:LOCALAPPDATA\DuckHive\bin\duckhive.cmd` and adds it to both your user PATH
-and the current PowerShell session:
-
-```powershell
-.\install.ps1
-duckhive --version
-```
-
-Or link the checkout onto your PATH:
-
-```powershell
-npm link
-duckhive --version
-duckhive --yolo
-```
-
-`--yolo` is an alias for `--dangerously-skip-permissions`.
-Both flags are applied during the earliest launcher phase, before the full CLI
-imports, so they work consistently for startup and the interactive REPL.
-
-If the REPL opens but will not accept typing, first run the provider-free
-keyboard probe from the same PowerShell window:
-
-```powershell
-duckhive input-test
-```
-
-Then run the non-interactive runtime doctor:
-
-```powershell
-duckhive runtime-doctor
-```
-
-`input-test` exercises raw keyboard input without starting providers, the REPL,
-or the TUI. It must be run directly from an interactive PowerShell or cmd
-window; redirected or automated shells will correctly refuse it because they do
-not have real terminal stdin/stdout. `runtime-doctor` checks the Windows stdin
-mode, TUI fallback, provider routing, ClawHub skill hub, computer-use fallback,
-Telegram connector config, and harness command registry without starting the
-chat UI.
-
-DuckHive also scans parent folders for `DUCK.md`, `AGENTS.md`, and related
-context files. That scan is now bounded by the real Windows filesystem root, so
-context discovery cannot loop forever on `C:\` before the REPL or `/goal` prompt
-becomes usable.
-
-By default, Windows startup stays on the classic REPL and DuckHive applies the
-safe stdin settings before the UI loads. The renderer uses DuckHive's
-data-event stdin path by default so typed characters reach the prompt after the
-UI paints through PowerShell and npm shim launches. Use
-`duckhive --stdin-mode readable` only when comparing DuckHive's readable
-compatibility path. The Go TUI is available with
-`duckhive tui`, but automatic Windows TUI handoff remains opt-in with
-`DUCKHIVE_TUI_WINDOWS_EXPERIMENT=1`.
-
-## 5. If the REPL Renders But Will Not Accept Typing
-
-If the classic REPL opens but the prompt will not accept keyboard input, make
-sure the Windows-safe stdin defaults are active before launching:
-
-```powershell
-$env:DUCKHIVE_DISABLE_EARLY_INPUT='1'
-Remove-Item Env:\DUCKHIVE_USE_DATA_STDIN -ErrorAction SilentlyContinue
-Remove-Item Env:\OPENCLAUDE_USE_DATA_STDIN -ErrorAction SilentlyContinue
-Remove-Item Env:\DUCKHIVE_USE_READABLE_STDIN -ErrorAction SilentlyContinue
-Remove-Item Env:\OPENCLAUDE_USE_READABLE_STDIN -ErrorAction SilentlyContinue
-Remove-Item Env:\DUCKHIVE_USE_CONIN_STDIN -ErrorAction SilentlyContinue
-duckhive --dangerously-skip-permissions
-```
-
-This keeps startup from touching `stdin` before Ink owns raw mode and restores
-DuckHive's supported Windows data-event input path. Remove the temporary env
-override after confirming your terminal works normally. If you need to compare
-the older readable reader, use `duckhive --stdin-mode readable` for that launch
-instead of making it the default environment.
-
-## 6. If Your Provider Fails
+## 5. If Your Provider Fails
 
 Check the basics:
 
@@ -220,16 +143,16 @@ Check the basics:
 - make sure a model is loaded in LM Studio
 - make sure the model name matches what you set in `OPENAI_MODEL`
 
-## 7. Updating DuckHive
+## 6. Updating OpenClaude
 
 ```powershell
-npm install -g github:Franzferdinan51/DuckHive
+npm install -g @gitlawb/openclaude@latest
 ```
 
-## 8. Uninstalling DuckHive
+## 7. Uninstalling OpenClaude
 
 ```powershell
-npm uninstall -g duckhive
+npm uninstall -g @gitlawb/openclaude
 ```
 
 ## Need Advanced Setup?

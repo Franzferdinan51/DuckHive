@@ -758,9 +758,13 @@ export const BashTool = buildTool({
         throw new Error(result.preSpawnError);
       }
       if (interpretationResult.isError && !isInterrupt) {
-        // Pass output as stdout so agents see it in <bash-stdout> even on failure.
-        // This is consistent with how successful commands work (merged fd).
-        throw new ShellError(outputWithSbFailures, result.stderr || '', result.code, result.interrupted, interpretationResult.message);
+        // Merged-fd setup puts both streams into result.stdout. Carry it on
+        // the stdout slot of ShellError (matches PowerShellTool.tsx:595) so
+        // getErrorParts() emits the captured output alongside "Exit code N"
+        // — without this, a non-zero exit hides the very output users need
+        // to debug the failure (issue #1231). result.stderr is empty in
+        // file mode but populated in pipe mode (hooks).
+        throw new ShellError(outputWithSbFailures, result.stderr || '', result.code, result.interrupted);
       }
       wasInterrupted = result.interrupted;
     } finally {
