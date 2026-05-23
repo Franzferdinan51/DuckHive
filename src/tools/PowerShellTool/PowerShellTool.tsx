@@ -495,7 +495,13 @@ export const PowerShellTool = buildTool({
           });
         }
       } while (!generatorResult.done);
-      const result = generatorResult.value;
+      const result = generatorResult.value ?? {
+        code: 1,
+        stdout: '',
+        stderr: '',
+        interrupted: false,
+        killed: false
+      };
 
       // Feed git/PR usage metrics (same counters as BashTool). PS invokes
       // git/gh/glab/curl as external binaries with identical syntax, so the
