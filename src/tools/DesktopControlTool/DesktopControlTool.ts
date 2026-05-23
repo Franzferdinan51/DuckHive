@@ -80,7 +80,8 @@ const inputSchema = lazySchema(() =>
       .describe('Desktop control action'),
     // ─── Screen params ───────────────────────────────────────────────────
     region: z
-      .tuple([z.number(), z.number(), z.number(), z.number()])
+      .array(z.number())
+      .min(4).max(4)
       .optional()
       .describe('Region: [x, y, width, height]'),
     filename: z.string().optional().describe('Output filename for screenshots'),
@@ -156,9 +157,9 @@ const outputSchema = lazySchema(() =>
     result: z.unknown().optional(),
     image: z.string().optional().describe('Base64 screenshot or image path'),
     saved: z.boolean().optional(),
-    screen_size: z.tuple([z.number(), z.number()]).optional(),
-    pixel_color: z.tuple([z.number(), z.number(), z.number()]).optional(),
-    mouse_position: z.tuple([z.number(), z.number()]).optional(),
+    screen_size: z.array(z.number()).min(2).max(2).optional(),
+    pixel_color: z.array(z.number()).min(3).max(3).optional(),
+    mouse_position: z.array(z.number()).min(2).max(2).optional(),
     // Windows
     windows: z.array(z.string()).optional(),
     active_window: z.string().nullable().optional(),
