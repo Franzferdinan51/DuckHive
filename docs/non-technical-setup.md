@@ -102,6 +102,22 @@ if (($currentUserPath -split ';') -notcontains $npmPrefix) {
 }
 ```
 
+On Windows PowerShell, if that still does not work, add npm's global bin folder
+to your user `Path`, then open a new PowerShell window:
+
+```powershell
+$npmPrefix = npm config get prefix
+$currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+if (($currentUserPath -split ';') -notcontains $npmPrefix) {
+    [Environment]::SetEnvironmentVariable(
+        "Path",
+        "$currentUserPath;$npmPrefix",
+        "User"
+    )
+}
+```
+
 ### Invalid API key
 
 Cause:
