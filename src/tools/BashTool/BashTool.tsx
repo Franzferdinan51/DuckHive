@@ -730,8 +730,16 @@ export const BashTool = buildTool({
         }
       } while (!generatorResult.done);
 
-      // Get the final result from the generator's return value
-      result = generatorResult.value;
+      // Get the final result from the generator's return value.
+      // Guard against abnormal termination: if value is undefined, synthesize
+      // an error result so subsequent properties don't throw.
+      result = generatorResult.value ?? {
+        code: 1,
+        stdout: '',
+        stderr: '',
+        interrupted: false,
+        killed: false
+      };
       trackGitOperations(input.command, result.code, result.stdout);
       const isInterrupt = result.interrupted && abortController.signal.reason === 'interrupt';
 
