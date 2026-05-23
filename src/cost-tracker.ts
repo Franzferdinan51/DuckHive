@@ -345,7 +345,7 @@ export function addToTotalSessionCost(
   if (shouldLogTokenUsageVerbose()) {
     process.stderr.write(
       JSON.stringify({
-        tag: 'openclaude.tokenUsage',
+        tag: 'duckhive.tokenUsage',
         model,
         provider: cacheProvider,
         input_tokens: usage.input_tokens,

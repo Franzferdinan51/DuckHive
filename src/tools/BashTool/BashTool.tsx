@@ -712,7 +712,7 @@ export const BashTool = buildTool({
       let generatorResult;
       do {
         generatorResult = await commandGenerator.next();
-        if (!generatorResult.done && onProgress) {
+        if (!generatorResult.done && generatorResult.value && onProgress) {
           const progress = generatorResult.value;
           onProgress({
             toolUseID: `bash-progress-${progressCounter++}`,
@@ -738,7 +738,7 @@ export const BashTool = buildTool({
         stdout: '',
         stderr: '',
         interrupted: false,
-        killed: false
+        preSpawnError: 'Command terminated abnormally before producing a result'
       };
       trackGitOperations(input.command, result.code, result.stdout);
       const isInterrupt = result.interrupted && abortController.signal.reason === 'interrupt';

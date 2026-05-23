@@ -135,6 +135,8 @@ class ShellCommandImpl implements ShellCommand {
   #resultResolver: ((result: ExecResult) => void) | null = null
   #exitCodeResolver: ((code: number) => void) | null = null
   #boundAbortHandler: (() => void) | null = null
+  /** Set when spawn fails (child process 'error' event fires) before the process could start. */
+  #preSpawnErrorMsg: string | undefined
   readonly taskOutput: TaskOutput
 
   static #handleTimeout(self: ShellCommandImpl): void {
@@ -213,7 +215,8 @@ class ShellCommandImpl implements ShellCommand {
     this.#resolveExitCode(exitCode)
   }
 
-  #errorHandler(): void {
+  #errorHandler(err: Error): void {
+    this.#preSpawnErrorMsg = err.message
     this.#resolveExitCode(1)
   }
 
@@ -312,6 +315,7 @@ class ShellCommandImpl implements ShellCommand {
       stderr: this.taskOutput.getStderr(),
       interrupted: code === SIGKILL,
       backgroundTaskId: this.#backgroundTaskId,
+      preSpawnError: this.#preSpawnErrorMsg,
     }
 
     if (this.taskOutput.stdoutToFile && !this.#backgroundTaskId) {

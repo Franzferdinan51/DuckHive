@@ -478,7 +478,7 @@ export const PowerShellTool = buildTool({
       let generatorResult;
       do {
         generatorResult = await commandGenerator.next();
-        if (!generatorResult.done && onProgress) {
+        if (!generatorResult.done && generatorResult.value && onProgress) {
           const progress = generatorResult.value;
           onProgress({
             toolUseID: `ps-progress-${progressCounter++}`,
@@ -500,7 +500,7 @@ export const PowerShellTool = buildTool({
         stdout: '',
         stderr: '',
         interrupted: false,
-        killed: false
+        preSpawnError: 'Command terminated abnormally before producing a result'
       };
 
       // Feed git/PR usage metrics (same counters as BashTool). PS invokes

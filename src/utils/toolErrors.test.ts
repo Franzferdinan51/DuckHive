@@ -32,6 +32,8 @@ describe('getErrorParts', () => {
     expect(parts[0]).toBe('Exit code 1')
     expect(parts[2]).toBe('')
     expect(parts[3]).toBe('')
+    // Diagnostic hint added for empty output (not interrupted)
+    expect(parts[4]).toContain('No output captured')
   })
 
   test('non-ShellError: returns message + stderr + stdout if present', () => {
@@ -83,7 +85,9 @@ describe('formatError', () => {
   test('ShellError: empty output falls back to default message', () => {
     const err = new ShellError('', '', 1, false)
     const result = formatError(err)
-    expect(result).toBe('Exit code 1')
+    expect(result).toContain('Exit code 1')
+    // The diagnostic hint is appended when both stdout and stderr are empty
+    expect(result).toContain('No output captured')
   })
 
   test('non-ShellError: message only', () => {

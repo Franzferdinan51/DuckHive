@@ -125,6 +125,23 @@ describe('interpretCommandResult', () => {
       expect(result.message).toContain('No matches found')
     })
 
+    test('git diff (plain) exit code 1 = files differ (not error)', () => {
+      const result = interpretCommandResult('git diff', 1, '+added line', '')
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('differ')
+    })
+
+    test('git diff --stat exit code 1 = files differ (not error)', () => {
+      const result = interpretCommandResult(
+        'git diff --stat',
+        1,
+        ' src/file.ts | 5 +++--',
+        '',
+      )
+      expect(result.isError).toBe(false)
+      expect(result.message).toContain('differ')
+    })
+
     test('git diff --quiet exit code 1 = files differ (not error)', () => {
       const result = interpretCommandResult('git diff --quiet', 1, '', '')
       expect(result.isError).toBe(false)
@@ -140,6 +157,16 @@ describe('interpretCommandResult', () => {
       )
       expect(result.isError).toBe(false)
       expect(result.message).toContain('differ')
+    })
+
+    test('git diff with real error (exit code 128) is still an error', () => {
+      const result = interpretCommandResult(
+        'git diff bad-ref',
+        128,
+        '',
+        'fatal: bad revision',
+      )
+      expect(result.isError).toBe(true)
     })
 
     test('git merge-base --is-ancestor exit code 1 = false predicate (not error)', () => {

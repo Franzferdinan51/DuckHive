@@ -196,10 +196,9 @@ function getGitCommandSemantic(command: string): CommandSemantic | undefined {
     return COMMAND_SEMANTICS.get('grep')
   }
 
-  if (
-    parsed.subcommand === 'diff' &&
-    parsed.args.some(arg => arg === '--quiet' || arg === '--exit-code')
-  ) {
+  // git diff always returns 1 when files differ (not an error), regardless of flags.
+  // --quiet/--exit-code suppress output but don't change exit-code semantics.
+  if (parsed.subcommand === 'diff') {
     return COMMAND_SEMANTICS.get('diff')
   }
 

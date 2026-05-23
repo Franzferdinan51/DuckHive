@@ -454,10 +454,11 @@ export async function exec(
 
     logForDebugging(`Shell exec error: ${errorMessage(error)}`)
 
-    return createAbortedCommand(undefined, {
-      code: 126, // Standard Unix code for execution errors
-      stderr: errorMessage(error),
-    })
+    // Use createFailedCommand (not createAbortedCommand): spawn failures are NOT
+    // user interrupts. Setting preSpawnError ensures BashTool/PowerShellTool
+    // throw a clear Error before ShellError, and interrupted: false avoids
+    // injecting a misleading "interrupted" message into the output.
+    return createFailedCommand(errorMessage(error))
   }
 }
 

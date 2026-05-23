@@ -25,12 +25,18 @@ export function formatError(error: unknown): string {
 
 export function getErrorParts(error: Error): string[] {
   if (error instanceof ShellError) {
-    return [
+    const parts = [
       error.description ?? `Exit code ${error.code}`,
       error.interrupted ? INTERRUPT_MESSAGE_FOR_TOOL_USE : '',
       error.stderr,
       error.stdout,
     ]
+    // When the command produced no output at all, add a diagnostic hint
+    // so the model has actionable context instead of a bare "Exit code N"
+    if (!error.stderr && !error.stdout && !error.interrupted) {
+      parts.push('(No output captured — the command may have failed to start or was terminated before producing output)')
+    }
+    return parts
   }
   const parts = [error.message]
   if ('stderr' in error && typeof error.stderr === 'string') {

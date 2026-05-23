@@ -30,8 +30,8 @@ export type DuckCustodianOperation =
   | { kind: 'memory-scan' }
   | { kind: 'lessons' }
   | { kind: 'inject-memory'; content: string }
-  | { kind: 'openclaw-status' }
-  | { kind: 'openclaw-restart' }
+  | { kind: 'duck-status' }
+  | { kind: 'duck-restart' }
   | { kind: 'gateway-status' }
   | { kind: 'gateway-restart' };
 
@@ -50,7 +50,7 @@ export function isPersistentDuckCustodianOperation(op: DuckCustodianOperation): 
     case 'config-set':
     case 'doctor-fix':
     case 'inject-memory':
-    case 'openclaw-restart':
+    case 'duck-restart':
     case 'gateway-restart':
     case 'setup-workspace':
     case 'set-default-model':
@@ -102,10 +102,12 @@ export function describeDuckCustodianOperation(op: DuckCustodianOperation): stri
       return 'Show lessons from past failures';
     case 'inject-memory':
       return `Inject memory: ${op.content.slice(0, 60)}...`;
+    case 'duck-status':
     case 'openclaw-status':
-      return 'Check OpenClaw gateway status';
+      return 'Check DuckHive status';
+    case 'duck-restart':
     case 'openclaw-restart':
-      return 'Restart OpenClaw gateway';
+      return 'Restart DuckHive';
     case 'gateway-status':
       return 'Check DuckHive gateway status';
     case 'gateway-restart':
@@ -222,13 +224,17 @@ export function parseDuckCustodianOperation(input: string): DuckCustodianOperati
       }
       return { kind: 'none', message: 'Usage: inject-memory <content>' };
 
+    case 'duck':
+    case 'duck-status':
     case 'openclaw':
     case 'openclaw-status':
-      return { kind: 'openclaw-status' };
+      return { kind: 'duck-status' };
 
+    case 'duck-restart':
+    case 'restart-duck':
     case 'openclaw-restart':
     case 'restart-openclaw':
-      return { kind: 'openclaw-restart' };
+      return { kind: 'duck-restart' };
 
     case 'gateway':
       if (args.startsWith('restart')) return { kind: 'gateway-restart' };
@@ -324,7 +330,7 @@ export async function executeDuckCustodianOperation(
       }
       if (deps.checkOpenClaw) {
         const r = await deps.checkOpenClaw();
-        checks.push(`OpenClaw: ${r.reachable ? `[ok] ${r.version ?? 'reachable'}` : '[fail] not reachable'}`);
+        checks.push(`DuckHive: ${r.reachable ? `[ok] ${r.version ?? 'reachable'}` : '[fail] not reachable'}`);
       }
       return { applied: false, message: checks.join('\n') || 'No health checks configured.' };
     }
@@ -362,8 +368,14 @@ export async function executeDuckCustodianOperation(
       return { applied: false, message: 'Config validation not configured.' };
     }
 
-    case 'config-set':
-      return { applied: false, message: `Config set not implemented in this context. Set: ${op.key} = ${op.value}` };
+    case 'config-set': {
+      if (!deps.setConfig) return { applied: false, message: 'setConfig not configured.' };
+      const r = await deps.setConfig(op.key, op.value);
+      return {
+        applied: r.ok,
+        message: r.ok ? `[ok] Set ${op.key} = ${op.value}` : `[fail] ${r.error ?? 'unknown error'}`,
+      };
+    }
 
     case 'setup':
       return {
@@ -394,25 +406,27 @@ export async function executeDuckCustodianOperation(
       };
     }
 
+    case 'duck-status':
     case 'openclaw-status': {
-      if (!deps.checkOpenClaw) return { applied: false, message: 'OpenClaw check not configured.' };
+      if (!deps.checkOpenClaw) return { applied: false, message: 'DuckHive check not configured.' };
       const r = await deps.checkOpenClaw();
       return {
         applied: false,
         message: r.reachable
-          ? `[ok] OpenClaw reachable: ${r.version ?? 'unknown version'}`
-          : `[fail] OpenClaw not reachable: ${r.error ?? 'gateway down'}`,
+          ? `[ok] DuckHive reachable: ${r.version ?? 'unknown version'}`
+          : `[fail] DuckHive not reachable: ${r.error ?? 'gateway down'}`,
       };
     }
 
+    case 'duck-restart':
     case 'openclaw-restart': {
-      if (!deps.restartOpenClaw) return { applied: false, message: 'OpenClaw restart not configured.' };
+      if (!deps.restartOpenClaw) return { applied: false, message: 'DuckHive restart not configured.' };
       await deps.restartOpenClaw();
       await appendDuckCustodianAuditEntry({
-        operation: 'openclaw-restart',
-        summary: 'Restarted OpenClaw gateway',
+        operation: 'duck-restart',
+        summary: 'Restarted DuckHive',
       });
-      return { applied: true, message: '[ok] OpenClaw gateway restarted.' };
+      return { applied: true, message: '[ok] DuckHive restarted.' };
     }
 
     case 'gateway-status': {
