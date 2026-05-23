@@ -2524,6 +2524,12 @@ function buildAutoRouteActionHint(
   if (autoAgentType === FILE_PICKER_AGENT_TYPE) {
     return `Use ${AGENT_TOOL_NAME} with subagent_type="${FILE_PICKER_AGENT_TYPE}" to identify the next file to edit, then act on that result immediately.`
   }
+  if (autoAgentType === 'Plan') {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="Plan" to produce a concrete file-scoped plan before implementing.`
+  }
+  if (autoAgentType === 'Explore') {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="Explore" to find the relevant files or symbols quickly, then act on its findings immediately.`
+  }
   if (autoAgentType === THINKER_AGENT_TYPE) {
     return `Use ${AGENT_TOOL_NAME} with subagent_type="${THINKER_AGENT_TYPE}" to reason through the best approach now that enough context is gathered.`
   }

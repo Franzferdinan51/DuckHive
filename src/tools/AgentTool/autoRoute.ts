@@ -11,7 +11,11 @@ const IMPLEMENTATION_SIGNAL = /\b(implement|implementation|fix|edit|change|updat
 const RESEARCH_SIGNAL = /\b(find|search|explore|investigate|understand|analyze|locate|where|read|review|verify|test|plan|think)\b/i
 const FILE_HINT_SIGNAL = /(?:[A-Za-z]:\\|\/|\\)[^\s'"]+\.[A-Za-z0-9]+|`[^`\n]+\.[A-Za-z0-9]+`|\b[a-z0-9_\-.\/\\]+\.(ts|tsx|js|jsx|mjs|cjs|py|rs|go|java|kt|swift|json|yaml|yml|md|toml|sh)\b/i
 const KNOWN_TARGET_SIGNAL = /\b(target file|target files|first target file|named file|named files|apply the plan|apply its findings|make the change|write the code|implement the change)\b/i
+const PLAN_AGENT_TYPE = 'Plan'
+const EXPLORE_AGENT_TYPE = 'Explore'
 const FILE_PICKER_SIGNAL = /\b(find|locate|identify|which file|what file|next file|relevant files|likely files|target file|target files)\b/i
+const PLAN_SIGNAL = /\b(plan|planning|implementation plan|roadmap|step-by-step plan|phases|spec)\b/i
+const EXPLORE_SIGNAL = /\b(explore|exploration|investigate|survey|scan the codebase|understand the architecture|broad context|map out)\b/i
 const THINKER_SIGNAL = /\b(think|thinking|best approach|approach|strategy|strategic|tradeoff|trade-off|critique|analyze|analysis|reason about|reasoning|design)\b/i
 const REVIEW_SIGNAL = /\b(review|reviewer|audit|second opinion|look for bugs|regression|code review|critical read)\b/i
 const VERIFICATION_SIGNAL = /\b(verify|verification|validate|prove|confirm|spot-check|adversarial|e2e|end-to-end|test the change|independent verification)\b/i
@@ -30,6 +34,52 @@ function shouldAutoRouteToFilePicker(
   }
   const combined = `${description}\n${prompt}`
   return FILE_PICKER_SIGNAL.test(combined) && !FILE_HINT_SIGNAL.test(combined)
+}
+
+function shouldAutoRouteToPlan(
+  prompt: string,
+  description: string,
+  agents: AgentDefinition[],
+): boolean {
+  if (!hasAgentType(agents, PLAN_AGENT_TYPE)) {
+    return false
+  }
+  const combined = `${description}\n${prompt}`
+  if (!PLAN_SIGNAL.test(combined)) {
+    return false
+  }
+  if (
+    VERIFICATION_SIGNAL.test(combined) ||
+    REVIEW_SIGNAL.test(combined) ||
+    isKnownTargetImplementationPrompt(combined)
+  ) {
+    return false
+  }
+  return true
+}
+
+function shouldAutoRouteToExplore(
+  prompt: string,
+  description: string,
+  agents: AgentDefinition[],
+): boolean {
+  if (!hasAgentType(agents, EXPLORE_AGENT_TYPE)) {
+    return false
+  }
+  const combined = `${description}\n${prompt}`
+  if (!EXPLORE_SIGNAL.test(combined)) {
+    return false
+  }
+  if (
+    FILE_PICKER_SIGNAL.test(combined) ||
+    PLAN_SIGNAL.test(combined) ||
+    VERIFICATION_SIGNAL.test(combined) ||
+    REVIEW_SIGNAL.test(combined) ||
+    isKnownTargetImplementationPrompt(combined)
+  ) {
+    return false
+  }
+  return true
 }
 
 function shouldAutoRouteToCodeReviewer(
@@ -130,6 +180,12 @@ export function resolveAutoRoutedAgentType(
   }
   if (shouldAutoRouteToCodeReviewer(prompt, description, agents)) {
     return CODE_REVIEWER_AGENT_TYPE
+  }
+  if (shouldAutoRouteToPlan(prompt, description, agents)) {
+    return PLAN_AGENT_TYPE
+  }
+  if (shouldAutoRouteToExplore(prompt, description, agents)) {
+    return EXPLORE_AGENT_TYPE
   }
   if (shouldAutoRouteToThinker(prompt, description, agents)) {
     return THINKER_AGENT_TYPE

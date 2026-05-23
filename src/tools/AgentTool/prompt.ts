@@ -159,6 +159,8 @@ ${AGENT_TOOL_NAME}({
 
 <example_agent_descriptions>
 "claude-code-guide": use this agent when the user asks how Claude Code works or how to use its features
+"Explore": use this agent when the task is broad codebase reconnaissance and a direct grep or file-picker is not enough
+"Plan": use this agent when you need a concrete file-scoped implementation plan before coding
 "thinker": use this agent when enough context is gathered and you need the best approach, critique, or tradeoff analysis before implementing
 "editor": use this agent when the target files are known and the next step should be implementation
 "statusline-setup": use this agent to configure the user's Claude Code status line setting
@@ -194,6 +196,22 @@ user: "You already found the affected queue files. Think through the safest retr
 The context is gathered and the remaining task is reasoning about approach and tradeoffs, so use the thinker agent before implementation.
 </commentary>
 assistant: Uses the ${AGENT_TOOL_NAME} tool to launch the thinker agent with the design question
+</example>
+
+<example>
+user: "Survey the config-loading path and tell me which files are involved before we touch anything."
+<commentary>
+This is broad reconnaissance, so use Explore instead of a generic agent.
+</commentary>
+assistant: Uses the ${AGENT_TOOL_NAME} tool to launch the Explore agent
+</example>
+
+<example>
+user: "Before coding, make me a concrete implementation plan for the multi-file auth cleanup."
+<commentary>
+This is an explicit planning request, so use the Plan agent.
+</commentary>
+assistant: Uses the ${AGENT_TOOL_NAME} tool to launch the Plan agent
 </example>
 `
 

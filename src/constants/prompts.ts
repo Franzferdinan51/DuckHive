@@ -358,6 +358,8 @@ function getSessionSpecificGuidanceSection(
       ? [
           `For simple, directed codebase searches (e.g. for a specific file/class/function) use ${searchTools} directly.`,
           `If the search target is unclear but you mainly need the next file to edit, use the ${AGENT_TOOL_NAME} tool with subagent_type=file-picker before escalating to broader exploration.`,
+          `If the task is broad codebase reconnaissance rather than implementation, use the ${AGENT_TOOL_NAME} tool with subagent_type=Explore instead of a generic agent.`,
+          `If you need a concrete file-scoped implementation plan before coding, use the ${AGENT_TOOL_NAME} tool with subagent_type=Plan.`,
           `If enough context is gathered but the best approach is still unclear, use the ${AGENT_TOOL_NAME} tool with subagent_type=thinker before resuming implementation or widening search.`,
           `If the target files are known and the remaining work is implementation, prefer the ${AGENT_TOOL_NAME} tool with subagent_type=editor over more searching.`,
           `For broader codebase exploration and deep research, use the ${AGENT_TOOL_NAME} tool with subagent_type=${EXPLORE_AGENT.agentType}. This is slower than using ${searchTools} directly, so use this only when a simple, directed search proves to be insufficient or when your task will clearly require more than ${EXPLORE_AGENT_MIN_QUERIES} queries.`,
