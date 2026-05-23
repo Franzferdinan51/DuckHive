@@ -3,6 +3,7 @@ import {
   CODE_REVIEWER_AGENT_TYPE,
   EDITOR_AGENT_TYPE,
   FILE_PICKER_AGENT_TYPE,
+  THINKER_AGENT_TYPE,
   VERIFICATION_AGENT_TYPE,
 } from './constants.js'
 
@@ -11,6 +12,7 @@ const RESEARCH_SIGNAL = /\b(find|search|explore|investigate|understand|analyze|l
 const FILE_HINT_SIGNAL = /(?:[A-Za-z]:\\|\/|\\)[^\s'"]+\.[A-Za-z0-9]+|`[^`\n]+\.[A-Za-z0-9]+`|\b[a-z0-9_\-.\/\\]+\.(ts|tsx|js|jsx|mjs|cjs|py|rs|go|java|kt|swift|json|yaml|yml|md|toml|sh)\b/i
 const KNOWN_TARGET_SIGNAL = /\b(target file|target files|first target file|named file|named files|apply the plan|apply its findings|make the change|write the code|implement the change)\b/i
 const FILE_PICKER_SIGNAL = /\b(find|locate|identify|which file|what file|next file|relevant files|likely files|target file|target files)\b/i
+const THINKER_SIGNAL = /\b(think|thinking|best approach|approach|strategy|strategic|tradeoff|trade-off|critique|analyze|analysis|reason about|reasoning|design)\b/i
 const REVIEW_SIGNAL = /\b(review|reviewer|audit|second opinion|look for bugs|regression|code review|critical read)\b/i
 const VERIFICATION_SIGNAL = /\b(verify|verification|validate|prove|confirm|spot-check|adversarial|e2e|end-to-end|test the change|independent verification)\b/i
 
@@ -42,6 +44,27 @@ function shouldAutoRouteToCodeReviewer(
   return REVIEW_SIGNAL.test(combined) && !VERIFICATION_SIGNAL.test(combined)
 }
 
+function shouldAutoRouteToThinker(
+  prompt: string,
+  description: string,
+  agents: AgentDefinition[],
+): boolean {
+  if (!hasAgentType(agents, THINKER_AGENT_TYPE)) {
+    return false
+  }
+  const combined = `${description}\n${prompt}`
+  if (!THINKER_SIGNAL.test(combined)) {
+    return false
+  }
+  if (VERIFICATION_SIGNAL.test(combined) || REVIEW_SIGNAL.test(combined)) {
+    return false
+  }
+  if (FILE_PICKER_SIGNAL.test(combined) && !FILE_HINT_SIGNAL.test(combined)) {
+    return false
+  }
+  return !IMPLEMENTATION_SIGNAL.test(combined) || !isKnownTargetImplementationPrompt(combined)
+}
+
 function shouldAutoRouteToVerification(
   prompt: string,
   description: string,
@@ -63,6 +86,10 @@ export function isKnownTargetImplementationPrompt(text: string): boolean {
 
 export function isVerificationLikePrompt(text: string): boolean {
   return VERIFICATION_SIGNAL.test(text)
+}
+
+export function isReasoningLikePrompt(text: string): boolean {
+  return THINKER_SIGNAL.test(text) && !VERIFICATION_SIGNAL.test(text)
 }
 
 function shouldAutoRouteToEditor(
@@ -103,6 +130,9 @@ export function resolveAutoRoutedAgentType(
   }
   if (shouldAutoRouteToCodeReviewer(prompt, description, agents)) {
     return CODE_REVIEWER_AGENT_TYPE
+  }
+  if (shouldAutoRouteToThinker(prompt, description, agents)) {
+    return THINKER_AGENT_TYPE
   }
   if (shouldAutoRouteToFilePicker(prompt, description, agents)) {
     return FILE_PICKER_AGENT_TYPE

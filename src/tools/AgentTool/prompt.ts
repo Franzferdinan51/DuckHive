@@ -159,6 +159,7 @@ ${AGENT_TOOL_NAME}({
 
 <example_agent_descriptions>
 "claude-code-guide": use this agent when the user asks how Claude Code works or how to use its features
+"thinker": use this agent when enough context is gathered and you need the best approach, critique, or tradeoff analysis before implementing
 "editor": use this agent when the target files are known and the next step should be implementation
 "statusline-setup": use this agent to configure the user's Claude Code status line setting
 </example_agent_descriptions>
@@ -185,6 +186,14 @@ user: "You already found the target reducer and test file, now make the change"
 The search is done and the next step is implementation, so use the editor agent instead of doing more exploration.
 </commentary>
 assistant: Uses the ${AGENT_TOOL_NAME} tool to launch the editor agent with the implementation task
+</example>
+
+<example>
+user: "You already found the affected queue files. Think through the safest retry strategy before editing anything."
+<commentary>
+The context is gathered and the remaining task is reasoning about approach and tradeoffs, so use the thinker agent before implementation.
+</commentary>
+assistant: Uses the ${AGENT_TOOL_NAME} tool to launch the thinker agent with the design question
 </example>
 `
 

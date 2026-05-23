@@ -99,6 +99,7 @@ import {
   CODE_REVIEWER_AGENT_TYPE,
   EDITOR_AGENT_TYPE,
   FILE_PICKER_AGENT_TYPE,
+  THINKER_AGENT_TYPE,
   VERIFICATION_AGENT_TYPE,
 } from './tools/AgentTool/constants.js'
 import {
@@ -2403,6 +2404,9 @@ function inferExecutionPhaseFromToolBatch(
   if (readOnlySubagentTypes.includes('Plan')) {
     return 'plan'
   }
+  if (readOnlySubagentTypes.includes(THINKER_AGENT_TYPE)) {
+    return 'plan'
+  }
   if (
     readOnlySubagentTypes.includes(FILE_PICKER_AGENT_TYPE) ||
     readOnlySubagentTypes.includes('Explore')
@@ -2457,6 +2461,9 @@ function buildAutoRouteActionHint(
   if (autoAgentType === FILE_PICKER_AGENT_TYPE) {
     return `Use ${AGENT_TOOL_NAME} with subagent_type="${FILE_PICKER_AGENT_TYPE}" to identify the next file to edit, then act on that result immediately.`
   }
+  if (autoAgentType === THINKER_AGENT_TYPE) {
+    return `Use ${AGENT_TOOL_NAME} with subagent_type="${THINKER_AGENT_TYPE}" to reason through the best approach now that enough context is gathered.`
+  }
   if (autoAgentType === EDITOR_AGENT_TYPE) {
     return `Use ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}" to implement the known-target change now.`
   }
@@ -2492,6 +2499,7 @@ function getReadOnlySubagentTypesFromBatch(toolUseBlocks: ToolUseBlock[]): strin
     if (typeof subagentType !== 'string') continue
     if (
       subagentType === FILE_PICKER_AGENT_TYPE ||
+      subagentType === THINKER_AGENT_TYPE ||
       subagentType === 'Explore' ||
       subagentType === 'Plan' ||
       subagentType === CODE_REVIEWER_AGENT_TYPE ||
@@ -2519,6 +2527,10 @@ function buildReadOnlySubagentHandoffMessage(
 
   if (subagentTypes.includes(FILE_PICKER_AGENT_TYPE)) {
     return `ACTION REQUIRED: File-picker is a read-only targeting pass. Your next step must be to edit or verify one of the files it named first. If implementation is non-trivial, spawn ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}" and tell it to change the first target file. If its report is still ambiguous, ask one blocking question that cites the exact file or symbol still missing. Do not resume broad search.`
+  }
+
+  if (subagentTypes.includes(THINKER_AGENT_TYPE)) {
+    return `ACTION REQUIRED: Thinker is a read-only reasoning pass. Use its recommendation to make the next concrete move now: edit the named target, hand implementation to ${AGENT_TOOL_NAME} with subagent_type="${EDITOR_AGENT_TYPE}", run the suggested verification command, or ask one blocker question tied to a specific file or symbol. Do not go back into broad research.`
   }
 
   if (subagentTypes.includes('Plan')) {

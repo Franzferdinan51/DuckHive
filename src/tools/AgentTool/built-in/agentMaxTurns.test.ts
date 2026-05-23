@@ -22,6 +22,7 @@ const ALL_AGENTS: Array<{ name: string; file: string; expectedMaxTurns: number |
   { name: 'Explore', file: 'exploreAgent.ts', expectedMaxTurns: 6 },
   { name: 'Plan', file: 'planAgent.ts', expectedMaxTurns: 10 },
   { name: 'file-picker', file: 'filePickerAgent.ts', expectedMaxTurns: 8 },
+  { name: 'thinker', file: 'thinkerAgent.ts', expectedMaxTurns: 6 },
   { name: 'code-reviewer', file: 'codeReviewerAgent.ts', expectedMaxTurns: 10 },
   { name: 'verification', file: 'verificationAgent.ts', expectedMaxTurns: 30 },
   { name: 'claude-code-guide', file: 'claudeCodeGuideAgent.ts', expectedMaxTurns: 12 },

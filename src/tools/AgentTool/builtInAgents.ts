@@ -10,6 +10,7 @@ import { FILE_PICKER_AGENT } from './built-in/filePickerAgent.js'
 import { GENERAL_PURPOSE_AGENT } from './built-in/generalPurposeAgent.js'
 import { PLAN_AGENT } from './built-in/planAgent.js'
 import { STATUSLINE_SETUP_AGENT } from './built-in/statuslineSetup.js'
+import { THINKER_AGENT } from './built-in/thinkerAgent.js'
 import { VERIFICATION_AGENT } from './built-in/verificationAgent.js'
 import type { AgentDefinition } from './loadAgentsDir.js'
 
@@ -50,6 +51,7 @@ export function getBuiltInAgents(): AgentDefinition[] {
     EDITOR_AGENT,
     STATUSLINE_SETUP_AGENT,
     FILE_PICKER_AGENT,
+    THINKER_AGENT,
     CODE_REVIEWER_AGENT,
   ]
 
