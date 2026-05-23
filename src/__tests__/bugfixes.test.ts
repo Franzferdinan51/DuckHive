@@ -127,7 +127,7 @@ describe('Agent loop continuation nudge', () => {
     expect(queryContent).toContain('ACTION REQUIRED: Search/read budget exhausted.')
     expect(queryContent).toContain('HARD_EXPLORATION_LIMIT = 3')
     expect(promptContent).toContain(
-      'After two consecutive search/read turns on the same task',
+      'After 3 consecutive search/read-only turns on the same task',
     )
     expect(promptContent).toContain('SEARCH BUDGETS:')
   })

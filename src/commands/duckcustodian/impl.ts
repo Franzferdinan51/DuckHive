@@ -29,6 +29,7 @@ import { getLessonsForTask } from '../../memdir/lessons.js';
 import {
   probeLmStudio,
   probeMmx,
+  probeOpenClawGateway,
 } from '../../crestodian/probes.js';
 import type { DuckCustodianOperation } from '../../crestodian/operations.js';
 
@@ -94,8 +95,13 @@ export const call: LocalCommandCall = async (args: string, _context) => {
 // ---------------------------------------------------------------------------
 
 async function handleRescueMode(op: DuckCustodianOperation, approved: boolean): Promise<{ type: 'text'; value: string }> {
-  // Rescue mode: always show gateway status first
-  const gatewayStatus = { reachable: true, error: undefined };
+  // Rescue mode: probe gateway status
+  let gatewayStatus: { reachable: boolean; error?: string } = { reachable: true };
+  try {
+    gatewayStatus = await probeOpenClawGateway();
+  } catch {
+    gatewayStatus = { reachable: false, error: 'probe failed' };
+  }
   let configValid = false;
   try { getGlobalConfig(); configValid = true; } catch { /* invalid */ }
 

@@ -31,7 +31,7 @@ describe('formatDuckCustodianOverview', () => {
 
     expect(output).toContain('DuckCustodian - DuckHive System Status')
     expect(output).toContain('Config: [ok] valid')
-    expect(output).toContain('OpenClaw CLI: [fail] not found')
+    expect(output).toContain('OpenClaw features: [ok] native (DuckHive)')
     expect(/[^\x00-\x7F]/.test(output)).toBe(false)
   })
 })

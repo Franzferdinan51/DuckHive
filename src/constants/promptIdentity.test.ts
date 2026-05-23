@@ -62,19 +62,15 @@ test('normal system prompt encourages useful agent-team and council surfaces', a
   expect(combined).toContain('/skills to find specialized capabilities')
 })
 
-test('search grounding prompt uses the configured DuckHive search provider', async () => {
+test('search grounding is configured via WebSearchTool providers, not a static prompt section', async () => {
   delete process.env.CLAUDE_CODE_SIMPLE
 
   const prompt = await getSystemPrompt([], 'gpt-4o')
   const combined = prompt.join('\n')
-  const groundingLine = combined
-    .split('\n')
-    .find(line => line.includes('SEARCH GROUNDING'))
 
-  expect(groundingLine).toBeDefined()
-  expect(groundingLine).toContain('configured DuckHive WebSearch tool')
-  expect(groundingLine).toContain('/search-provider or WEB_SEARCH_PROVIDER')
-  expect(groundingLine).not.toContain('google_web_search')
+  // SEARCH GROUNDING was removed from the static prompt; search is now
+  // configured dynamically via WebSearchTool providers and /search-provider
+  expect(combined).not.toContain('google_web_search')
 })
 
 test('built-in agent prompts describe DuckHive instead of Claude Code', () => {
