@@ -638,6 +638,59 @@ export function getSchemaValidationToolUseResult(
   return `InputValidationError: ${override ?? fallbackMessage ?? ''}`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function normalizeToolInputForValidation(
+  tool: Pick<Tool, 'name'>,
+  input: unknown,
+): unknown {
+  if (!isRecord(input)) {
+    return input
+  }
+
+  if (tool.name === FILE_READ_TOOL_NAME) {
+    // Codex strict tool schemas can emit placeholder pages: "" / null for
+    // non-PDF reads. Treat those the same as omission before zod validation.
+    const pages = input.pages
+    if (pages === null || (typeof pages === 'string' && pages.trim() === '')) {
+      const { pages: _pages, ...rest } = input
+      return rest
+    }
+    return input
+  }
+
+  if (tool.name !== ASK_USER_QUESTION_TOOL_NAME) {
+    return input
+  }
+
+  if (Array.isArray(input.questions)) {
+    return input
+  }
+
+  const { question, header, options, multiSelect, ...rest } = input
+  if (
+    typeof question !== 'string' ||
+    typeof header !== 'string' ||
+    !Array.isArray(options)
+  ) {
+    return input
+  }
+
+  return {
+    ...rest,
+    questions: [
+      {
+        question,
+        header,
+        options,
+        ...(typeof multiSelect === 'boolean' ? { multiSelect } : {}),
+      },
+    ],
+  }
+}
+
 async function checkPermissionsAndCallTool(
   tool: Tool,
   toolUseID: string,

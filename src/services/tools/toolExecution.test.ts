@@ -31,3 +31,106 @@ describe('getSchemaValidationErrorOverride', () => {
     )
   })
 })
+describe('normalizeToolInputForValidation', () => {
+  test('treats blank Read.pages as omitted', () => {
+    expect(
+      normalizeToolInputForValidation({ name: 'Read' } as never, {
+        file_path: '/tmp/example.txt',
+        offset: 1,
+        limit: 20,
+        pages: '',
+      }),
+    ).toEqual({
+      file_path: '/tmp/example.txt',
+      offset: 1,
+      limit: 20,
+    })
+
+    expect(
+      normalizeToolInputForValidation({ name: 'Read' } as never, {
+        file_path: '/tmp/example.txt',
+        pages: '   ',
+      }),
+    ).toEqual({
+      file_path: '/tmp/example.txt',
+    })
+  })
+
+  test('treats null Read.pages as omitted', () => {
+    expect(
+      normalizeToolInputForValidation({ name: 'Read' } as never, {
+        file_path: '/tmp/example.txt',
+        pages: null,
+      }),
+    ).toEqual({
+      file_path: '/tmp/example.txt',
+    })
+  })
+
+  test('wraps Gemini-style single AskUserQuestion payloads', () => {
+    const normalized = normalizeToolInputForValidation(AskUserQuestionTool, {
+      header: 'Location',
+      question: 'Where should we create the app?',
+      options: [
+        {
+          label: '../todo-app (Recommended)',
+          description: 'Create the app next to the current project',
+        },
+        {
+          label: 'Custom path',
+          description: 'Provide another folder',
+        },
+      ],
+      multiSelect: false,
+    })
+
+    expect(AskUserQuestionTool.inputSchema.safeParse(normalized).success).toBe(true)
+    expect(normalized).toEqual({
+      questions: [
+        {
+          header: 'Location',
+          question: 'Where should we create the app?',
+          options: [
+            {
+              label: '../todo-app (Recommended)',
+              description: 'Create the app next to the current project',
+            },
+            {
+              label: 'Custom path',
+              description: 'Provide another folder',
+            },
+          ],
+          multiSelect: false,
+        },
+      ],
+    })
+  })
+
+  test('leaves already valid AskUserQuestion payloads unchanged', () => {
+    const input = {
+      questions: [
+        {
+          header: 'Location',
+          question: 'Where should we create the app?',
+          options: [
+            { label: '../todo-app', description: 'Use the default folder' },
+            { label: 'Custom', description: 'Provide another folder' },
+          ],
+          multiSelect: false,
+        },
+      ],
+    }
+
+    expect(normalizeToolInputForValidation(AskUserQuestionTool, input)).toBe(input)
+  })
+
+  test('does not normalize unrelated tool inputs', () => {
+    const input = {
+      header: 'Location',
+      question: 'Where should we create the app?',
+      options: [],
+    }
+
+    expect(normalizeToolInputForValidation({ name: 'Read' } as never, input)).toBe(input)
+  })
+})
