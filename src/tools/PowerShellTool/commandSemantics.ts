@@ -12,6 +12,8 @@
  *   - grep.exe / rg.exe (Git for Windows, scoop, etc.): 1 = no match
  *   - findstr.exe (Windows native): 1 = no match
  *   - robocopy.exe (Windows native): 0-7 = success, 8+ = error (notorious!)
+ *   - git.exe (Git for Windows): diff exits 1 when files differ, merge-base
+ *     --is-ancestor exits 1 when false, etc.
  *
  * Without this module, PowerShellTool throws ShellError on any non-zero exit,
  * so `robocopy` reporting "files copied successfully" (exit 1) shows as an error.
@@ -33,6 +35,22 @@ const DEFAULT_SEMANTIC: CommandSemantic = (exitCode, _stdout, _stderr) => ({
   isError: exitCode !== 0,
   message:
     exitCode !== 0 ? `Command failed with exit code ${exitCode}` : undefined,
+})
+
+function predicateSemantic(falseMessage: string): CommandSemantic {
+  return (exitCode, _stdout, _stderr) => ({
+    isError: exitCode !== 0 && exitCode !== 1,
+    message: exitCode === 1 ? falseMessage : undefined,
+  })
+}
+
+const COMMAND_LOOKUP_SEMANTIC: CommandSemantic = (
+  exitCode,
+  _stdout,
+  _stderr,
+) => ({
+  isError: exitCode >= 2,
+  message: exitCode === 1 ? 'Command not found' : undefined,
 })
 
 /**
@@ -91,6 +109,9 @@ const COMMAND_SEMANTICS: Map<string, CommandSemantic> = new Map([
             : undefined,
     }),
   ],
+
+  // which/type: 0=command found, 1=not found, 2+=lookup error
+  ['which', COMMAND_LOOKUP_SEMANTIC],
 ])
 
 /**
@@ -111,17 +132,115 @@ function extractBaseCommand(segment: string): string {
 }
 
 /**
- * Extract the primary command from a PowerShell command line.
- * Takes the LAST pipeline segment since that determines the exit code.
+ * Extract the last active segment from a PowerShell command line.
+ * Takes the LAST pipeline segment since that determines the exit code,
+ * and strips leading call operators so the real command is visible.
  *
  * Heuristic split on `;` and `|` — may get it wrong for quoted strings or
  * complex constructs. Do NOT depend on this for security; it's only used
  * for exit-code interpretation (false negatives just fall back to default).
  */
-function heuristicallyExtractBaseCommand(command: string): string {
+function getLastSegment(command: string): string {
   const segments = command.split(/[;|]/).filter(s => s.trim())
   const last = segments[segments.length - 1] || command
-  return extractBaseCommand(last)
+  // Strip PowerShell call operators same as extractBaseCommand does
+  return last.trim().replace(/^[&.]\s+/, '')
+}
+
+/**
+ * Extract the base command name from the last pipeline segment.
+ */
+function heuristicallyExtractBaseCommand(command: string): string {
+  return extractBaseCommand(getLastSegment(command))
+}
+
+function splitShellWords(command: string): string[] {
+  return command.trim().split(/\s+/).filter(Boolean)
+}
+
+function getGitSubcommand(
+  command: string,
+): { subcommand: string; args: string[] } | undefined {
+  const words = splitShellWords(command)
+  const first = words[0]
+  if (!first) return undefined
+
+  // Handle git.exe, C:\path\to\git.exe, ./git, etc.
+  const basename = (first.split(/[\\/]/).pop() || first)
+    .toLowerCase()
+    .replace(/\.exe$/, '')
+  if (basename !== 'git') return undefined
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i]
+    if (!word) continue
+    if (
+      word === '-C' ||
+      word === '-c' ||
+      word === '--git-dir' ||
+      word === '--work-tree' ||
+      word === '--namespace'
+    ) {
+      i++
+      continue
+    }
+    if (word.startsWith('-')) continue
+    return { subcommand: word, args: words.slice(i + 1) }
+  }
+
+  return undefined
+}
+
+function getGitCommandSemantic(command: string): CommandSemantic | undefined {
+  const parsed = getGitSubcommand(command)
+  if (!parsed) return undefined
+
+  if (parsed.subcommand === 'grep') {
+    return GREP_SEMANTIC
+  }
+
+  // git diff always returns 1 when files differ (not an error), regardless of flags.
+  if (parsed.subcommand === 'diff') {
+    return (exitCode, _stdout, _stderr) => ({
+      isError: exitCode >= 2,
+      message: exitCode === 1 ? 'Files differ' : undefined,
+    })
+  }
+
+  if (
+    parsed.subcommand === 'merge-base' &&
+    parsed.args.includes('--is-ancestor')
+  ) {
+    return predicateSemantic('Commit is not an ancestor')
+  }
+
+  if (
+    parsed.subcommand === 'show-ref' &&
+    parsed.args.includes('--verify') &&
+    parsed.args.includes('--quiet')
+  ) {
+    return predicateSemantic('Ref not found')
+  }
+
+  if (
+    parsed.subcommand === 'rev-parse' &&
+    parsed.args.includes('--verify') &&
+    parsed.args.includes('--quiet')
+  ) {
+    return predicateSemantic('Revision not found')
+  }
+
+  return undefined
+}
+
+function getShellPredicateCommandSemantic(
+  command: string,
+): CommandSemantic | undefined {
+  const words = splitShellWords(command)
+  if (words[0] !== 'command') return undefined
+  return words.some(word => word === '-v' || word === '-V')
+    ? COMMAND_LOOKUP_SEMANTIC
+    : undefined
 }
 
 /**
@@ -136,6 +255,21 @@ export function interpretCommandResult(
   isError: boolean
   message?: string
 } {
+  // Git subcommands are unambiguous even in PowerShell because they run
+  // git.exe (external), which sets $LASTEXITCODE with standard git semantics.
+  // Use the last pipeline segment (same logic as base-command extraction) so
+  // `foo | git diff` is interpreted as git diff, not as a generic `foo`.
+  const activeCommand = getLastSegment(command)
+  const gitSemantic = getGitCommandSemantic(activeCommand)
+  if (gitSemantic) {
+    return gitSemantic(exitCode, stdout, stderr)
+  }
+
+  const shellPredicateSemantic = getShellPredicateCommandSemantic(activeCommand)
+  if (shellPredicateSemantic) {
+    return shellPredicateSemantic(exitCode, stdout, stderr)
+  }
+
   const baseCommand = heuristicallyExtractBaseCommand(command)
   const semantic = COMMAND_SEMANTICS.get(baseCommand) ?? DEFAULT_SEMANTIC
   return semantic(exitCode, stdout, stderr)
