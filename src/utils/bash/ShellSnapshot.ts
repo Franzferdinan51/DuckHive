@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import { execa } from 'execa'
 import { mkdir, stat } from 'fs/promises'
+import { statSync } from 'fs'
 import * as os from 'os'
 import { join } from 'path'
 import { logEvent } from 'src/services/analytics/index.js'

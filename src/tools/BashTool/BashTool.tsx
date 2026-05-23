@@ -745,12 +745,6 @@ export const BashTool = buildTool({
       if (result.stdout && result.stdout.includes(".git/index.lock': File exists")) {
         logEvent('tengu_git_index_lock_error', {});
       }
-      if (interpretationResult.isError && !isInterrupt) {
-        // Only add exit code if it's actually an error
-        if (result.code !== 0) {
-          stdoutAccumulator.append(`Exit code ${result.code}`);
-        }
-      }
       if (!preventCwdChanges) {
         const appState = getAppState();
         if (resetCwdIfOutsideProject(appState.toolPermissionContext)) {
@@ -766,7 +760,7 @@ export const BashTool = buildTool({
       if (interpretationResult.isError && !isInterrupt) {
         // Pass output as stdout so agents see it in <bash-stdout> even on failure.
         // This is consistent with how successful commands work (merged fd).
-        throw new ShellError(outputWithSbFailures, '', result.code, result.interrupted, interpretationResult.message);
+        throw new ShellError(outputWithSbFailures, result.stderr || '', result.code, result.interrupted, interpretationResult.message);
       }
       wasInterrupted = result.interrupted;
     } finally {

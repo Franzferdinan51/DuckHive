@@ -100,7 +100,11 @@ function normalizeMessage(message: unknown, index: number): DeliberationMessage 
     role: typeof raw.role === 'string' ? raw.role : undefined,
     content,
     vote: normalizeVote(raw.vote),
-    timestamp: typeof raw.timestamp === 'number' ? raw.timestamp : undefined,
+    timestamp: typeof raw.timestamp === 'number'
+      ? raw.timestamp
+      : typeof raw.timestamp === 'string'
+        ? Date.parse(raw.timestamp)
+        : undefined,
     type:
       raw.type === 'opening' ||
       raw.type === 'argument' ||
@@ -624,8 +628,50 @@ export class HiveBridge {
 
 let _instance: HiveBridge | null = null
 
+// Lazy-start the council server on first bridge access
+let _councilAutoStartLogged = false
+
+function tryAutoStartCouncil(): void {
+  if (!process.env.DUCKHIVE_COUNCIL_AUTO_START) return
+  if (_councilAutoStartLogged) return
+  _councilAutoStartLogged = true
+
+  const { fork } = require('node:child_process')
+  const { join } = require('node:path')
+
+  const port = process.env.COUNCIL_PORT || '3007'
+  const checkUrl = `http://localhost:${port}/api/health`
+
+  // Async fire-and-forget - don't block bridge creation
+  Promise.resolve().then(async () => {
+    try {
+      const res = await fetch(checkUrl, { signal: AbortSignal.timeout(2000) })
+      if (res.ok) {
+        logForDebugging('[hive-bridge] Council already running, no auto-start needed')
+        return
+      }
+    } catch {
+      // Not running - spawn it
+    }
+
+    const councilPath = join(process.cwd(), 'src', 'services', 'council-server', 'council-api-server.cjs')
+    try {
+      const child = fork(councilPath, [], {
+        env: { ...process.env, PORT: port, NODE_ENV: 'development' },
+        detached: true,
+        stdio: 'ignore',
+      } as any)
+      child?.unref?.()
+      logForDebugging('[hive-bridge] Auto-started council server via fork')
+    } catch (e) {
+      logForDebugging(`[hive-bridge] Could not auto-start council: ${e}`)
+    }
+  }).catch(() => {})
+}
+
 export function getHiveBridge(): HiveBridge {
   if (!_instance) {
+    tryAutoStartCouncil()
     _instance = new HiveBridge()
   }
   return _instance

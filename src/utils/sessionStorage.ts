@@ -3186,7 +3186,7 @@ export function getSessionIdFromLog(log: LogOption): UUID | undefined {
     return log.sessionId as UUID
   }
   // Fall back to extracting from first message (full logs)
-  return log.messages[0]?.sessionId as UUID | undefined
+  return log.messages?.[0]?.sessionId as UUID | undefined
 }
 
 /**
