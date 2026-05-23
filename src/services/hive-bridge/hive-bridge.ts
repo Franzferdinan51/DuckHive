@@ -632,7 +632,8 @@ let _instance: HiveBridge | null = null
 let _councilAutoStartLogged = false
 
 function tryAutoStartCouncil(): void {
-  if (!process.env.DUCKHIVE_COUNCIL_AUTO_START) return
+  // Default to auto-start unless explicitly disabled (DUCKHIVE_AUTO_START_COUNCIL=0)
+  if (process.env.DUCKHIVE_AUTO_START_COUNCIL === '0') return
   if (_councilAutoStartLogged) return
   _councilAutoStartLogged = true
 
