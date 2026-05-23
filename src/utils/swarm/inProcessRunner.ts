@@ -995,7 +995,7 @@ export async function runInProcessTeammate(
         ]
       : ['*'],
     source: 'projectSettings',
-    permissionMode: 'default',
+    permissionMode: identity.planModeRequired ? 'plan' : 'default',
     // Propagate model from custom agent definition so getAgentModel()
     // can use it as a fallback when no tool-level model is specified
     ...(agentDefinition?.model ? { model: agentDefinition.model } : {}),
