@@ -79,27 +79,26 @@ import {
  * - Standalone sessions return undefined
  */
 function getAgentNameToPoll(appState: AppState): string | undefined {
-  // In-process teammates should NOT use useInboxPoller - they have their own
-  // polling mechanism via waitForNextPromptOrShutdown() in inProcessRunner.ts.
-  // Using useInboxPoller would cause message routing issues since in-process
-  // teammates share the same React context and AppState with the leader.
+  // Note: isInProcessTeammate() returns true for sub-agents spawned by the team lead
+  // (in-process runners). When that happens, we need to distinguish between:
+  //   1. The leader's REPL session (which IS a team lead and SHOULD poll)
+  //   2. The sub-agent's own session (which should NOT poll via useInboxPoller)
   //
-  // Note: This can be called when the leader's REPL re-renders while an
-  // in-process teammate's AsyncLocalStorage context is active (due to shared
-  // setAppState). We return undefined to gracefully skip polling rather than
-  // throwing, since this is a normal occurrence during concurrent execution.
+  // isTeamLead() checks the teamContext on appState, which is the authoritative
+  // indicator. isInProcessTeammate() checks AsyncLocalStorage which is set to the
+  // sub-agent's context whenever the leader is running a sub-agent. So we check
+  // isTeamLead FIRST - if we're the leader, we always poll regardless of the
+  // in-process state.
+  if (isTeamLead(appState.teamContext)) {
+    const leadAgentId = appState.teamContext!.leadAgentId
+    const leadName = appState.teamContext!.teammates[leadAgentId]?.name
+    return leadName || 'team-lead'
+  }
   if (isInProcessTeammate()) {
     return undefined
   }
   if (isTeammate()) {
     return getAgentName()
-  }
-  // Team lead polls using their agent name (not ID)
-  if (isTeamLead(appState.teamContext)) {
-    const leadAgentId = appState.teamContext!.leadAgentId
-    // Look up the lead's name from teammates map
-    const leadName = appState.teamContext!.teammates[leadAgentId]?.name
-    return leadName || 'team-lead'
   }
   return undefined
 }

@@ -6,6 +6,11 @@
  * optional daemons must not block stdin ownership before the UI is live.
  */
 
+// Increase heap on Windows to avoid OOM during long REPL sessions (4GB default is often insufficient)
+if (process.platform === 'win32') {
+  process.env.NODE_OPTIONS = `--max-old-space-size=8192${process.env.NODE_OPTIONS ? ' ' + process.env.NODE_OPTIONS : ''}`
+}
+
 import { existsSync, readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'

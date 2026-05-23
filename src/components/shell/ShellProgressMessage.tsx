@@ -26,6 +26,7 @@ export function ShellProgressMessage(t0) {
     totalLines,
     totalBytes,
     timeoutMs,
+    taskId,
     verbose
   } = t0;
   let t1;

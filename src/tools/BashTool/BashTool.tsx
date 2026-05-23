@@ -1050,8 +1050,7 @@ async function* runShellCommand({
   let foregroundTaskId: string | undefined = undefined;
   {
     const initialResult = await Promise.race([resultPromise, new Promise<null>(resolve => {
-      const t = setTimeout((r: (v: null) => void) => r(null), PROGRESS_THRESHOLD_MS, resolve);
-      t.unref();
+      setTimeout(resolve, PROGRESS_THRESHOLD_MS).unref();
     })]);
     if (initialResult !== null) {
       shellCommand.cleanup();

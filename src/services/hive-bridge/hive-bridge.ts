@@ -645,7 +645,10 @@ function tryAutoStartCouncil(): void {
   // Async fire-and-forget - don't block bridge creation
   Promise.resolve().then(async () => {
     try {
-      const res = await fetch(checkUrl, { signal: AbortSignal.timeout(2000) })
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 2000)
+      const res = await fetch(checkUrl, { signal: controller.signal })
+      clearTimeout(timer)
       if (res.ok) {
         logForDebugging('[hive-bridge] Council already running, no auto-start needed')
         return

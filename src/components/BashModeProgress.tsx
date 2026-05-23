@@ -32,7 +32,7 @@ export function BashModeProgress(t0) {
   }
   let t3;
   if ($[2] !== progress || $[3] !== verbose) {
-    t3 = progress ? <ShellProgressMessage fullOutput={progress.fullOutput} output={progress.output} elapsedTimeSeconds={progress.elapsedTimeSeconds} totalLines={progress.totalLines} verbose={verbose} /> : BashTool.renderToolUseProgressMessage?.([], {
+    t3 = progress ? <ShellProgressMessage fullOutput={progress.fullOutput} output={progress.output} elapsedTimeSeconds={progress.elapsedTimeSeconds} totalLines={progress.totalLines} totalBytes={progress.totalBytes} timeoutMs={progress.timeoutMs} verbose={verbose} /> : BashTool.renderToolUseProgressMessage?.([], {
       verbose,
       tools: [],
       terminalSize: undefined
