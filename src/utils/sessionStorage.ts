@@ -3181,6 +3181,7 @@ export function saveWorktreeState(
  * For full logs, extracts from the first message.
  */
 export function getSessionIdFromLog(log: LogOption): UUID | undefined {
+  if (!log) return undefined
   // For lite logs, use the direct sessionId field
   if (log.sessionId) {
     return log.sessionId as UUID
