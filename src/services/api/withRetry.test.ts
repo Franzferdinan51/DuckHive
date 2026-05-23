@@ -425,6 +425,9 @@ describe('withRetry quota fallback', () => {
     }
 
     expect(thrown).toBeInstanceOf(FallbackTriggeredError)
+  })
+})
+
 // Regression for #1125 — OpenRouter 402 (credits-vs-max_tokens mismatch)
 // carries the affordable cap in the message. The retry loop should adjust
 // max_tokens to that cap once instead of bubbling a confusing 402 to the user.

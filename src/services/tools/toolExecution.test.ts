@@ -4,7 +4,9 @@ import { SkillTool } from '../../tools/SkillTool/SkillTool.js'
 import {
   getSchemaValidationErrorOverride,
   getSchemaValidationToolUseResult,
+  normalizeToolInputForValidation,
 } from './toolExecution.js'
+import { AskUserQuestionTool } from '../../tools/AskUserQuestionTool/AskUserQuestionTool.js'
 
 describe('getSchemaValidationErrorOverride', () => {
   test('returns actionable missing-skill error for SkillTool', () => {

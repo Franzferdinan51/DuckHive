@@ -26,13 +26,6 @@ export default defineGateway({
       matchBaseUrlHosts: ['opengateway.gitlawb.com', 'opengateway.fly.dev'],
     },
   },
-  validation: {
-    kind: 'credential-env',
-    credentialEnvVars: [],
-    routing: {
-      matchBaseUrlHosts: ['opengateway.gitlawb.com', 'opengateway.fly.dev'],
-    },
-  },
   transportConfig: {
     kind: 'openai-compatible',
     openaiShim: {

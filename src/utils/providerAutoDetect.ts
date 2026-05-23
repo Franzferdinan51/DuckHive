@@ -289,6 +289,10 @@ const OPENGATEWAY_DEFAULT_MODEL = 'mimo-v2.5-pro'
  * null so the caller surfaces the missing-credential prompt instead of
  * silently routing to an endpoint that will 401.
  */
+function normalizeOpengatewayBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/xiaomi-mimo\/?$/, '')
+}
+
 function defaultOpengatewayProvider(env: EnvLike): DetectedProvider | null {
   const hasKey =
     (typeof env.OPENGATEWAY_API_KEY === 'string' && env.OPENGATEWAY_API_KEY.trim().length > 0) ||
