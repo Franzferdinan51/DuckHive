@@ -70,6 +70,10 @@ import prSize from './commands/pr-size/index.js'
 import promptSuggest from './commands/prompt-suggest/index.js'
 import releaseNotes from './commands/release-notes/index.js'
 import rename from './commands/rename/index.js'
+import {
+  requestSize,
+  requestSizeNonInteractive,
+} from './commands/request-size/index.js'
 import resume from './commands/resume/index.js'
 import review, { ultrareview } from './commands/review.js'
 import router from './commands/router/index.js'
@@ -383,6 +387,8 @@ const COMMANDS = memoize((): Command[] => [
   releaseNotes,
   reloadPlugins,
   rename,
+  requestSize,
+  requestSizeNonInteractive,
   resume,
   session,
   skill,
