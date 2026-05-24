@@ -17,6 +17,12 @@ import type {
 import { accumulateUsage, updateUsage } from 'src/services/api/claude.js'
 import type { NonNullableUsage } from 'src/services/api/logging.js'
 import { EMPTY_USAGE } from 'src/services/api/logging.js'
+import {
+  trackTokenUsage,
+  configureTokenSpy,
+  onTokenAlert,
+  type TokenAlert,
+} from 'src/services/tokenSpy.js'
 import stripAnsi from 'strip-ansi'
 import type { Command } from './commands.js'
 import { getSlashCommandToolSkills } from './commands.js'
@@ -182,6 +188,21 @@ export type QueryEngineConfig = {
    * at 80% usage and the agent may trigger early compaction.
    */
   turnTokenBudget?: number
+  /**
+   * Token Spy integration: when enabled, every message_stop event records
+   * token usage in the token spy for budget monitoring and alerts.
+   * Requires a provider mapping function to resolve model → ProviderId.
+   */
+  tokenSpy?: {
+    /** Called on each message_stop to report token usage. Return the
+     * budget-tracker ProviderId for the current model. */
+    getCurrentProvider: () => string
+    /** Alert threshold overrides */
+    warnThresholdPercent?: number
+    criticalThresholdPercent?: number
+    /** Callback for budget alerts */
+    onAlert?: (alert: TokenAlert) => void
+  }
 }
 
 /**
@@ -240,6 +261,18 @@ export class QueryEngine {
     }
     if (config.turnTokenBudget) {
       this.turnTokenBudget = config.turnTokenBudget
+    }
+    // ─── pi-inspired: configure token spy if enabled ────────────────
+    if (config.tokenSpy) {
+      configureTokenSpy({
+        warnThresholdPercent:
+          config.tokenSpy.warnThresholdPercent ?? 70,
+        criticalThresholdPercent:
+          config.tokenSpy.criticalThresholdPercent ?? 90,
+      })
+      if (config.tokenSpy.onAlert) {
+        onTokenAlert(config.tokenSpy.onAlert)
+      }
     }
   }
 
@@ -883,13 +916,21 @@ export class QueryEngine {
             if (message.event.delta.stop_reason != null) {
               lastStopReason = message.event.delta.stop_reason
             }
-          }
-          if (message.event.type === 'message_stop') {
-            // Accumulate current message usage into total
-            this.totalUsage = accumulateUsage(
-              this.totalUsage,
-              currentMessageUsage,
-            )
+            // ─── pi-inspired: accumulate total usage ────────────────
+            this.totalUsage = accumulateUsage(this.totalUsage, currentMessageUsage)
+            // ─── pi-inspired: token spy integration ────────────────
+            if (this.config.tokenSpy) {
+              try {
+                const provider = this.config.tokenSpy.getCurrentProvider() as import('./services/budgetTracker.js').ProviderId
+                trackTokenUsage(
+                  provider,
+                  currentMessageUsage.input_tokens ?? 0,
+                  currentMessageUsage.output_tokens ?? 0,
+                )
+              } catch {
+                // Token spy should never break the query loop
+              }
+            }
           }
 
           if (includePartialMessages) {

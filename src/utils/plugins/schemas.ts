@@ -266,6 +266,89 @@ export const PluginAuthorSchema = lazySchema(() =>
 )
 
 /**
+ * Schema for plugin health check configuration (DreamServer-inspired).
+ *
+ * Allows plugins to declare a health check command that DuckHive can run
+ * to verify the plugin's runtime dependencies are functional.
+ *
+ * Example:
+ * ```json
+ * {
+ *   "healthCheck": {
+ *     "command": "nvidia-smi",
+ *     "interval": "startup",
+ *     "timeoutMs": 5000
+ *   }
+ * }
+ * ```
+ */
+export const PluginHealthCheckSchema = lazySchema(() =>
+  z.object({
+    command: z
+      .string()
+      .min(1)
+      .describe('Shell command to run for health verification'),
+    interval: z
+      .enum(['startup', 'always'])
+      .default('startup')
+      .describe('When to run the health check (startup only, or every load)'),
+    timeoutMs: z
+      .number()
+      .int()
+      .positive()
+      .default(10000)
+      .describe('Maximum time to wait for health check (milliseconds)'),
+    required: z
+      .boolean()
+      .default(false)
+      .describe('If true, plugin is disabled when health check fails'),
+  }),
+)
+
+/**
+ * Schema for plugin resource requirements (DreamServer-inspired).
+ *
+ * Declares the hardware resources a plugin needs to function optimally.
+ * Used by the hardware-aware routing system to determine if a plugin
+ * is viable on the current machine.
+ *
+ * Example:
+ * ```json
+ * {
+ *   "resourceRequirements": {
+ *     "minVramMB": 6144,
+ *     "minSystemRAMMB": 8192,
+ *     "preferredGpuVendor": "nvidia"
+ *   }
+ * }
+ * ```
+ */
+export const PluginResourceRequirementsSchema = lazySchema(() =>
+  z.object({
+    minVramMB: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('Minimum GPU VRAM in MB required by this plugin'),
+    minSystemRAMMB: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('Minimum system RAM in MB required by this plugin'),
+    preferredGpuVendor: z
+      .enum(['nvidia', 'amd', 'intel', 'apple', 'any'])
+      .optional()
+      .describe('Preferred GPU vendor for this plugin'),
+    requiresGpu: z
+      .boolean()
+      .optional()
+      .describe('If true, plugin requires a GPU to function'),
+  }),
+)
+
+/**
  * Metadata part of the plugin manifest file (plugin.json)
  *
  * This schema validates the structure of plugin manifests and provides
@@ -881,6 +964,28 @@ const PluginManifestSettingsSchema = lazySchema(() =>
  * still fail at all levels. For developer feedback on unknown top-level
  * fields, use `claude plugin validate`.
  */
+/**
+ * Schema for plugin health check configuration in manifest
+ */
+const PluginManifestHealthCheckSchema = lazySchema(() =>
+  z.object({
+    healthCheck: PluginHealthCheckSchema()
+      .optional()
+      .describe('Health check configuration to verify plugin runtime dependencies'),
+  }),
+)
+
+/**
+ * Schema for plugin resource requirements in manifest
+ */
+const PluginManifestResourceRequirementsSchema = lazySchema(() =>
+  z.object({
+    resourceRequirements: PluginResourceRequirementsSchema()
+      .optional()
+      .describe('Hardware resource requirements for this plugin'),
+  }),
+)
+
 export const PluginManifestSchema = lazySchema(() =>
   z.object({
     ...PluginManifestMetadataSchema().shape,
@@ -894,6 +999,8 @@ export const PluginManifestSchema = lazySchema(() =>
     ...PluginManifestLspServerSchema().partial().shape,
     ...PluginManifestSettingsSchema().partial().shape,
     ...PluginManifestUserConfigSchema().partial().shape,
+    ...PluginManifestHealthCheckSchema().partial().shape,
+    ...PluginManifestResourceRequirementsSchema().partial().shape,
   }),
 )
 

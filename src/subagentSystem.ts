@@ -1,6 +1,8 @@
 import type { ToolUseContext } from './Tool.js'
 import { routeTask } from './orchestrator/multi-model/multi-model-router.js'
 import { spawnTeammate } from './tools/shared/spawnMultiAgent.js'
+import { evaluateToolCall, recordAudit, type PolicyEvaluationContext } from './services/policyEngine.js'
+import { logForDebugging } from './utils/debug.js'
 
 type SessionsSpawnOptions = {
   label?: string
@@ -77,6 +79,27 @@ export async function sessions_spawn(
     return '## Deep Analysis\nNo subagent task was provided.'
   }
 
+  // ─── Policy Engine: govern subagent spawns ──────────────────────
+  const policyContext: PolicyEvaluationContext = {
+    agentId: options.label ?? 'sessions_spawn',
+    agentType: options.mode === 'autonomous-goal' ? 'autonomous' : 'subagent',
+    toolInput: { task, agentType: options.agentType, permissionMode: options.permissionMode },
+  }
+  const policyDecision = evaluateToolCall('Task', policyContext)
+
+  if (policyDecision.blocked) {
+    recordAudit('Task', { task, agentType: options.agentType }, policyDecision, false, {
+      agentId: options.label,
+      result: 'denied',
+    })
+    logForDebugging(`[SubagentSystem] Spawn blocked by policy: ${policyDecision.reason}`)
+    return `## Policy Blocked\nSubagent spawn blocked: ${policyDecision.reason}`
+  }
+
+  if (policyDecision.requiresApproval) {
+    logForDebugging(`[SubagentSystem] Spawn requires approval: ${policyDecision.reason}`)
+  }
+
   // Derive a teammate name from the label, sanitizing for use as agentId
   const label = options.label ?? 'subagent'
   const teammateName = label.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40) || 'subagent'
@@ -98,6 +121,12 @@ export async function sessions_spawn(
       options.context,
     )
 
+    // Record successful spawn in policy audit
+    recordAudit('Task', { task, agentType: options.agentType }, policyDecision, true, {
+      agentId: options.label,
+      result: 'success',
+    })
+
     // The teammate is now running asynchronously. Return a status that
     // informs the leader agent the teammate was spawned successfully.
     return [
@@ -112,6 +141,13 @@ export async function sessions_spawn(
     ].join('\n')
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+
+    // Record failed spawn in policy audit
+    recordAudit('Task', { task, agentType: options.agentType }, policyDecision, false, {
+      agentId: options.label,
+      result: 'error',
+    })
+
     return [
       `## Deep Analysis`,
       `Failed to spawn subagent teammate: ${message}`,

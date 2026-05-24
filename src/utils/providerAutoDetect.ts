@@ -33,6 +33,11 @@ import { existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { readMiniMaxCredential } from './minimaxCredentials.js'
+import {
+  detectHardware,
+  getHardwareAwareProviderPreference,
+  type HardwareProfile,
+} from './hardwareDetection.js'
 
 export type DetectedProviderKind =
   | 'anthropic'
@@ -358,4 +363,56 @@ export async function detectBestProvider(options?: {
   if (options?.skipOpengatewayFallback) return null
 
   return defaultOpengatewayProvider(env)
+}
+
+// ─── Hardware-aware provider detection ─────────────────────────────────────
+
+/**
+ * Augmented provider detection that factors in available GPU hardware.
+ * When a local provider (Ollama, LM Studio) is detected, hardware tier
+ * information is embedded to help the router pick optimal models.
+ *
+ * Returns both the provider and a hardware profile for model selection.
+ */
+export async function detectBestProviderWithHardware(options?: {
+  env?: EnvLike
+  fetchImpl?: typeof fetch
+  timeoutMs?: number
+  skipLocal?: boolean
+  hasCodexAuth?: () => boolean
+  skipOpengatewayFallback?: boolean
+}): Promise<{
+  provider: DetectedProvider | null
+  hardware: HardwareProfile
+}> {
+  const provider = await detectBestProvider(options)
+  const hardware = detectHardware()
+
+  // If a local provider is detected, embed the recommended model from hardware tier
+  if (
+    (provider?.kind === 'ollama' || provider?.kind === 'lm-studio') &&
+    hardware.recommendedLocalModel
+  ) {
+    return {
+      provider: { ...provider, model: provider.model ?? hardware.recommendedLocalModel },
+      hardware,
+    }
+  }
+
+  return { provider, hardware }
+}
+
+/**
+ * Returns a hardware-aware provider preference list for budget-aware
+ * routing. Callers can use this to sort provider candidates by
+ * cost-effectiveness given available hardware.
+ */
+export function getHardwareAwareProviderList(): {
+  preferLocal: boolean
+  preferredProviders: string[]
+  hardware: HardwareProfile
+} {
+  const hw = getHardwareAwareProviderPreference()
+  const profile = detectHardware()
+  return { ...hw, hardware: profile }
 }
