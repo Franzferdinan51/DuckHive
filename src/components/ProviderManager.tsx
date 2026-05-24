@@ -1875,7 +1875,12 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
     if (canUseXaiOAuth) {
       // Place xAI OAuth directly under Codex OAuth so both browser-sign-in
       // options group together visually.
-      options.splice(canUseCodexOAuth ? 8 : 7, 0, {
+      const codexOAuthIndex = options.findIndex(
+        option => option.value === 'codex-oauth',
+      )
+      const xaiInsertIndex =
+        codexOAuthIndex >= 0 ? codexOAuthIndex + 1 : canUseCodexOAuth ? 8 : 7
+      options.splice(xaiInsertIndex, 0, {
         value: 'xai-oauth',
         label: 'xAI OAuth (Grok)',
         description:

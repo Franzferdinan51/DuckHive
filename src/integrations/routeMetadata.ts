@@ -435,6 +435,10 @@ export function getRouteCredentialValue(
   routeId: string,
   processEnv: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
+  if (routeId === 'minimax') {
+    return readMiniMaxCredential(processEnv)?.credential
+  }
+
   return readFirstNonEmptyEnvValue(
     processEnv,
     getRouteCredentialEnvVars(routeId),

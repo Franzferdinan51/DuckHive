@@ -249,6 +249,13 @@ function resolveProfileFileReadPaths(options?: ProfileFileLocation): string[] {
     return [primary]
   }
 
+  const legacyConfig = options?.configDir
+    ? join(options.configDir, '.openclaude-profile.json')
+    : null
+  if (legacyConfig && legacyConfig !== primary && existsSync(legacyConfig)) {
+    return [legacyConfig]
+  }
+
   const legacy = resolveLegacyProfileFilePath(options?.cwd)
   return legacy === primary ? [primary] : [primary, legacy]
 }
@@ -259,8 +266,18 @@ function resolveProfileFileCleanupPaths(options?: ProfileFileLocation): string[]
     return [primary]
   }
 
+  const legacyConfig = options?.configDir
+    ? join(options.configDir, '.openclaude-profile.json')
+    : null
   const legacy = resolveLegacyProfileFilePath(options?.cwd)
-  return legacy === primary ? [primary] : [primary, legacy]
+  const paths = [primary]
+  if (legacyConfig && legacyConfig !== primary) {
+    paths.push(legacyConfig)
+  }
+  if (legacy !== primary && legacy !== legacyConfig) {
+    paths.push(legacy)
+  }
+  return paths
 }
 
 function ensureProfileDirectory(filePath: string): void {
