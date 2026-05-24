@@ -621,7 +621,7 @@ export function prefetchApiKeyFromApiKeyHelperIfSafe(
   ) {
     return
   }
-  void getApiKeyFromApiKeyHelper(isNonInteractiveSession)
+  void getApiKeyFromApiKeyHelper(isNonInteractiveSession).catch(() => {})
 }
 
 /** Default STS credentials are one hour. We manually manage invalidation, so not too worried about this being accurate. */
@@ -1032,7 +1032,7 @@ export function prefetchGcpCredentialsIfSafe(): void {
   }
 
   // Safe to prefetch - either not from project settings or trust already established
-  void refreshGcpCredentialsIfNeeded()
+  void refreshGcpCredentialsIfNeeded().catch(() => {})
 }
 
 /**
