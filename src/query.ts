@@ -2172,7 +2172,7 @@ async function* queryLoop(
           const capped = sessionMemoryContent.slice(0, 8000)
           const msg = createAttachmentMessage({
             type: 'critical_system_reminder',
-            content: `<system-reminder>\nThe following is a summary of the conversation from previous turns (session memory):\n\n${capped}${sessionMemoryContent.length > 8000 ? '\n\n[Session memory was truncated to 8000 characters]' : ''}\n</system-reminder>`,
+            content: `<system-reminder>\nThe following is an older summary of the conversation from previous turns (session memory). Use it as advisory continuity context only. The latest user message and the current workspace state take precedence. If the user says a previously tracked issue is fixed, complete, canceled, no longer relevant, or asks to move to a different task, stop pursuing that older issue and follow the new request.\n\n${capped}${sessionMemoryContent.length > 8000 ? '\n\n[Session memory was truncated to 8000 characters]' : ''}\n</system-reminder>`,
           })
           yield msg
           toolResults.push(msg)

@@ -37,6 +37,9 @@ describe('SessionMemory prompts', () => {
       expect(prompt).toContain(`The first line must be exactly "${SESSION_MEMORY_TEMPLATE_VERSION}"`)
       expect(prompt).toContain('Prefer compact routing handles over long prose')
       expect(prompt).toContain('Keep the notes current, not archival')
+      expect(prompt).toContain(
+        'remove that issue from "Current State" and pending work',
+      )
     } finally {
       rmSync(configDir, { recursive: true, force: true })
     }

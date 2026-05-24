@@ -67,6 +67,7 @@ CRITICAL RULES FOR EDITING:
 - Write DETAILED, INFO-DENSE content for each section - include specifics like file paths, function names, error messages, exact commands, technical details, etc.
 - Prefer compact routing handles over long prose: exact paths, symbols, commands, issue/error strings, upstream commit ids, and verification gates that a future agent can search.
 - Keep the notes current, not archival. When old worklog detail is no longer useful, replace it with shorter decision triggers and current blockers.
+- When the latest user message says a prior issue is fixed, complete, canceled, or asks to move to a different task, remove that issue from "Current State" and pending work. Keep it only as completed context in Worklog, Errors & Corrections, or Key results when useful.
 - For "Key results", include the complete, exact output the user requested (e.g., full table, full answer, etc.)
 - Do not include information that's already in the CLAUDE.md files included in the context
 - Keep each section under ~${MAX_SECTION_LENGTH} tokens/words - if a section is approaching this limit, condense it by cycling out less important details while preserving the most critical information

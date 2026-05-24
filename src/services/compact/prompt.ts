@@ -351,12 +351,16 @@ ${formattedSummary}`
   }
 
   if (recentMessagesPreserved) {
-    baseSummary += `\n\nRecent messages are preserved verbatim.`
+    baseSummary += `\n\nRecent messages are preserved verbatim and are newer than this summary. Treat those newer messages as authoritative. If a newer user message says a prior issue is fixed, complete, canceled, or asks to move to a different task, stop pursuing the older issue from this summary and follow the newer request.`
   }
 
   if (suppressFollowUpQuestions) {
     let continuation = `${baseSummary}
 Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.`
+
+    if (recentMessagesPreserved) {
+      continuation += ` Newer preserved messages override the summary: use the newest user request as the active task, and do not resurrect older pending work that the user has marked fixed, complete, canceled, or lower priority.`
+    }
 
     if (
       (feature('PROACTIVE') || feature('KAIROS')) &&
