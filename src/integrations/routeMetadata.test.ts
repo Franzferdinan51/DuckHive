@@ -193,6 +193,14 @@ test.each([
   },
 )
 
+test('NVIDIA NIM route metadata accepts pasted chat completions endpoint URLs', () => {
+  expect(
+    resolveRouteIdFromBaseUrl(
+      'https://integrate.api.nvidia.com/v1/chat/completions',
+    ),
+  ).toBe('nvidia-nim')
+})
+
 test('resolveActiveRouteIdFromEnv does not infer MiniMax with OpenAI credentials', () => {
   expect(
     resolveActiveRouteIdFromEnv({

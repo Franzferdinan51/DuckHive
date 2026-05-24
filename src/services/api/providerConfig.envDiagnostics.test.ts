@@ -12,6 +12,7 @@ const originalEnv = {
   MISTRAL_MODEL: process.env.MISTRAL_MODEL,
   GEMINI_BASE_URL: process.env.GEMINI_BASE_URL,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  NVIDIA_NIM: process.env.NVIDIA_NIM,
 }
 
 function restoreEnv(key: string, value: string | undefined): void {
@@ -38,6 +39,7 @@ afterEach(() => {
     restoreEnv('MISTRAL_MODEL', originalEnv.MISTRAL_MODEL)
     restoreEnv('GEMINI_BASE_URL', originalEnv.GEMINI_BASE_URL)
     restoreEnv('GEMINI_MODEL', originalEnv.GEMINI_MODEL)
+    restoreEnv('NVIDIA_NIM', originalEnv.NVIDIA_NIM)
     mock.restore()
   } finally {
     releaseSharedMutationLock()
@@ -146,4 +148,22 @@ test('uses descriptor-backed Gemini default model when GEMINI_MODEL is unset', a
 
   expect(resolved.resolvedModel).toBe('gemini-3-flash-preview')
   expect(resolved.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta/openai')
+})
+
+test('normalizes pasted NVIDIA NIM chat endpoint to the OpenAI-compatible base URL', async () => {
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  delete process.env.CLAUDE_CODE_USE_GEMINI
+  delete process.env.CLAUDE_CODE_USE_MISTRAL
+  process.env.NVIDIA_NIM = '1'
+  process.env.OPENAI_BASE_URL =
+    'https://integrate.api.nvidia.com/v1/chat/completions'
+  process.env.OPENAI_MODEL = 'nvidia/llama-3.1-nemotron-70b-instruct'
+
+  const nonce = `${Date.now()}-${Math.random()}`
+  const { resolveProviderRequest } = await import(`./providerConfig.ts?ts=${nonce}`)
+
+  const resolved = resolveProviderRequest()
+
+  expect(resolved.baseUrl).toBe('https://integrate.api.nvidia.com/v1')
+  expect(resolved.transport).toBe('chat_completions')
 })

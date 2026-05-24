@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto'
 import { join } from 'node:path'
 import {
   isCodexBaseUrl,
+  normalizeOpenAICompatibleBaseUrl,
   parseOpenAICompatibleApiFormat,
 } from '../services/api/providerConfig.js'
 import {
@@ -134,7 +135,7 @@ function sanitizeAuthScheme(value: string | undefined): ProviderProfile['authSch
 }
 
 function normalizeBaseUrl(value: string): string {
-  return trimValue(value).replace(/\/+$/, '')
+  return normalizeOpenAICompatibleBaseUrl(trimValue(value)) ?? ''
 }
 
 function resolveProfileCapabilityRouteId(
@@ -623,9 +624,11 @@ export function applyProviderProfileToProcessEnv(profile: ProviderProfile): void
     const supportsApiFormat = routeSupportsApiFormatSelection(capabilityRouteId)
     const supportsAuthHeaders = routeSupportsAuthHeaders(capabilityRouteId)
     const normalizedProfileBaseUrl =
-      route.routeId === 'xiaomi-mimo'
-        ? normalizeXiaomiMimoBaseUrl(profile.baseUrl) ?? profile.baseUrl
-        : profile.baseUrl
+      normalizeOpenAICompatibleBaseUrl(
+        route.routeId === 'xiaomi-mimo'
+          ? normalizeXiaomiMimoBaseUrl(profile.baseUrl) ?? profile.baseUrl
+          : profile.baseUrl,
+      ) ?? profile.baseUrl
     const openAIProfileEnv: ProfileEnv = {
       OPENAI_BASE_URL: normalizedProfileBaseUrl,
       OPENAI_MODEL: primaryModel,

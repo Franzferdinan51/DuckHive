@@ -42,6 +42,7 @@ const originalEnv = {
   MMX_API_KEY: process.env.MMX_API_KEY,
   MMX_HOME: process.env.MMX_HOME,
   XAI_API_KEY: process.env.XAI_API_KEY,
+  NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
   NVIDIA_NIM: process.env.NVIDIA_NIM,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
@@ -89,6 +90,7 @@ beforeEach(async () => {
   delete process.env.MMX_API_KEY
   delete process.env.MMX_HOME
   delete process.env.XAI_API_KEY
+  delete process.env.NVIDIA_API_KEY
   delete process.env.NVIDIA_NIM
   delete process.env.ANTHROPIC_API_KEY
   delete process.env.ANTHROPIC_AUTH_TOKEN
@@ -123,6 +125,7 @@ afterEach(() => {
     restoreEnv('MMX_API_KEY', originalEnv.MMX_API_KEY)
     restoreEnv('MMX_HOME', originalEnv.MMX_HOME)
     restoreEnv('XAI_API_KEY', originalEnv.XAI_API_KEY)
+    restoreEnv('NVIDIA_API_KEY', originalEnv.NVIDIA_API_KEY)
     restoreEnv('NVIDIA_NIM', originalEnv.NVIDIA_NIM)
     restoreEnv('ANTHROPIC_API_KEY', originalEnv.ANTHROPIC_API_KEY)
     restoreEnv('ANTHROPIC_AUTH_TOKEN', originalEnv.ANTHROPIC_AUTH_TOKEN)
@@ -796,6 +799,82 @@ test('routes env-only xAI requests through the OpenAI-compatible shim', async ()
   expect(response).toMatchObject({
     role: 'assistant',
     model: 'grok-4',
+  })
+})
+
+test('NVIDIA NIM accepts pasted chat completions endpoint without double-appending', async () => {
+  let capturedUrl: string | undefined
+  let capturedHeaders: Headers | undefined
+  let capturedBody: Record<string, unknown> | undefined
+
+  delete process.env.CLAUDE_CODE_USE_GEMINI
+  delete process.env.GEMINI_API_KEY
+  delete process.env.GEMINI_MODEL
+  delete process.env.GEMINI_BASE_URL
+  delete process.env.GEMINI_AUTH_MODE
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.NVIDIA_NIM = '1'
+  process.env.NVIDIA_API_KEY = 'nvidia-test-key'
+  process.env.OPENAI_BASE_URL =
+    'https://integrate.api.nvidia.com/v1/chat/completions'
+  process.env.OPENAI_MODEL = 'nvidia/llama-3.1-nemotron-70b-instruct'
+
+  globalThis.fetch = (async (input, init) => {
+    capturedUrl =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url
+    capturedHeaders = new Headers(init?.headers)
+    capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-nvidia',
+        model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'nvidia ok',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: 8,
+          completion_tokens: 3,
+          total_tokens: 11,
+        },
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }) as FetchType
+
+  const client = (await getAnthropicClient({
+    maxRetries: 0,
+    model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+  })) as unknown as ShimClient
+
+  const response = await client.beta.messages.create({
+    model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    system: 'test system',
+    messages: [{ role: 'user', content: 'hello' }],
+    max_tokens: 64,
+    stream: false,
+  })
+
+  expect(capturedUrl).toBe('https://integrate.api.nvidia.com/v1/chat/completions')
+  expect(capturedHeaders?.get('authorization')).toBe('Bearer nvidia-test-key')
+  expect(capturedBody?.model).toBe('nvidia/llama-3.1-nemotron-70b-instruct')
+  expect(response).toMatchObject({
+    role: 'assistant',
+    model: 'nvidia/llama-3.1-nemotron-70b-instruct',
   })
 })
 

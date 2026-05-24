@@ -333,6 +333,27 @@ describe('applyProviderProfileToProcessEnv', () => {
     expect(process.env.NVIDIA_NIM).toBe('1')
   })
 
+  test('nvidia-nim profile normalizes pasted chat completions endpoint to base URL', async () => {
+    const { applyProviderProfileToProcessEnv } =
+      await importFreshProviderProfileModules()
+
+    applyProviderProfileToProcessEnv(
+      buildProfile({
+        provider: 'nvidia-nim',
+        baseUrl: 'https://integrate.api.nvidia.com/v1/chat/completions',
+        model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        apiKey: 'nvapi-test',
+      }),
+    )
+
+    expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
+    expect(process.env.OPENAI_BASE_URL).toBe(
+      'https://integrate.api.nvidia.com/v1',
+    )
+    expect(process.env.NVIDIA_API_KEY).toBe('nvapi-test')
+    expect(process.env.NVIDIA_NIM).toBe('1')
+  })
+
   test('provider profile apply clears stale codex-managed credentials', async () => {
     const { applyProviderProfileToProcessEnv } =
       await importFreshProviderProfileModules()

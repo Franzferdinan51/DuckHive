@@ -32,6 +32,7 @@ export default defineGateway({
     routing: {
       enablementEnvVar: 'NVIDIA_NIM',
       matchDefaultBaseUrl: true,
+      matchBaseUrlHosts: ['integrate.api.nvidia.com'],
     },
   },
   catalog: {

@@ -4,6 +4,7 @@ import {
   DEFAULT_CODEX_BASE_URL,
   DEFAULT_OPENAI_BASE_URL,
   isCodexBaseUrl,
+  normalizeOpenAICompatibleBaseUrl,
   parseOpenAICompatibleApiFormat,
   resolveCodexApiCredentials,
   resolveProviderRequest,
@@ -445,9 +446,10 @@ export function buildNvidiaNimProfileEnv(options: {
 
   return {
     OPENAI_BASE_URL:
-      sanitizeProviderConfigValue(options.baseUrl, secretSource) ||
-      sanitizeProviderConfigValue(processEnv.OPENAI_BASE_URL, secretSource) ||
-      defaultBaseUrl,
+      normalizeOpenAICompatibleBaseUrl(
+        sanitizeProviderConfigValue(options.baseUrl, secretSource) ||
+          sanitizeProviderConfigValue(processEnv.OPENAI_BASE_URL, secretSource),
+      ) || defaultBaseUrl,
     OPENAI_MODEL:
       normalizeProfileModel(
         sanitizeProviderConfigValue(options.model, secretSource),

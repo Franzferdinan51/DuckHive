@@ -54,6 +54,33 @@ function normalizeGitlawbOpengatewayBaseUrl(baseUrl: string | undefined): string
   return baseUrl
 }
 
+const OPENAI_COMPATIBLE_OPERATION_PATH_RE =
+  /\/(?:chat\/completions|responses|completions|models)$/i
+
+export function normalizeOpenAICompatibleBaseUrl(
+  baseUrl: string | undefined,
+): string | undefined {
+  if (!baseUrl) return undefined
+  const trimmed = baseUrl.trim()
+  if (!trimmed) return undefined
+
+  try {
+    const parsed = new URL(trimmed)
+    const normalizedPath = parsed.pathname.replace(/\/+$/, '')
+    if (OPENAI_COMPATIBLE_OPERATION_PATH_RE.test(normalizedPath)) {
+      parsed.pathname =
+        normalizedPath.replace(OPENAI_COMPATIBLE_OPERATION_PATH_RE, '') || '/'
+      parsed.search = ''
+      parsed.hash = ''
+      return parsed.toString().replace(/\/+$/, '')
+    }
+  } catch {
+    // Leave non-URL values to the existing request path and error handling.
+  }
+
+  return trimmed.replace(/\/+$/, '')
+}
+
 const CODEX_ALIAS_MODELS: Record<
   string,
   {
@@ -692,7 +719,9 @@ export function resolveProviderRequest(options?: {
     !isGithubMode && isCodexAliasModel && !hasUserSetBaseUrl
       ? DEFAULT_CODEX_BASE_URL
       : rawBaseUrl
-  const finalBaseUrl = normalizeGitlawbOpengatewayBaseUrl(finalBaseUrlRaw)
+  const finalBaseUrl = normalizeOpenAICompatibleBaseUrl(
+    normalizeGitlawbOpengatewayBaseUrl(finalBaseUrlRaw),
+  )
 
   const githubEndpointType = isGithubMode
     ? getGithubEndpointType(rawBaseUrl)
