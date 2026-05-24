@@ -24,7 +24,7 @@ Usage notes:
 This file provides guidance to DuckHive when working with code in this repository.
 \`\`\``
 
-const NEW_INIT_PROMPT = `Set up a minimal AGENTS.md (and optionally CLAUDE.local.md, skills, and hooks) for this repo. The root project instruction file is loaded into every DuckHive session, so it must be concise — only include what DuckHive would get wrong without it.
+const NEW_INIT_PROMPT = `Set up a minimal AGENTS.md (and optionally CLAUDE.local.md, skills, and hooks) for this repo. This command is for project instructions, not DuckHive's DUCK.md system-instruction files — those are handled separately by /instruct. The root project instruction file is loaded into every DuckHive session, so it must be concise — only include what DuckHive would get wrong without it.
 
 ## Phase 1: Ask what to set up
 

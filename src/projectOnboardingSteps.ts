@@ -29,7 +29,7 @@ export function getSteps(): Step[] {
     },
     {
       key: 'claudemd',
-      text: 'Set up repo instructions (/init creates AGENTS.md or updates existing CLAUDE.md; either file counts)',
+      text: 'Set up repo instructions (/init creates AGENTS.md or updates existing CLAUDE.md; DUCK.md is separate via /instruct; either file counts)',
       isComplete: hasRepoInstructions,
       isCompletable: true,
       isEnabled: !isWorkspaceDirEmpty,

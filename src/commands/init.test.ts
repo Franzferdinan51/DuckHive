@@ -57,6 +57,8 @@ test('NEW_INIT prompt uses DuckHive branding for generated guidance', async () =
   const prompt = String(blocks[0]?.text)
 
   expect(prompt).toContain('loaded into every DuckHive session')
+  expect(prompt).toContain('DUCK.md system-instruction files')
+  expect(prompt).toContain('/instruct')
   expect(prompt).toContain(
     'This file provides guidance to DuckHive when working with code in this repository.',
   )
