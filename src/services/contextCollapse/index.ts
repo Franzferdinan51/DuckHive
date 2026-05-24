@@ -208,12 +208,25 @@ function findCollapsibleRegions(messages: unknown[]): Array<[number, number]> {
     const middleEnd = len - keepLast
 
     // Only collapse if there's a meaningful middle section (≥4 messages)
+    // and the middle section doesn't consist entirely of collapse summaries
     if (middleEnd - middleStart >= 4) {
-      regions.push([middleStart, middleEnd])
+      const middleMessages = messages.slice(middleStart, middleEnd)
+      const nonSummaryCount = middleMessages.filter(
+        m => !isCollapseSummaryMessage(m),
+      ).length
+      if (nonSummaryCount >= 4) {
+        regions.push([middleStart, middleEnd])
+      }
     }
   }
 
   return regions
+}
+
+function isCollapseSummaryMessage(msg: unknown): boolean {
+  if (typeof msg !== 'object' || msg === null) return false
+  const content = (msg as Record<string, unknown>)['content']
+  return typeof content === 'string' && content.startsWith('[Previous conversation summary')
 }
 
 /**
