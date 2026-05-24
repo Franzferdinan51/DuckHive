@@ -14,7 +14,13 @@ export type MiniMaxCredential =
   | { kind: 'api-key'; credential: string; source: string }
   | { kind: 'oauth-access-token'; credential: string; source: string }
 
+interface MiniMaxOAuthTokens {
+  accessToken: string
+  expiresAtMs: number | null
+}
+
 const MINI_MAX_REFRESH_COOLDOWN_MS = 5 * 60 * 1000
+const MINI_MAX_TOKEN_EXPIRY_BUFFER_MS = 60 * 1000 // refresh 1 min before expiry
 
 let lastMiniMaxRefreshAttemptAt = 0
 
@@ -145,9 +151,40 @@ function readMiniMaxConfigApiKey(path: string): string | undefined {
   })
 }
 
-function readMiniMaxOauthAccessToken(path: string): string | undefined {
+/**
+ * Normalize MiniMax expiry values from credentials.json.
+ *
+ * MiniMax's `mmx auth` may write `expired_in` or `expires_in` in different
+ * formats depending on CLI version:
+ *   - Relative seconds since issuance (most common, e.g. 3600)
+ *   - Unix timestamp in seconds (e.g. 1735689600)
+ *   - Absolute milliseconds (e.g. 1735689600000)
+ *
+ * Returns absolute ms or null if unparseable.
+ */
+function normalizeMiniMaxExpiry(value: unknown, nowMs: number): number | null {
+  const num =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number.parseFloat(value)
+        : Number.NaN
+
+  if (!Number.isFinite(num) || num <= 0) return null
+
+  // Absolute milliseconds (e.g. 1735689600000) — value > 1e12
+  if (num > 1e12) return num
+
+  // Unix timestamp in seconds (e.g. 1735689600) — value > 1e10
+  if (num > 1e10) return num * 1000
+
+  // Relative seconds (e.g. 3600) — convert to absolute ms
+  return nowMs + num * 1000
+}
+
+function readMiniMaxOAuthTokens(path: string): MiniMaxOAuthTokens | null {
   const json = readJsonFile(path)
-  return walkForNamedString(json, (key, value) => {
+  const accessToken = walkForNamedString(json, (key, value) => {
     const normalizedKey = key.trim().toLowerCase().replace(/[-_\s]+/g, '')
     if (
       normalizedKey !== 'accesstoken' &&
@@ -158,6 +195,22 @@ function readMiniMaxOauthAccessToken(path: string): string | undefined {
     }
     return value.length >= 16
   })
+  if (!accessToken) return null
+
+  // Try to extract expiry from the tokens object
+  let expiresAtMs: number | null = null
+  if (json && typeof json === 'object') {
+    const tokens = (json as Record<string, unknown>)['tokens']
+    if (tokens && typeof tokens === 'object') {
+      const t = tokens as Record<string, unknown>
+      const expiryRaw = t['expired_in'] ?? t['expires_in'] ?? t['expiresAt'] ?? t['expires_at']
+      if (expiryRaw !== undefined && expiryRaw !== null) {
+        expiresAtMs = normalizeMiniMaxExpiry(expiryRaw, Date.now())
+      }
+    }
+  }
+
+  return { accessToken, expiresAtMs }
 }
 
 export function readMiniMaxCredential(
@@ -191,16 +244,26 @@ export function readMiniMaxCredential(
     }
   }
 
-  const oauthAccessToken = readMiniMaxOauthAccessToken(
-    join(mmxHome, 'credentials.json'),
-  )
-  if (oauthAccessToken) {
-    return {
-      kind: 'oauth-access-token',
-      credential: oauthAccessToken,
-      source: '~/.mmx/credentials.json',
-    }
-  }
+ const oauthTokens = readMiniMaxOAuthTokens(
+		join(mmxHome, 'credentials.json'),
+	)
+	if (oauthTokens?.accessToken) {
+		return {
+			kind: 'oauth-access-token',
+			credential: oauthTokens.accessToken,
+			source: '~/.mmx/credentials.json',
+		}
+	}
+
+
+
+
+
+
+
+
+
+
 
   return null
 }
@@ -231,6 +294,15 @@ export async function resolveMiniMaxCredentialWithRefresh(
   }
 
   const now = deps.now()
+
+  // Check if the OAuth token is still valid - skip refresh if unexpired
+  const mmxHome = getMiniMaxHome(processEnv)
+  const oauthTokens = readMiniMaxOAuthTokens(join(mmxHome, 'credentials.json'))
+  if (oauthTokens?.expiresAtMs && oauthTokens.expiresAtMs - MINI_MAX_TOKEN_EXPIRY_BUFFER_MS > now) {
+    return currentCredential
+  }
+
+  // Cooldown: don't hammer mmx auth refresh more than once per 5 minutes
   if (
     lastMiniMaxRefreshAttemptAt > 0 &&
     now - lastMiniMaxRefreshAttemptAt < MINI_MAX_REFRESH_COOLDOWN_MS
@@ -268,6 +340,7 @@ export async function resolveMiniMaxCredentialWithRefresh(
     }
   )
 }
+
 
 export function resetMiniMaxCredentialRefreshStateForTesting(): void {
   lastMiniMaxRefreshAttemptAt = 0
