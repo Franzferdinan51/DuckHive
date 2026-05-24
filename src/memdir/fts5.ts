@@ -93,15 +93,8 @@ function getDb(): Database.Database {
       );
     `)
 
-    // Prepare statements
-    _db.exec(`
-      INSERT OR REPLACE INTO memories_fts(path, filename, content)
-        VALUES (?, ?, ?);
-      DELETE FROM memories_fts WHERE path = ?;
-      SELECT path, filename, snippet(memories_fts, 2, '[', ']', '...', 20)
-        FROM memories_fts WHERE memories_fts MATCH ? ORDER BY rank LIMIT ?;
-      SELECT COUNT(*) FROM memories_fts;
-    `)
+    // Prepared statements are created lazily via _insertMemory, _deleteMemory,
+    // and _searchMemories helpers — no need to execute parameterized queries here.
   }
   return _db
 }

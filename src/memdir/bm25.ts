@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * BM25 keyword search layer for DuckHive.
  *
@@ -13,9 +12,9 @@
  *   await bm25.clearIndex()
  */
 
-import { readFileSync as readFileSyncNode, unlinkSync } from 'fs'
+import { unlinkSync } from 'fs'
 import { readdir, readFile, stat, writeFile, mkdir } from 'fs/promises'
-import { basename, join, dirname, sep as pathSep } from 'path'
+import { join, dirname, sep as pathSep } from 'path'
 import { getMemoryBaseDir } from './paths.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 
@@ -147,99 +146,6 @@ function scoreDoc(
   }
 
   return score
-}
-
-// ---------------------------------------------------------------------------
-// BM25IndexBuilder — builds an inverted index from documents on disk
-// ---------------------------------------------------------------------------
-
-function buildInvertedIndex(
-  docs: Record<string, IndexFile>,
-): Bm25Index {
-  const inverted: Record<string, InvertedPosting[]> = {}
-  const n = Object.keys(docs).length
-
-  if (n === 0) {
-    return {
-      inverted,
-      docs,
-      avgDocLen: AVG_DOC_LEN_DEFAULT,
-      n: 0,
-      builtAt: Date.now(),
-      sources: [],
-    }
-  }
-
-  // Accumulate term frequencies per document, then convert to posting lists.
-  const termDocFreqs: Record<string, Record<string, number>> = {}
-  let totalTokens = 0
-
-  for (const [docId, file] of Object.entries(docs)) {
-    // Read file content (already indexed at build time, stored in file.tokenCount)
-    // We need the actual content to build the inverted index.
-    // Store tokens in memory during build (acceptable for index size).
-    const content = file.path // pass through — actual read happens below
-    void content // placeholder — we re-read at build time
-    void totalTokens
-  }
-
-  // Re-build properly: collect all doc contents first
-  const docTokens: Record<string, string[]> = {}
-  totalTokens = 0
-
-  for (const [docId, file] of Object.entries(docs)) {
-    let content = ''
-    try {
-      content = readFileSync(file.path, 'utf-8')
-    } catch {
-      // Skip unreadable files
-      continue
-    }
-    const tokens = tokenize(content)
-    docTokens[docId] = tokens
-    totalTokens += tokens.length
-    // Update tokenCount in docs to actual count
-    file.tokenCount = tokens.length
-  }
-
-  // Build inverted index
-  for (const [docId, tokens] of Object.entries(docTokens)) {
-    const seen = new Set<string>()
-    for (const term of tokens) {
-      if (!seen.has(term)) {
-        seen.add(term)
-        if (!inverted[term]) inverted[term] = []
-        const tf = tokens.filter(t => t === term).length
-        inverted[term].push({ docId, tf })
-      }
-    }
-  }
-
-  // Sort posting lists by tf descending (helps with early termination if needed)
-  for (const term of Object.keys(inverted)) {
-    inverted[term].sort((a, b) => b.tf - a.tf)
-  }
-
-  const avgDocLen = totalTokens / n
-
-  return {
-    inverted,
-    docs,
-    avgDocLen,
-    n,
-    builtAt: Date.now(),
-    sources: [],
-  }
-}
-
-// ---------------------------------------------------------------------------
-// File helpers (sync for buildIndex)
-// ---------------------------------------------------------------------------
-
-function readFileSync(path: string, encoding: 'utf-8'): string {
-  // Use the promise-based readFile wrapped in a sync-compatible way for buildIndex
-  // (buildIndex is async anyway, so we just use await readFile)
-  return readFileSyncNode(path, encoding) as string
 }
 
 // ---------------------------------------------------------------------------
@@ -522,7 +428,7 @@ export class Bm25Service {
     const queryTokens = tokenize(query)
     if (queryTokens.length === 0) return []
 
-    const index = this.index
+    const index = this.index!  // non-null: checked above with early return
     const scored: { docId: string; score: number }[] = []
 
     for (const docId of Object.keys(index.docs)) {
@@ -576,9 +482,10 @@ export class Bm25Service {
     }
 
     // Remove terms with empty posting lists
+    const idx = this.index!  // guaranteed non-null after init block above
     oldTerms.forEach(term => {
-      if (this.index.inverted[term]?.length === 0) {
-        delete this.index.inverted[term]
+      if (idx.inverted[term]?.length === 0) {
+        delete idx.inverted[term]
       }
     })
 

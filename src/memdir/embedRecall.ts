@@ -19,7 +19,7 @@
  * Auto-index on startup: indexSessionContent() scans session logs and indexes them.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { createCombinedAbortSignal } from '../utils/combinedAbortSignal.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
@@ -285,15 +285,18 @@ export function indexDocument(id: string, text: string): void {
   const tf = computeTf(tokens)
   const vector = tfidfVector(tf, idf)
 
-  // Fire-and-forget dense embedding — if it responds, upgrade the entry
-  // Use a fresh local idx so the module-level cachedIndex stays valid
-  const localIdx = ensureIndex()
+  // Fire-and-forget dense embedding — if it responds, upgrade the entry.
+  // Clone docs so the async callback operates on a snapshot, not shared state.
+  const docsSnapshot = [...idx.docs]
   getEmbedding(text)
     .then(emb => {
       if (emb) {
-        localIdx.docs = localIdx.docs.filter(d => d.id !== id)
-        localIdx.docs.push({ id, text, vector: emb, indexedAt: Date.now() })
-        saveIndex(localIdx)
+        // Build a fresh index with the embedding-upgraded entry, then persist
+        const upgraded = docsSnapshot.filter(d => d.id !== id)
+        upgraded.push({ id, text, vector: emb, indexedAt: Date.now() })
+        cachedIndex = { docs: upgraded, version: idx.version }
+        rebuildIdf()
+        saveIndex(cachedIndex)
       }
     })
     .catch(() => { /* Provider unavailable, skip */ })
@@ -307,42 +310,43 @@ export function indexDocument(id: string, text: string): void {
 /**
  * Search the index using cosine similarity.
  * Returns top-K results with score >= minScore.
+ * Awaitable — tries embedding-based search first, falls back to TF-IDF.
  */
-export function search(
+export async function search(
   query: string,
   opts: SearchOptions = {},
-): SearchResult[] {
+): Promise<SearchResult[]> {
   const { topK = 5, minScore = 0.1 } = opts
 
   const idx = ensureIndex()
   if (idx.docs.length === 0) return []
 
-  // Build query vector
+  // Build query vector: try embedding provider first, fall back to TF-IDF
   const queryTokens = tokenize(query)
 
-  // Build TF-IDF query vector synchronously (reliable baseline)
   const allTokens = idx.docs.map(d => tokenize(d.text))
   const idf = cachedIdf && Object.keys(cachedIdf).length > 0
     ? cachedIdf
     : buildIdf(allTokens)
   const queryTf = computeTf(queryTokens)
-  let queryVector = tfidfVector(queryTf, idf)
 
-  // LM Studio: fire-and-forget upgrade — don't overwrite TF-IDF result
-  getEmbedding(query)
-    .then(emb => {
-      if (emb) {
-        // Re-score with LM Studio embeddings (overwrite queryVector)
-        queryVector = emb
-      }
-    })
-    .catch(() => { /* LM Studio unavailable, TF-IDF result stands */ })
+  // TF-IDF baseline (always available)
+  const tfidfVector_ = tfidfVector(queryTf, idf)
 
-  // Score all docs
+  // Try to upgrade with embedding provider — await it so results actually get used
+  let queryVector = tfidfVector_
+  try {
+    const emb = await getEmbedding(query)
+    if (emb) {
+      queryVector = emb
+    }
+  } catch { /* embedding provider unavailable, TF-IDF result stands */ }
+
+  // Score all docs against the best query vector we have
   const results: SearchResult[] = idx.docs.map(doc => ({
     id: doc.id,
     text: doc.text,
-    score: cosineSimilarity(queryVector!, doc.vector),
+    score: cosineSimilarity(queryVector, doc.vector),
   }))
 
   return results
@@ -366,6 +370,7 @@ export function clearIndex(): void {
 export function removeDocument(id: string): void {
   const idx = ensureIndex()
   idx.docs = idx.docs.filter(d => d.id !== id)
+  rebuildIdf()
   saveIndex(idx)
 }
 
@@ -378,7 +383,6 @@ export async function indexSessionContent(): Promise<void> {
   if (!existsSync(sessionsDir)) return
 
   try {
-    const { readdirSync } = await import('fs')
     const files = readdirSync(sessionsDir).filter(f => f.endsWith('.jsonl'))
     for (const file of files) {
       const sessionId = file.replace('.jsonl', '')

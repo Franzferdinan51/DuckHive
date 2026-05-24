@@ -37,6 +37,7 @@ describe('MemoryTool', () => {
       {} as never,
       undefined as never,
       undefined as never,
+      undefined as never,
     )
     expect(remembered.data.success).toBe(true)
     expect(remembered.data.count).toBe(1)
@@ -46,14 +47,16 @@ describe('MemoryTool', () => {
       {} as never,
       undefined as never,
       undefined as never,
+      undefined as never,
     )
     expect(recalled.data.memories).toHaveLength(1)
-    const memoryId = recalled.data.memories[0]?.id
-    expect(recalled.data.memories[0]?.content).toContain('Hermes-style')
+    const memoryId = recalled.data.memories?.[0]?.id
+    expect(recalled.data.memories?.[0]?.content).toContain('Hermes-style')
 
     const searched = await MemoryTool.call(
       { action: 'search', query: 'hermes', limit: 5 },
       {} as never,
+      undefined as never,
       undefined as never,
       undefined as never,
     )
@@ -64,13 +67,15 @@ describe('MemoryTool', () => {
       {} as never,
       undefined as never,
       undefined as never,
+      undefined as never,
     )
     expect(stats.data.count).toBe(1)
-    expect(stats.data.memories[0]?.id).toBe('preference')
+    expect(stats.data.memories?.[0]?.id).toBe('preference')
 
     const forgotten = await MemoryTool.call(
       { action: 'forget', memoryId },
       {} as never,
+      undefined as never,
       undefined as never,
       undefined as never,
     )

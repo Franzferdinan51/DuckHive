@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * LESSONS.md — permanent failure moat
  *
@@ -90,24 +89,28 @@ function formatEntry(entry: LessonEntry): string {
  * @param autoDeduplicate If true, skips appending if an identical summary exists
  */
 export function recordLesson(
-  entry: Omit<LessonEntry, 'date'>,
+  entry: Omit<LessonEntry, 'date'> & { date?: string },
   autoDeduplicate = true,
 ): void {
-  const { category, summary, context, lesson, tags } = entry
+  const { category, summary, context, lesson, tags, date } = entry
 
   if (autoDeduplicate && hasSimilarLesson(summary)) {
     logForDebugging(`[LESSONS] Skipped duplicate: ${summary}`)
     return
   }
 
-  const date = entry.date ?? new Date().toISOString().slice(0, 10)
-  const fullEntry: LessonEntry = { date, category, summary, context, lesson, tags }
+  const resolvedDate = date ?? new Date().toISOString().slice(0, 10)
+  const fullEntry: LessonEntry = { date: resolvedDate, category, summary, context, lesson, tags }
 
   const content = formatEntry(fullEntry)
   const path = getLessonsPath()
 
   try {
     appendFileSync(path, content, 'utf-8')
+    // Append to cache so next read doesn't re-parse the entire file
+    if (_cachedEntries) {
+      _cachedEntries.push(fullEntry)
+    }
     logForDebugging(`[LESSONS] Recorded: ${category} — ${summary}`)
   } catch (err) {
     logForDebugging(`[LESSONS] Failed to write: ${err}`)
@@ -169,6 +172,16 @@ export function recordApiLimit(
   })
 }
 
+// ─── Cache ──────────────────────────────────────────────────────────────────
+
+/** Cached parsed entries. Set to null to force re-read from disk. */
+let _cachedEntries: LessonEntry[] | null = null
+
+/** For testing: clear the cache to force re-read from disk. */
+export function clearLessonsCache(): void {
+  _cachedEntries = null
+}
+
 // ─── Read ───────────────────────────────────────────────────────────────────
 
 function parseEntries(content: string): LessonEntry[] {
@@ -204,37 +217,44 @@ function parseEntries(content: string): LessonEntry[] {
   return entries
 }
 
-export function getLessonLookup(): LessonLookup {
-  function readAll(): LessonEntry[] {
-    const path = getLessonsPath()
-    if (!existsSync(path)) return []
-    try {
-      return parseEntries(readFileSync(path, 'utf-8'))
-    } catch {
-      return []
-    }
+function readAllEntries(): LessonEntry[] {
+  if (_cachedEntries) return _cachedEntries
+  const path = getLessonsPath()
+  if (!existsSync(path)) {
+    _cachedEntries = []
+    return []
   }
+  try {
+    _cachedEntries = parseEntries(readFileSync(path, 'utf-8'))
+    return _cachedEntries
+  } catch {
+    _cachedEntries = []
+    return []
+  }
+}
+
+export function getLessonLookup(): LessonLookup {
 
   return {
     byCategory(cat): LessonEntry[] {
-      return readAll().filter(e => e.category === cat)
+      return readAllEntries().filter(e => e.category === cat)
     },
 
     byTag(tag): LessonEntry[] {
-      return readAll().filter(e => e.tags.includes(tag))
+      return readAllEntries().filter(e => e.tags.includes(tag))
     },
 
     recent(n = 20): LessonEntry[] {
-      return readAll().slice(-n)
+      return readAllEntries().slice(-n)
     },
 
     all(): LessonEntry[] {
-      return readAll()
+      return readAllEntries()
     },
 
     check(query): LessonEntry[] {
       const q = query.toLowerCase()
-      return readAll().filter(
+      return readAllEntries().filter(
         e =>
           e.summary.toLowerCase().includes(q) ||
           e.context.toLowerCase().includes(q) ||
@@ -249,8 +269,7 @@ export function getLessonLookup(): LessonLookup {
  * Used to avoid deduplicating failures.
  */
 function hasSimilarLesson(summary: string, threshold = 0.8): boolean {
-  const lookup = getLessonLookup()
-  const all = lookup.all()
+  const all = readAllEntries()
   if (all.length === 0) return false
 
   const normalized = summary.toLowerCase()

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod/v4'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
@@ -76,7 +75,7 @@ export function saveMemories(
 const inputSchema = lazySchema(() =>
   z.strictObject({
     action: z
-      .enum(['remember', 'recall', 'search', 'stats', 'forget'])
+      .enum(['remember', 'recall', 'search', 'stats', 'forget', 'reindex'])
       .describe('Memory action'),
     content: z.string().optional().describe('Content to remember'),
     type: z
@@ -88,7 +87,6 @@ const inputSchema = lazySchema(() =>
     query: z.string().optional().describe('Search/recall query'),
     memoryId: z.string().optional().describe('Memory ID to recall/forget'),
     limit: z.number().optional().describe('Max results for recall'),
-    reindex: z.boolean().optional().describe('Rebuild embed index from all memories'),
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
@@ -135,7 +133,8 @@ export const MemoryTool = buildTool({
       input.action === 'reindex'
     )
   },
-  async call(input, context, canUseTool, parentMessage) {
+  async call(input, context, canUseTool, parentMessage, onProgress) {
+    void onProgress
     const {
       action,
       content,
@@ -145,7 +144,6 @@ export const MemoryTool = buildTool({
       query,
       memoryId,
       limit = 10,
-      reindex,
     } = input
 
     switch (action) {
@@ -229,7 +227,7 @@ export const MemoryTool = buildTool({
         // Phase 2: semantic search via embedRecall (TF-IDF / LM Studio embeddings)
         let semanticMatches: Array<{ id: string; score: number }> = []
         try {
-          const embResults = embedRecallSearch(query, { topK: 20, minScore: 0.15 })
+          const embResults = await embedRecallSearch(query, { topK: 20, minScore: 0.15 })
           semanticMatches = embResults.map(r => ({ id: r.id, score: r.score }))
         } catch { /* embedRecall unavailable */ }
         // Merge: keyword matches get boosted by semantic similarity
@@ -327,4 +325,21 @@ export const MemoryTool = buildTool({
         }
     }
   },
-} satisfies ToolDef<InputSchema, { data: any }>)
+
+  maxResultSizeChars: 100_000,
+
+  mapToolResultToToolResultBlockParam(data, toolUseID) {
+    return { tool_use_id: toolUseID, type: 'tool_result' as const, content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
+  },
+
+  renderToolUseMessage(input) {
+    const { action, query, memoryId, content } = input
+    if (action === 'remember') return content ? `Remember: ${typeof content === 'string' && content.length > 60 ? content.slice(0, 60) + '...' : content}` : 'Remember'
+    if (action === 'recall') return memoryId ? `Recall: ${memoryId}` : 'Recall recent'
+    if (action === 'search') return query ? `Search: ${query}` : 'Search'
+    if (action === 'forget') return memoryId ? `Forget: ${memoryId}` : 'Forget'
+    if (action === 'reindex') return 'Reindex memories'
+    if (action === 'stats') return 'Memory stats'
+    return 'Memory'
+  },
+} satisfies ToolDef<InputSchema, Record<string, unknown>>)
