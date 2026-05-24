@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod/v4'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
@@ -15,9 +14,15 @@ const inputSchema = lazySchema(() =>
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
+export type Input = z.infer<InputSchema>
+export type Output = { success: boolean; action: string; confirmed?: boolean; selected?: string; selections?: string[]; input?: string; filtered?: string[]; timedOut?: boolean; error?: string }
+
+import { renderToolUseMessage } from './UI.js'
 
 export const ConfirmTool = buildTool({
   name: 'confirm',
+  maxResultSizeChars: 5_000,
+  renderToolUseMessage,
   async description() { return 'Interactive prompts (Gum-style) — confirm dialogs, choose from options, text input, filter lists. Simulates gum confirm/input/choose/filter for non-interactive use.' },
   async prompt() { return 'Interactive CLI prompts — yes/no confirmations, multi-choice selections, text input, list filtering. Simulates Bubble Tea/Gum-style dialogs for use in scripts and automation.' },
   get inputSchema(): InputSchema { return inputSchema() },
@@ -94,7 +99,7 @@ export const ConfirmTool = buildTool({
     }
   },
 
-  mapToolResultToToolResultBlockParam(data: any, toolUseID: string) {
+  mapToolResultToToolResultBlockParam(data: Output, toolUseID: string) {
     return { tool_use_id: toolUseID, type: 'tool_result' as const, content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
   },
-} satisfies ToolDef<InputSchema, { data: any }>)
+} satisfies ToolDef<InputSchema, Output>)

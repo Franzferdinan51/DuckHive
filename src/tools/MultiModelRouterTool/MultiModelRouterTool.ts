@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod/v4'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
@@ -17,9 +16,15 @@ const inputSchema = lazySchema(() =>
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
+export type Input = z.infer<InputSchema>
+export type Output = { success: boolean; action: string; provider?: string; model?: string; reason?: string; costEstimate?: number; fallback?: string; models?: Array<{ provider: string; model: string; speed: string; vision: boolean }>; error?: string }
+
+import { renderToolUseMessage } from './UI.js'
 
 export const MultiModelRouterTool = buildTool({
   name: 'router',
+  maxResultSizeChars: 10_000,
+  renderToolUseMessage,
   async description() { return 'Multi-model router (Crush CLI pattern) — routes tasks to optimal model across MiniMax, Kimi, OpenAI, Anthropic, OpenRouter, LM Studio. Considers task type, complexity, cost, vision, speed.' },
   async prompt() { return 'Smart model routing across 9+ providers — MiniMax, Kimi, OpenAI, Anthropic, OpenRouter, LM Studio. Use /router route to see best model for a task. Use /router list to see all available models.' },
   get inputSchema(): InputSchema { return inputSchema() },
@@ -81,7 +86,7 @@ export const MultiModelRouterTool = buildTool({
     }
   },
 
-  mapToolResultToToolResultBlockParam(data: any, toolUseID: string) {
+  mapToolResultToToolResultBlockParam(data: Output, toolUseID: string) {
     return { tool_use_id: toolUseID, type: 'tool_result' as const, content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
   },
-} satisfies ToolDef<InputSchema, { data: any }>)
+} satisfies ToolDef<InputSchema, Output>)

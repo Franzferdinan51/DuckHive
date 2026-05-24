@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod/v4'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
@@ -17,9 +16,15 @@ const inputSchema = lazySchema(() =>
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
+export type Input = z.infer<InputSchema>
+export type Output = { success: boolean; action: string; checkpointId?: string; checkpoints?: Array<{ id: string; message: string; timestamp: string }>; restored?: boolean; error?: string }
+
+import { renderToolUseMessage } from './UI.js'
 
 export const ShadowGitTool = buildTool({
   name: 'shadow',
+  maxResultSizeChars: 100_000,
+  renderToolUseMessage,
   async description() {
     return 'Shadow Git checkpointing (Gemini CLI pattern) — creates Git snapshots BEFORE file modifications. Stored separately from project Git in DuckHive config home under shadow/. Automatic safety net.'
   },
@@ -111,11 +116,11 @@ export const ShadowGitTool = buildTool({
     }
   },
 
-  mapToolResultToToolResultBlockParam(data: any, toolUseID: string) {
+  mapToolResultToToolResultBlockParam(data: Output, toolUseID: string) {
     return {
       tool_use_id: toolUseID,
       type: 'tool_result' as const,
       content: [{ type: 'text' as const, text: JSON.stringify(data) }],
     }
   },
-} satisfies ToolDef<InputSchema, { data: any }>)
+} satisfies ToolDef<InputSchema, Output>)

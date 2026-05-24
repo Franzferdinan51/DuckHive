@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod/v4'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -7,6 +6,7 @@ import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { execSync_DEPRECATED } from '../../utils/execSyncWrapper.js'
 import { DESCRIPTION } from './prompt.js'
+import { renderToolUseMessage } from './UI.js'
 
 const PHONE_IP = '192.168.1.251'
 const DEFAULT_PORT = '40835'
@@ -45,6 +45,7 @@ const inputSchema = lazySchema(() =>
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
+export type Input = z.infer<InputSchema>
 
 const outputSchema = lazySchema(() =>
   z.object({
@@ -57,7 +58,7 @@ const outputSchema = lazySchema(() =>
   }),
 )
 type OutputSchema = ReturnType<typeof outputSchema>
-type Output = z.infer<OutputSchema>
+export type Output = z.infer<OutputSchema>
 
 function shellQuote(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`
@@ -78,6 +79,8 @@ function getPhoneDevice(exec = getAndroidToolDeps().exec): string {
 
 export const AndroidTool = buildTool({
   name: 'android',
+  maxResultSizeChars: 100_000,
+  renderToolUseMessage,
   async description() { return DESCRIPTION },
   async prompt() { return DESCRIPTION },
   get inputSchema(): InputSchema { return inputSchema() },

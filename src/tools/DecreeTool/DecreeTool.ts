@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from 'zod/v4'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
@@ -15,12 +14,18 @@ const inputSchema = lazySchema(() =>
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
+export type Input = z.infer<InputSchema>
+export type Output = { success: boolean; action: string; allowed?: boolean; decreeId?: string; reason?: string; decrees?: Array<{ id: string; title: string; status: string; scope: string }>; error?: string }
+
+import { renderToolUseMessage } from './UI.js'
 
 // In-memory decree store (would persist in production)
 const decrees: Array<{id: string; title: string; content: string; scope: string; status: string; rules: string[]; priority: string; created: string}> = []
 
 export const DecreeTool = buildTool({
   name: 'decree',
+  maxResultSizeChars: 10_000,
+  renderToolUseMessage,
   async description() { return 'Decree enforcement system — issue binding decrees (THE LAW), check if a tool/command is allowed, list active decrees. Decrees are enforced before tool execution. Part of Hive Nation Senate governance.' },
   async prompt() { return 'Binding decree system — issue THE LAW, check if tools are allowed, enforce Senate decisions. Use /decree issue to create binding rules. Use /decree check before executing tools in critical contexts.' },
   get inputSchema(): InputSchema { return inputSchema() },
@@ -104,7 +109,7 @@ export const DecreeTool = buildTool({
     }
   },
 
-  mapToolResultToToolResultBlockParam(data: any, toolUseID: string) {
+  mapToolResultToToolResultBlockParam(data: Output, toolUseID: string) {
     return { tool_use_id: toolUseID, type: 'tool_result' as const, content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
   },
-} satisfies ToolDef<InputSchema, { data: any }>)
+} satisfies ToolDef<InputSchema, Output>)
