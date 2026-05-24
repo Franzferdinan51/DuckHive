@@ -12,15 +12,18 @@ let patches = 0
 let alreadyPatched = 0
 const missingPatches = []
 
-function applyRequiredPatch(name, before, after) {
-    if (content.includes(before)) {
+function applyRequiredPatch(name, before, after, alreadyPatchedCheck) {
+    const found = before instanceof RegExp ? before.test(content) : content.includes(before)
+    if (found) {
         content = content.replace(before, after)
         patches++
         console.log(`[PASS] Patched ${name}`)
         return
     }
 
-    if (content.includes(after)) {
+    const check = alreadyPatchedCheck !== undefined ? alreadyPatchedCheck : after
+    const alreadyFound = check instanceof RegExp ? check.test(content) : content.includes(check)
+    if (alreadyFound) {
         alreadyPatched++
         console.log(`[PASS] ${name} already patched`)
         return
@@ -42,13 +45,13 @@ const isZ4SchemaNew = `function isZ4Schema(s) {
 }`
 applyRequiredPatch('isZ4Schema', isZ4SchemaOld, isZ4SchemaNew)
 
-// Patch 2: toJSONSchema - guard against non-object input
-const toJSONOld = `function toJSONSchema(input, _params) {
-  if (input instanceof $ZodRegistry) {`
-const toJSONNew = `function toJSONSchema(input, _params) {
-  if (!input || typeof input !== 'object') { return null; }
-  if (input instanceof $ZodRegistry) {`
-applyRequiredPatch('toJSONSchema', toJSONOld, toJSONNew)
+// Patch 2: toJSONSchema - guard against non-object input.
+// Use a regex with a backreference so we match whatever parameter name
+// Bun's bundler assigns (input, input2, input3, etc.).
+const toJSONRegex = /function toJSONSchema\((\w+), _params\) \{\r?\n  if \(\1 instanceof \$ZodRegistry\) \{/
+const toJSONReplacement = (match, p1) => `function toJSONSchema(${p1}, _params) {\n  if (!${p1} || typeof ${p1} !== 'object') { return null; }\n  if (${p1} instanceof $ZodRegistry) {`
+const toJSONAlreadyPatched = /function toJSONSchema\(\w+, _params\) \{\r?\n  if \(!\w+ \|\| typeof \w+ !== 'object'\) \{ return null; \}\r?\n  if \(\w+ instanceof \$ZodRegistry\) \{/
+applyRequiredPatch('toJSONSchema', toJSONRegex, toJSONReplacement, toJSONAlreadyPatched)
 
 // Patch 3: JSONSchemaGenerator.process - guard against missing _zod
 const procOld = `    const def = schema._zod.def;`

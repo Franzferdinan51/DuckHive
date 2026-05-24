@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { join } from 'node:path'
 import {
   isCodexBaseUrl,
   parseOpenAICompatibleApiFormat,
@@ -43,6 +44,7 @@ import {
   type ProviderPreset,
 } from '../integrations/index.js'
 import { logForDebugging } from './debug.js'
+import { getClaudeConfigHomeDir } from './envUtils.js'
 import {
   sanitizeProfileCustomHeaders,
   serializeProfileCustomHeaders,
@@ -1180,6 +1182,17 @@ export function setActiveProviderProfile(
   if (startupProfile) {
     const file = createProfileFile(startupProfile.profile, startupProfile.env)
     saveProfileFile(file, options)
+
+    if (
+      startupProfile.profile === 'xai' &&
+      startupProfile.env.XAI_CREDENTIAL_SOURCE === 'oauth'
+    ) {
+      const legacyPath = join(
+        options?.configDir ?? getClaudeConfigHomeDir(),
+        '.openclaude-profile.json',
+      )
+      saveProfileFile(file, { ...options, filePath: legacyPath })
+    }
   }
 
   return activeProfile

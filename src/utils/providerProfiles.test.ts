@@ -1244,8 +1244,20 @@ describe('setActiveProviderProfile', () => {
     try {
       const { setActiveProviderProfile } =
         await importFreshProviderProfileModules()
-      const { clearPersistedXaiOAuthProfile, isPersistedXaiOAuthProfile } =
-        await import('./providerProfile.js')
+      const {
+        clearPersistedXaiOAuthProfile,
+        createProfileFile,
+        isPersistedXaiOAuthProfile,
+        loadProfileFile,
+        saveProfileFile,
+      } = await import('./providerProfile.js')
+
+      const stalePrimaryProfile = createProfileFile('openai', {
+        OPENAI_BASE_URL: 'https://api.openai.com/v1',
+        OPENAI_MODEL: 'gpt-4o',
+        OPENAI_API_KEY: 'stale-openai-key',
+      })
+      saveProfileFile(stalePrimaryProfile, { configDir })
 
       const xaiOAuthProfile = buildProfile({
         id: 'xai_oauth_prof',
@@ -1262,8 +1274,10 @@ describe('setActiveProviderProfile', () => {
       }))
 
       const result = setActiveProviderProfile('xai_oauth_prof', { configDir })
-      const profilePath = join(configDir, '.openclaude-profile.json')
+      const profilePath = join(configDir, '.duckhive-profile.json')
+      const legacyProfilePath = join(configDir, '.openclaude-profile.json')
       const persisted = JSON.parse(readFileSync(profilePath, 'utf8'))
+      const legacyPersisted = JSON.parse(readFileSync(legacyProfilePath, 'utf8'))
 
       expect(result?.id).toBe('xai_oauth_prof')
       expect(persisted.profile).toBe('xai')
@@ -1274,11 +1288,15 @@ describe('setActiveProviderProfile', () => {
       expect(persisted.env.OPENAI_API_KEY).toBeUndefined()
       expect(persisted.env.XAI_API_KEY).toBeUndefined()
 
-      // Logout cleanup recognises and removes the marker-tagged file.
+      expect(legacyPersisted).toEqual(persisted)
+      expect(loadProfileFile({ configDir })).toEqual(persisted)
+
+      // Logout cleanup recognises and removes the marker-tagged files.
       expect(isPersistedXaiOAuthProfile(persisted)).toBe(true)
       const removed = clearPersistedXaiOAuthProfile({ configDir })
       expect(removed).toBe(profilePath)
       expect(existsSync(profilePath)).toBe(false)
+      expect(existsSync(legacyProfilePath)).toBe(false)
     } finally {
       process.chdir(originalCwd)
       rmSync(tempDir, { recursive: true, force: true })

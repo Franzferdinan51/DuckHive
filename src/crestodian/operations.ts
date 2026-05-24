@@ -330,7 +330,7 @@ export async function executeDuckCustodianOperation(
       }
       if (deps.checkOpenClaw) {
         const r = await deps.checkOpenClaw();
-        checks.push(`DuckHive: ${r.reachable ? `[ok] ${r.version ?? 'reachable'}` : '[fail] not reachable'}`);
+        checks.push(`OpenClaw: ${r.reachable ? `[ok] ${r.version ?? 'reachable'}` : '[fail] not reachable'}`);
       }
       return { applied: false, message: checks.join('\n') || 'No health checks configured.' };
     }

@@ -43,7 +43,7 @@ export default defineGateway({
   },
   preset: {
     id: 'gitlawb-opengateway',
-    description: 'Gitlawb Opengateway — free hosted Xiaomi MiMo + GMI Cloud partner models (API key required, mint at https://gitlawb.com/opengateway/keys)',
+    description: 'Gitlawb Opengateway — free hosted Xiaomi MiMo, GLM 5.1 FP8, and GMI Cloud partner models (API key required, mint at https://gitlawb.com/opengateway/keys)',
     label: 'Gitlawb Opengateway',
     name: 'Gitlawb Opengateway',
     vendorId: 'openai',
@@ -94,6 +94,12 @@ export default defineGateway({
         apiName: 'google/gemini-3.1-flash-lite-preview',
         label: 'Gemini 3.1 Flash Lite Preview (via Opengateway)',
         modelDescriptorId: 'gemini-3.1-flash-lite-preview',
+      },
+      {
+        id: 'opengateway-glm-5.1-fp8',
+        apiName: 'zai-org/GLM-5.1-FP8',
+        label: 'GLM 5.1 FP8 (via Opengateway)',
+        modelDescriptorId: 'glm-5.1',
       },
     ],
   },

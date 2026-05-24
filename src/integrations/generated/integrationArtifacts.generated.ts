@@ -74,7 +74,7 @@ export const PROVIDER_PRESET_MANIFEST = [
     "routeId": "gitlawb-opengateway",
     "vendorId": "openai",
     "gatewayId": "gitlawb-opengateway",
-    "description": "Gitlawb Opengateway — free hosted Xiaomi MiMo + GMI Cloud partner models (API key required, mint at https://gitlawb.com/opengateway/keys)",
+    "description": "Gitlawb Opengateway — free hosted Xiaomi MiMo, GLM 5.1 FP8, and GMI Cloud partner models (API key required, mint at https://gitlawb.com/opengateway/keys)",
     "label": "Gitlawb Opengateway",
     "name": "Gitlawb Opengateway",
     "baseUrlEnvVars": [
@@ -235,7 +235,8 @@ export const PROVIDER_PRESET_MANIFEST = [
     "vendorId": "minimax",
     "description": "MiniMax API endpoint",
     "apiKeyEnvVars": [
-      "MINIMAX_API_KEY"
+      "MINIMAX_API_KEY",
+      "MMX_API_KEY"
     ]
   },
   {
@@ -258,7 +259,8 @@ export const PROVIDER_PRESET_MANIFEST = [
     "label": "Moonshot AI - API",
     "name": "Moonshot AI - API",
     "apiKeyEnvVars": [
-      "MOONSHOT_API_KEY"
+      "MOONSHOT_API_KEY",
+      "KIMI_API_KEY"
     ]
   },
   {
