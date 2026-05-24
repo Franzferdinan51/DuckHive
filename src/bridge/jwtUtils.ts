@@ -127,7 +127,7 @@ export function createTokenRefreshScheduler({
       logForDebugging(
         `[${label}:token] Token for sessionId=${sessionId} expires=${expiryDate} (past or within buffer), refreshing immediately`,
       )
-      void doRefresh(sessionId, gen)
+      void doRefresh(sessionId, gen).catch(err => logForDebugging(`[${label}:token] Token refresh failed for sessionId=${sessionId}: ${err}`))
       return
     }
 

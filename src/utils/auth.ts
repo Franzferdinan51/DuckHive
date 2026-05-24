@@ -1065,7 +1065,7 @@ export function prefetchAwsCredentialsAndBedRockInfoIfSafe(): void {
   }
 
   // Safe to prefetch - either not from project settings or trust already established
-  void refreshAndGetAwsCredentials()
+  void refreshAndGetAwsCredentials().catch(() => {})
   getModelStrings()
 }
 
