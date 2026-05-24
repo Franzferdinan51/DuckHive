@@ -75,6 +75,7 @@ import type {
   McpSdkServerConfig,
   ScopedMcpServerConfig,
 } from 'src/services/mcp/types.js'
+import type { AnyObjectSchema } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import {
   ChannelMessageNotificationSchema,
   gateChannelServer,
@@ -4711,7 +4712,7 @@ function handleChannelEnable(
   // channel messages queue at priority 'next' and are seen by the model on
   // the turn after they arrive.
   connection.client.setNotificationHandler(
-    ChannelMessageNotificationSchema(),
+    ChannelMessageNotificationSchema() as unknown as AnyObjectSchema,
     async notification => {
       const { content, meta } = notification.params
       logMCPDebug(
@@ -4787,7 +4788,7 @@ function reregisterChannelHandlerAfterReconnect(
     'Channel notifications re-registered after reconnect',
   )
   connection.client.setNotificationHandler(
-    ChannelMessageNotificationSchema(),
+    ChannelMessageNotificationSchema() as unknown as AnyObjectSchema,
     async notification => {
       const { content, meta } = notification.params
       logMCPDebug(

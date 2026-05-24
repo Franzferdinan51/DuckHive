@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { AnyObjectSchema } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import { logError } from 'src/utils/log.js'
 import { z } from 'zod/v4'
 import type {
@@ -110,7 +111,7 @@ export function useIdeSelection(
 
     // Register notification handler for selection_changed events
     ideClient.client.setNotificationHandler(
-      SelectionChangedSchema(),
+      SelectionChangedSchema() as unknown as AnyObjectSchema,
       notification => {
         if (currentIDERef.current !== ideClient) {
           return

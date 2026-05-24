@@ -74,7 +74,6 @@ test('loadConversationForResume rejects oversized transcripts before resume hook
 })
 
 test('deserializeMessagesWithInterruptDetection strips thinking blocks only for OpenAI-compatible providers', async () => {
-  const realProviders = await import('./model/providers.js?real-providers')
   const serializedMessages = [
     user(id(10), 'hello'),
     {
@@ -132,7 +131,6 @@ test('deserializeMessagesWithInterruptDetection strips thinking blocks only for 
 
   process.env.OPENAI_MODEL = 'mimo-v2.5-pro'
   mock.module('./model/providers.js', () => ({
-    ...realProviders,
     getAPIProvider: () => 'openai',
   }))
 

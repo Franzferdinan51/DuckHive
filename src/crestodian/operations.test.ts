@@ -29,6 +29,15 @@ describe('parseDuckCustodianOperation', () => {
       kind: 'gateway-restart',
     })
   })
+
+  it('parses openclaw aliases to duckcustodian operations', () => {
+    expect(parseDuckCustodianOperation('openclaw-status')).toEqual({
+      kind: 'duck-status',
+    })
+    expect(parseDuckCustodianOperation('openclaw-restart')).toEqual({
+      kind: 'duck-restart',
+    })
+  })
 })
 
 describe('executeDuckCustodianOperation', () => {

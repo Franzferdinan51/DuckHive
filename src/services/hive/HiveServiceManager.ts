@@ -12,7 +12,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { HttpProxyAgent } from 'hpagent'
 import { logForDebugging } from '../../utils/debug.js'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -49,7 +48,6 @@ async function checkHealth(port: number, path: string): Promise<boolean> {
     const res = await fetch(url, {
       method: 'GET',
       signal: controller.signal as any,
-      agent: new HttpProxyAgent({ keepAlive: false } as any),
     } as any)
     clearTimeout(timer)
     return res.ok

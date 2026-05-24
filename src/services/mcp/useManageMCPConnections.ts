@@ -1,6 +1,7 @@
 import { feature } from 'bun:bundle'
 import { basename } from 'path'
 import { useCallback, useEffect, useRef } from 'react'
+import type { AnyObjectSchema } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import { getSessionId } from '../../bootstrap/state.js'
 import type { Command } from '../../commands.js'
 import type { Tool } from '../../Tool.js'
@@ -509,7 +510,7 @@ export function useManageMCPConnections(
               case 'register':
                 logMCPDebug(client.name, 'Channel notifications registered')
                 client.client.setNotificationHandler(
-                  ChannelMessageNotificationSchema(),
+                  ChannelMessageNotificationSchema() as unknown as AnyObjectSchema,
                   async notification => {
                     const { content, meta } = notification.params
                     logMCPDebug(
@@ -546,7 +547,7 @@ export function useManageMCPConnections(
                   ] !== undefined
                 ) {
                   client.client.setNotificationHandler(
-                    ChannelPermissionNotificationSchema(),
+                    ChannelPermissionNotificationSchema() as unknown as AnyObjectSchema,
                     async notification => {
                       const { request_id, behavior } = notification.params
                       const resolved =

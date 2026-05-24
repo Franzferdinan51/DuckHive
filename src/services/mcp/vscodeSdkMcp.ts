@@ -1,4 +1,5 @@
 import { logForDebugging } from 'src/utils/debug.js'
+import type { AnyObjectSchema } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import { z } from 'zod/v4'
 import { lazySchema } from '../../utils/lazySchema.js'
 import {
@@ -69,7 +70,7 @@ export function setupVscodeSdkMcp(sdkClients: MCPServerConnection[]): void {
     vscodeMcpClient = client
 
     client.client.setNotificationHandler(
-      LogEventNotificationSchema(),
+      LogEventNotificationSchema() as unknown as AnyObjectSchema,
       async notification => {
         const { eventName, eventData } = notification.params
         logEvent(

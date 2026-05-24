@@ -59,6 +59,11 @@ const PROGRESS_THRESHOLD_MS = 2000; // Show progress after 2 seconds
 // In assistant mode, blocking bash auto-backgrounds after this many ms in the main agent
 const ASSISTANT_BLOCKING_BUDGET_MS = 15_000;
 
+function unrefTimeout(timeoutId: unknown): void {
+  const timeout = timeoutId as { unref?: () => void } | null | undefined
+  timeout?.unref?.()
+}
+
 // Search commands for collapsible display (grep, find, etc.)
 const BASH_SEARCH_COMMANDS = new Set(['find', 'grep', 'rg', 'ag', 'ack', 'locate', 'which', 'whereis']);
 
@@ -1097,12 +1102,13 @@ async function* _runShellCommand({
   // blocking commands after ASSISTANT_BLOCKING_BUDGET_MS so the agent can keep
   // coordinating instead of waiting. The command keeps running — no state loss.
   if (feature('KAIROS') && getKairosActive() && isMainThread && !isBackgroundTasksDisabled && run_in_background !== true) {
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (shellCommand.status === 'running' && backgroundShellId === undefined) {
         assistantAutoBackgrounded = true;
         startBackgrounding('tengu_bash_command_assistant_auto_backgrounded');
       }
-    }, ASSISTANT_BLOCKING_BUDGET_MS).unref();
+    }, ASSISTANT_BLOCKING_BUDGET_MS);
+    unrefTimeout(timeoutId);
   }
 
   // Handle Claude asking to run it in the background explicitly
@@ -1128,7 +1134,8 @@ async function* _runShellCommand({
   let foregroundTaskId: string | undefined = undefined;
   {
     const initialResult = await Promise.race([resultPromise, new Promise<null>(resolve => {
-      setTimeout(resolve, PROGRESS_THRESHOLD_MS).unref();
+      const timeoutId = setTimeout(resolve, PROGRESS_THRESHOLD_MS);
+      unrefTimeout(timeoutId);
     })]);
     if (initialResult !== null) {
       shellCommand.cleanup();

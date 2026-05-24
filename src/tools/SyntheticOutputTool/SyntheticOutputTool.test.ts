@@ -42,10 +42,12 @@ describe('createSyntheticOutputTool (#1256 root schema wrapping)', () => {
     if (!('tool' in result)) throw new Error(`expected tool: ${result.error}`)
 
     const payload = [{ name: 'one' }, { name: 'two' }]
-    const callResult = await result.tool.call(
+    const callResult = (await result.tool.call(
       { result: payload },
+      {} as never,
       undefined as never,
-    )
+      undefined as never,
+    )) as unknown as { structured_output: unknown }
     expect(callResult.structured_output).toEqual(payload)
   })
 
@@ -55,10 +57,12 @@ describe('createSyntheticOutputTool (#1256 root schema wrapping)', () => {
     const schema = result.tool.inputJSONSchema as Record<string, unknown>
     expect(schema.type).toBe('object')
 
-    const callResult = await result.tool.call(
+    const callResult = (await result.tool.call(
       { result: 'hello' },
+      {} as never,
       undefined as never,
-    )
+      undefined as never,
+    )) as unknown as { structured_output: unknown }
     expect(callResult.structured_output).toBe('hello')
   })
 
@@ -67,10 +71,12 @@ describe('createSyntheticOutputTool (#1256 root schema wrapping)', () => {
     if (!('tool' in result)) throw new Error(`expected tool: ${result.error}`)
     expect(result.tool.inputJSONSchema).toEqual(OBJECT_SCHEMA)
 
-    const callResult = await result.tool.call(
+    const callResult = (await result.tool.call(
       { count: 5 },
+      {} as never,
       undefined as never,
-    )
+      undefined as never,
+    )) as unknown as { structured_output: unknown }
     expect(callResult.structured_output).toEqual({ count: 5 })
   })
 
@@ -78,7 +84,12 @@ describe('createSyntheticOutputTool (#1256 root schema wrapping)', () => {
     const result = createSyntheticOutputTool({ ...ARRAY_OF_OBJECTS_SCHEMA })
     if (!('tool' in result)) throw new Error(`expected tool: ${result.error}`)
     await expect(
-      result.tool.call({ result: [{ wrong: 'shape' }] }, undefined as never),
+      result.tool.call(
+        { result: [{ wrong: 'shape' }] },
+        {} as never,
+        undefined as never,
+        undefined as never,
+      ),
     ).rejects.toThrow(/schema/)
   })
 })

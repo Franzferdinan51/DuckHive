@@ -560,6 +560,7 @@ async function handleSpawnSplitPane(
     teammateColor,
     prompt,
     plan_mode_required,
+    permissionMode: input.permissionMode,
     paneId,
     insideTmux,
     backendType: detectionResult.backend.type,
@@ -769,6 +770,7 @@ async function handleSpawnSeparateWindow(
     teammateColor,
     prompt,
     plan_mode_required,
+    permissionMode: input.permissionMode,
     paneId,
     insideTmux: false,
     backendType: 'tmux',
@@ -837,6 +839,7 @@ function registerOutOfProcessTeammateTask(
     teammateColor,
     prompt,
     plan_mode_required,
+    permissionMode,
     paneId,
     insideTmux,
     backendType,
@@ -848,6 +851,7 @@ function registerOutOfProcessTeammateTask(
     teammateColor: string
     prompt: string
     plan_mode_required?: boolean
+    permissionMode?: PermissionMode
     paneId: string
     insideTmux: boolean
     backendType: BackendType
@@ -879,7 +883,7 @@ function registerOutOfProcessTeammateTask(
     prompt,
     abortController,
     awaitingPlanApproval: false,
-    permissionMode: plan_mode_required ? 'plan' : (input.permissionMode ?? 'default'),
+    permissionMode: plan_mode_required ? 'plan' : (permissionMode ?? 'default'),
     isIdle: false,
     shutdownRequested: false,
     lastReportedToolCount: 0,

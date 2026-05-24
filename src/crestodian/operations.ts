@@ -31,7 +31,9 @@ export type DuckCustodianOperation =
   | { kind: 'lessons' }
   | { kind: 'inject-memory'; content: string }
   | { kind: 'duck-status' }
+  | { kind: 'openclaw-status' }
   | { kind: 'duck-restart' }
+  | { kind: 'openclaw-restart' }
   | { kind: 'gateway-status' }
   | { kind: 'gateway-restart' };
 
@@ -51,6 +53,7 @@ export function isPersistentDuckCustodianOperation(op: DuckCustodianOperation): 
     case 'doctor-fix':
     case 'inject-memory':
     case 'duck-restart':
+    case 'openclaw-restart':
     case 'gateway-restart':
     case 'setup-workspace':
     case 'set-default-model':

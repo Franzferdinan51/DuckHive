@@ -24,3 +24,4 @@ export type Continue =
   | { reason: 'premature_completion_nudge' }
   | { reason: 'review_verification_gate' }
   | { reason: 'blocked_exploration_tool_batch' }
+  | { reason: 'blocked_read_only_subagent_batch' }

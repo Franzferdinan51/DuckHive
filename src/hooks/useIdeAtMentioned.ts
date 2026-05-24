@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { AnyObjectSchema } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import { logError } from 'src/utils/log.js'
 import { z } from 'zod/v4'
 import type {
@@ -47,7 +48,7 @@ export function useIdeAtMentioned(
     // If we found a connected IDE client, register our handler
     if (ideClient) {
       ideClient.client.setNotificationHandler(
-        AtMentionedSchema(),
+        AtMentionedSchema() as unknown as AnyObjectSchema,
         notification => {
           if (ideClientRef.current !== ideClient) {
             return
