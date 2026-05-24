@@ -422,7 +422,8 @@ export const createAndSaveSnapshot = async (
 
   logForDebugging(`Creating shell snapshot for ${shellType} (${binShell})`)
 
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
+    ;(async () => {
     try {
       const configFile = getConfigFile(binShell)
       logForDebugging(`Looking for shell config file: ${configFile}`)
@@ -579,5 +580,6 @@ export const createAndSaveSnapshot = async (
       logEvent('tengu_shell_snapshot_error', {})
       resolve(undefined)
     }
+  })().catch(reject)
   })
 }
