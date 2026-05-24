@@ -5,6 +5,7 @@ import { lazySchema } from '../../utils/lazySchema.js'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { resolve, join } from 'path'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
+import { search as embedRecallSearch, indexDocument, clearIndex as clearEmbedIndex, removeDocument } from '../../memdir/embedRecall.js'
 
 const memoryToolDeps: {
   getClaudeConfigHomeDir: () => string
@@ -87,6 +88,7 @@ const inputSchema = lazySchema(() =>
     query: z.string().optional().describe('Search/recall query'),
     memoryId: z.string().optional().describe('Memory ID to recall/forget'),
     limit: z.number().optional().describe('Max results for recall'),
+    reindex: z.boolean().optional().describe('Rebuild embed index from all memories'),
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>
@@ -129,7 +131,8 @@ export const MemoryTool = buildTool({
     return (
       input.action === 'recall' ||
       input.action === 'search' ||
-      input.action === 'stats'
+      input.action === 'stats' ||
+      input.action === 'reindex'
     )
   },
   async call(input, context, canUseTool, parentMessage) {
@@ -142,6 +145,7 @@ export const MemoryTool = buildTool({
       query,
       memoryId,
       limit = 10,
+      reindex,
     } = input
 
     switch (action) {
@@ -166,6 +170,10 @@ export const MemoryTool = buildTool({
           importance,
         })
         saveMemories(memories)
+        // Index in embedRecall for semantic search
+        try {
+          indexDocument(id, [type, tags.join(' '), content].join(' '))
+        } catch { /* non-fatal */ }
         return {
           data: { success: true, action: 'remember', count: memories.length },
         }
@@ -211,19 +219,44 @@ export const MemoryTool = buildTool({
         }
         const memories = getMemories()
         const q = query.toLowerCase()
-        const results = memories
-          .filter(
-            m =>
-              m.content.toLowerCase().includes(q) ||
-              m.tags.some(t => t.toLowerCase().includes(q)) ||
-              m.type.toLowerCase().includes(q),
-          )
-          .slice(0, limit)
+        // Phase 1: keyword matching (exact substring)
+        const keywordMatches = memories.filter(
+          m =>
+            m.content.toLowerCase().includes(q) ||
+            m.tags.some(t => t.toLowerCase().includes(q)) ||
+            m.type.toLowerCase().includes(q),
+        )
+        // Phase 2: semantic search via embedRecall (TF-IDF / LM Studio embeddings)
+        let semanticMatches: Array<{ id: string; score: number }> = []
+        try {
+          const embResults = embedRecallSearch(query, { topK: 20, minScore: 0.15 })
+          semanticMatches = embResults.map(r => ({ id: r.id, score: r.score }))
+        } catch { /* embedRecall unavailable */ }
+        // Merge: keyword matches get boosted by semantic similarity
+        const seen = new Set<string>()
+        const results: typeof memories = []
+        // Prioritize keyword matches that also have semantic relevance
+        for (const m of keywordMatches) {
+          if (!seen.has(m.id)) {
+            seen.add(m.id)
+            const sem = semanticMatches.find(s => s.id === m.id)
+            results.push({ ...m, importance: sem ? m.importance + Math.round(sem.score * 10) : m.importance })
+          }
+        }
+        // Fill with semantic-only matches not caught by keyword search
+        for (const sem of semanticMatches) {
+          if (!seen.has(sem.id)) {
+            seen.add(sem.id)
+            const mem = memories.find(m => m.id === sem.id)
+            if (mem) results.push({ ...mem, importance: Math.round(mem.importance + sem.score * 5) })
+          }
+        }
+        results.sort((a, b) => b.importance - a.importance)
         return {
           data: {
             success: true,
             action: 'search',
-            memories: results,
+            memories: results.slice(0, limit),
             count: results.length,
           },
         }
@@ -261,8 +294,31 @@ export const MemoryTool = buildTool({
         }
         const memories = getMemories().filter(m => m.id !== memoryId)
         saveMemories(memories)
+        // Remove from embedRecall index
+        try {
+          removeDocument(memoryId)
+        } catch { /* non-fatal */ }
         return {
           data: { success: true, action: 'forget', count: memories.length },
+        }
+      }
+      case 'reindex': {
+        const memories = getMemories()
+        clearEmbedIndex()
+        let indexed = 0
+        for (const m of memories) {
+          try {
+            indexDocument(m.id, [m.type, m.tags.join(' '), m.content].join(' '))
+            indexed++
+          } catch { /* non-fatal */ }
+        }
+        return {
+          data: {
+            success: true,
+            action: 'reindex',
+            count: indexed,
+            content: `Re-indexed ${indexed} of ${memories.length} memories`,
+          },
         }
       }
       default:
