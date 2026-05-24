@@ -1,7 +1,5 @@
 // @ts-nocheck
-import {
-  resolveCodexApiCredentials,
-} from '../src/services/api/providerConfig.js'
+import { resolveCodexApiCredentials } from '../src/services/api/providerConfig.js'
 import {
   getGoalDefaultOpenAIModel,
   normalizeRecommendationGoal,
@@ -9,13 +7,18 @@ import {
 } from '../src/utils/providerRecommendation.ts'
 import {
   buildAtomicChatProfileEnv,
+  buildBedrockProfileEnv,
   buildCodexProfileEnv,
   buildGeminiProfileEnv,
+  buildGithubProfileEnv,
+  buildMiniMaxProfileEnv,
   buildMistralProfileEnv,
   buildNvidiaNimProfileEnv,
   buildOllamaProfileEnv,
   buildOpenAIProfileEnv,
   buildOpenRouterProfileEnv,
+  buildVertexProfileEnv,
+  buildXaiProfileEnv,
   createProfileFile,
   saveProfileFile,
   selectAutoProfile,
@@ -29,7 +32,7 @@ import {
   hasLocalOllama,
   listAtomicChatModels,
   listOllamaModels,
-} from './provider-discovery.ts'
+} from '../src/utils/providerDiscovery.ts'
 
 function parseArg(name: string): string | null {
   const args = process.argv.slice(2)
@@ -38,10 +41,32 @@ function parseArg(name: string): string | null {
   return args[idx + 1] ?? null
 }
 
-function parseProviderArg(): ProviderProfile | 'auto' {
-  const p = parseArg('--provider')?.toLowerCase()
-  if (p === 'openai' || p === 'openrouter' || p === 'nvidia-nim' || p === 'ollama' || p === 'codex' || p === 'gemini' || p === 'mistral' || p === 'atomic-chat') return p
-  return 'auto'
+type ProviderSelection = ProviderProfile | 'auto' | 'unsupported'
+
+function parseProviderArg(): ProviderSelection {
+  const provider = parseArg('--provider')?.toLowerCase()
+  if (!provider || provider === 'auto') {
+    return 'auto'
+  }
+  if (
+    provider === 'anthropic' ||
+    provider === 'openai' ||
+    provider === 'openrouter' ||
+    provider === 'nvidia-nim' ||
+    provider === 'ollama' ||
+    provider === 'codex' ||
+    provider === 'gemini' ||
+    provider === 'mistral' ||
+    provider === 'atomic-chat' ||
+    provider === 'github' ||
+    provider === 'bedrock' ||
+    provider === 'vertex' ||
+    provider === 'minimax' ||
+    provider === 'xai'
+  ) {
+    return provider
+  }
+  return 'unsupported'
 }
 
 async function resolveOllamaModel(
@@ -56,6 +81,11 @@ async function resolveOllamaModel(
   return recommended?.name ?? null
 }
 
+function printUsageError(message: string): never {
+  console.error(message)
+  process.exit(1)
+}
+
 async function main(): Promise<void> {
   const provider = parseProviderArg()
   const argModel = parseArg('--model')
@@ -67,9 +97,15 @@ async function main(): Promise<void> {
 
   let selected: ProviderProfile
   let resolvedOllamaModel: string | null = null
-  if (provider === 'auto') {
+  if (provider === 'unsupported') {
+    printUsageError(`Unsupported provider for bootstrap: ${parseArg('--provider')}`)
+  } else if (provider === 'auto') {
     if (await hasLocalOllama(argBaseUrl || undefined)) {
-      resolvedOllamaModel = await resolveOllamaModel(argModel, argBaseUrl, goal)
+      resolvedOllamaModel = await resolveOllamaModel(
+        argModel,
+        argBaseUrl,
+        goal,
+      )
       selected = selectAutoProfile(resolvedOllamaModel)
     } else {
       selected = 'openai'
@@ -79,7 +115,24 @@ async function main(): Promise<void> {
   }
 
   let env: ProfileFile['env']
-  if (selected === 'gemini') {
+  if (selected === 'anthropic') {
+    const apiKey = argApiKey || process.env.ANTHROPIC_API_KEY || null
+    if (!apiKey) {
+      printUsageError(
+        'Anthropic profile requires ANTHROPIC_API_KEY. Use --api-key or set ANTHROPIC_API_KEY.',
+      )
+    }
+
+    env = {
+      ANTHROPIC_BASE_URL:
+        argBaseUrl ||
+        process.env.ANTHROPIC_BASE_URL ||
+        'https://api.anthropic.com',
+      ANTHROPIC_MODEL:
+        argModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+      ANTHROPIC_API_KEY: apiKey,
+    }
+  } else if (selected === 'gemini') {
     const builtEnv = buildGeminiProfileEnv({
       model: argModel || null,
       baseUrl: argBaseUrl || null,
@@ -88,11 +141,56 @@ async function main(): Promise<void> {
     })
 
     if (!builtEnv) {
-      console.error('Gemini profile requires an API key. Use --api-key or set GEMINI_API_KEY.')
-      console.error('Get a free key at: https://aistudio.google.com/apikey')
-      process.exit(1)
+      printUsageError(
+        'Gemini profile requires an API key. Use --api-key or set GEMINI_API_KEY.',
+      )
     }
 
+    env = builtEnv
+  } else if (selected === 'github') {
+    env = buildGithubProfileEnv({
+      model: argModel || null,
+      baseUrl: argBaseUrl || null,
+    })
+  } else if (selected === 'bedrock') {
+    env = buildBedrockProfileEnv({
+      model: argModel || null,
+      baseUrl: argBaseUrl || null,
+    })
+  } else if (selected === 'vertex') {
+    env = buildVertexProfileEnv({
+      model: argModel || null,
+      baseUrl: argBaseUrl || null,
+    })
+  } else if (selected === 'minimax') {
+    const builtEnv = buildMiniMaxProfileEnv({
+      model: argModel || null,
+      baseUrl: argBaseUrl || null,
+      apiKey:
+        argApiKey ||
+        process.env.MINIMAX_API_KEY ||
+        process.env.MMX_API_KEY ||
+        null,
+      processEnv: process.env,
+    })
+    if (!builtEnv) {
+      printUsageError(
+        'MiniMax profile requires MINIMAX_API_KEY or MMX_API_KEY. Use --api-key or set one of those env vars.',
+      )
+    }
+    env = builtEnv
+  } else if (selected === 'xai') {
+    const builtEnv = buildXaiProfileEnv({
+      model: argModel || null,
+      baseUrl: argBaseUrl || null,
+      apiKey: argApiKey || process.env.XAI_API_KEY || null,
+      processEnv: process.env,
+    })
+    if (!builtEnv.OPENAI_API_KEY) {
+      printUsageError(
+        'xAI profile requires XAI_API_KEY. Use --api-key or set XAI_API_KEY.',
+      )
+    }
     env = builtEnv
   } else if (selected === 'mistral') {
     const builtEnv = buildMistralProfileEnv({
@@ -103,9 +201,9 @@ async function main(): Promise<void> {
     })
 
     if (!builtEnv) {
-      console.error('Mistral profile requires an API key. Use --api-key or set MISTRAL_API_KEY.')
-      console.error('Get a free key at: https://admin.mistral.ai/organization/api-keys')
-      process.exit(1)
+      printUsageError(
+        'Mistral profile requires an API key. Use --api-key or set MISTRAL_API_KEY.',
+      )
     }
 
     env = builtEnv
@@ -118,9 +216,9 @@ async function main(): Promise<void> {
     })
 
     if (!builtEnv) {
-      console.error('OpenRouter profile requires an API key. Use --api-key or set OPENROUTER_API_KEY.')
-      console.error('Create a key at: https://openrouter.ai/keys')
-      process.exit(1)
+      printUsageError(
+        'OpenRouter profile requires an API key. Use --api-key or set OPENROUTER_API_KEY.',
+      )
     }
 
     env = builtEnv
@@ -133,35 +231,41 @@ async function main(): Promise<void> {
     })
 
     if (!builtEnv) {
-      console.error('NVIDIA NIM profile requires an API key. Use --api-key or set NVIDIA_API_KEY.')
-      console.error('Create a key from NVIDIA API Catalog.')
-      process.exit(1)
+      printUsageError(
+        'NVIDIA NIM profile requires an API key. Use --api-key or set NVIDIA_API_KEY.',
+      )
     }
 
     env = builtEnv
   } else if (selected === 'ollama') {
-    resolvedOllamaModel ??= await resolveOllamaModel(argModel, argBaseUrl, goal)
+    resolvedOllamaModel ??= await resolveOllamaModel(
+      argModel,
+      argBaseUrl,
+      goal,
+    )
     if (!resolvedOllamaModel) {
-      console.error('No viable Ollama chat model was discovered. Pull a chat model first or pass --model explicitly.')
-      process.exit(1)
+      printUsageError(
+        'No viable Ollama chat model was discovered. Pull a chat model first or pass --model explicitly.',
+      )
     }
 
-    env = buildOllamaProfileEnv(
-      resolvedOllamaModel,
-      {
-        baseUrl: argBaseUrl,
-        getOllamaChatBaseUrl,
-      },
-    )
+    env = buildOllamaProfileEnv(resolvedOllamaModel, {
+      baseUrl: argBaseUrl,
+      getOllamaChatBaseUrl,
+    })
   } else if (selected === 'atomic-chat') {
-    const model = argModel || (await listAtomicChatModels(argBaseUrl || undefined))[0]
+    const model =
+      argModel || (await listAtomicChatModels(argBaseUrl || undefined))[0]
     if (!model) {
       if (!(await hasLocalAtomicChat(argBaseUrl || undefined))) {
-        console.error('Atomic Chat is not running (could not connect to 127.0.0.1:1337).\n  Download from https://atomic.chat/ and launch the application.')
+        printUsageError(
+          'Atomic Chat is not running (could not connect to 127.0.0.1:1337).\n  Download from https://atomic.chat/ and launch the application.',
+        )
       } else {
-        console.error('Atomic Chat is running but no model is loaded. Open Atomic Chat and download or start a model first.')
+        printUsageError(
+          'Atomic Chat is running but no model is loaded. Open Atomic Chat and download or start a model first.',
+        )
       }
-      process.exit(1)
     }
 
     env = buildAtomicChatProfileEnv(model, {
@@ -178,23 +282,22 @@ async function main(): Promise<void> {
 
     if (!builtEnv) {
       const credentials = resolveCodexApiCredentials(
-        argApiKey
-          ? { ...process.env, CODEX_API_KEY: argApiKey }
-          : process.env,
+        argApiKey ? { ...process.env, CODEX_API_KEY: argApiKey } : process.env,
       )
       const authHint = credentials.authPath
         ? ` or make sure ${credentials.authPath} exists`
         : ''
       if (!credentials.apiKey) {
-        console.error(`Codex profile requires CODEX_API_KEY${authHint}.`)
+        printUsageError(`Codex profile requires CODEX_API_KEY${authHint}.`)
       } else {
-        console.error('Codex profile requires CHATGPT_ACCOUNT_ID or an auth.json that includes it.')
+        printUsageError(
+          'Codex profile requires CHATGPT_ACCOUNT_ID or an auth.json that includes it.',
+        )
       }
-      process.exit(1)
     }
 
     env = builtEnv
-  } else {
+  } else if (selected === 'openai') {
     const builtEnv = buildOpenAIProfileEnv({
       goal,
       model: argModel || null,
@@ -204,24 +307,30 @@ async function main(): Promise<void> {
     })
 
     if (!builtEnv) {
-      console.error('OpenAI profile requires a real API key. Use --api-key or set OPENAI_API_KEY.')
-      process.exit(1)
+      printUsageError(
+        'OpenAI profile requires a real API key. Use --api-key or set OPENAI_API_KEY.',
+      )
     }
 
     env = builtEnv
+  } else {
+    printUsageError(`Unsupported provider for bootstrap: ${selected}`)
   }
 
   const profile = createProfileFile(selected, env)
-
   const outputPath = saveProfileFile(profile)
 
   console.log(`Saved profile: ${selected}`)
   console.log(`Goal: ${goal}`)
-  console.log(`Model: ${profile.env.GEMINI_MODEL || profile.env.MISTRAL_MODEL || profile.env.OPENAI_MODEL || getGoalDefaultOpenAIModel(goal)}`)
+  console.log(
+    `Model: ${profile.env.GEMINI_MODEL || profile.env.MISTRAL_MODEL || profile.env.ANTHROPIC_MODEL || profile.env.OPENAI_MODEL || getGoalDefaultOpenAIModel(goal)}`,
+  )
   console.log(`Path: ${outputPath}`)
   console.log('Next: bun run dev:profile')
 }
 
-await main()
+if (import.meta.main) {
+  await main()
+}
 
 export {}

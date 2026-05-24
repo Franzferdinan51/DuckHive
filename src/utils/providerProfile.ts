@@ -845,7 +845,7 @@ export function buildBankrProfileEnv(options: {
   return env
 }
 
-function buildXaiProfileEnv(options: {
+export function buildXaiProfileEnv(options: {
   model?: string | null
   baseUrl?: string | null
   apiKey?: string | null
