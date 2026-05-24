@@ -29,7 +29,14 @@ export function getBm25IndexPath(
   return join(configHomeDir, 'bm25-index.json')
 }
 
-export const DEFAULT_INDEX_PATH = getBm25IndexPath()
+// Lazy-initialized to avoid stale path from module-level getClaudeConfigHomeDir()
+let _defaultIndexPath: string | undefined
+export function getDefaultIndexPath(): string {
+  if (!_defaultIndexPath) _defaultIndexPath = getBm25IndexPath()
+  return _defaultIndexPath
+}
+/** @deprecated Use getDefaultIndexPath() to avoid stale module-level paths */
+export const DEFAULT_INDEX_PATH = '' // placeholder; resolved lazily via getDefaultIndexPath()
 
 /** BM25 parameters */
 const BM25_K1 = 1.5
@@ -266,7 +273,7 @@ export class Bm25Service {
   private indexPath: string
   private indexReady: Promise<void> | null = null
 
-  constructor(indexPath = DEFAULT_INDEX_PATH) {
+  constructor(indexPath = getDefaultIndexPath()) {
     this.indexPath = indexPath
   }
 

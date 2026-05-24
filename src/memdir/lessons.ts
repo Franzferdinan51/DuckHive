@@ -24,7 +24,7 @@
 import { appendFileSync, readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { getAutoMemPath } from './paths.js'
-import { logForDebugging } from '../debug.js'
+import { logForDebugging } from '../utils/debug.js'
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
@@ -360,7 +360,7 @@ export function autoRecordFromError(
 
   const lowerError = error.toLowerCase()
   for (const { pattern, category, workaround } of known) {
-    if (lowerError.includes(pattern)) {
+    if (pattern.split('|').some(p => lowerError.includes(p.trim()))) {
       recordLesson({
         category,
         summary: `${toolName}: ${pattern}`,

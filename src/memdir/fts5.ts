@@ -44,9 +44,25 @@ export function getFts5SessionsDir(
   return join(configHomeDir, 'sessions')
 }
 
-const DB_PATH = getFts5DbPath()
-const MEMORY_DIR = getFts5MemoryDir()
-const SESSIONS_DIR = getFts5SessionsDir()
+// Lazy-initialized to avoid stale paths from module-level getClaudeConfigHomeDir()
+let DB_PATH: string | undefined
+let MEMORY_DIR: string | undefined
+let SESSIONS_DIR: string | undefined
+
+function getDbPath(): string {
+  if (!DB_PATH) DB_PATH = getFts5DbPath()
+  return DB_PATH
+}
+
+function getMemoryDir(): string {
+  if (!MEMORY_DIR) MEMORY_DIR = getFts5MemoryDir()
+  return MEMORY_DIR
+}
+
+function getSessionsDir(): string {
+  if (!SESSIONS_DIR) SESSIONS_DIR = getFts5SessionsDir()
+  return SESSIONS_DIR
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,14 +82,16 @@ export interface Fts5Result {
 let _db: Database.Database | null = null
 
 function getDb(): Database.Database {
-  if (!_db) {
-    // Ensure directory exists
-    const dir = dirname(DB_PATH)
+  if (_db) return _db
+
+  // Ensure directory exists
+  const dbPath = getDbPath()
+  const dir = dirname(dbPath)
     try {
       mkdirSync(dir, { recursive: true })
     } catch { /* already exists */ }
 
-    _db = new Database(DB_PATH)
+    _db = new Database(dbPath)
     _db.pragma('journal_mode = WAL')
     _db.pragma('synchronous = NORMAL')
     _db.pragma('cache_size = -64000') // 64MB cache
@@ -95,7 +113,6 @@ function getDb(): Database.Database {
 
     // Prepared statements are created lazily via _insertMemory, _deleteMemory,
     // and _searchMemories helpers — no need to execute parameterized queries here.
-  }
   return _db
 }
 
@@ -184,11 +201,12 @@ export function searchMemoriesFts5(query: string, limit = 10): Fts5Result[] {
  * Call this on startup to bootstrap the FTS5 index.
  */
 export function indexAllMemoryFiles(): void {
-  if (!existsSync(MEMORY_DIR)) return
+  const memoryDir = getMemoryDir()
+  if (!existsSync(memoryDir)) return
   try {
-    const files = readdirSync(MEMORY_DIR).filter(f => f.endsWith('.md'))
+    const files = readdirSync(memoryDir).filter(f => f.endsWith('.md'))
     for (const file of files) {
-      const filePath = join(MEMORY_DIR, file)
+      const filePath = join(memoryDir, file)
       indexMemoryFile(filePath)
     }
     logForDebugging(`[fts5] indexed ${files.length} memory files`)
@@ -202,11 +220,12 @@ export function indexAllMemoryFiles(): void {
  * Indexes the first non-system line as the session summary.
  */
 export function indexAllSessionFiles(): void {
-  if (!existsSync(SESSIONS_DIR)) return
+  const sessionsDir = getSessionsDir()
+  if (!existsSync(sessionsDir)) return
   try {
-    const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl'))
+    const files = readdirSync(sessionsDir).filter(f => f.endsWith('.jsonl'))
     for (const file of files) {
-      const filePath = join(SESSIONS_DIR, file)
+      const filePath = join(sessionsDir, file)
       const sessionId = file.replace('.jsonl', '')
       try {
         const content = readFileSync(filePath, 'utf-8')

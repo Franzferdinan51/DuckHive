@@ -44,8 +44,19 @@ export function getEmbedRecallSessionsDir(
   return join(configHomeDir, 'sessions')
 }
 
-const INDEX_DIR = getEmbedRecallIndexDir()
-const INDEX_PATH = getEmbedRecallIndexPath()
+// Lazy-initialized to avoid stale path from module-level getClaudeConfigHomeDir()
+let INDEX_DIR: string | undefined
+let INDEX_PATH: string | undefined
+
+function getIndexDir(): string {
+  if (!INDEX_DIR) INDEX_DIR = getEmbedRecallIndexDir()
+  return INDEX_DIR
+}
+
+function getIndexPath(): string {
+  if (!INDEX_PATH) INDEX_PATH = getEmbedRecallIndexPath()
+  return INDEX_PATH
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -237,16 +248,19 @@ function cosineSimilarity(
 
 function loadIndex(): EmbedIndex {
   try {
-    if (existsSync(INDEX_PATH)) {
-      return JSON.parse(readFileSync(INDEX_PATH, 'utf-8')) as EmbedIndex
+    const indexPath = getIndexPath()
+    if (existsSync(indexPath)) {
+      return JSON.parse(readFileSync(indexPath, 'utf-8')) as EmbedIndex
     }
   } catch { /* corrupt / missing → fresh */ }
   return { docs: [], version: 1 }
 }
 
 function saveIndex(idx: EmbedIndex): void {
-  mkdirSync(INDEX_DIR, { recursive: true })
-  writeFileSync(INDEX_PATH, JSON.stringify(idx), 'utf-8')
+  const indexDir = getIndexDir()
+  const indexPath = getIndexPath()
+  mkdirSync(indexDir, { recursive: true })
+  writeFileSync(indexPath, JSON.stringify(idx), 'utf-8')
 }
 
 // Cached IDF for the full corpus (rebuilt whenever docs change)
@@ -286,15 +300,16 @@ export function indexDocument(id: string, text: string): void {
   const vector = tfidfVector(tf, idf)
 
   // Fire-and-forget dense embedding — if it responds, upgrade the entry.
-  // Clone docs so the async callback operates on a snapshot, not shared state.
-  const docsSnapshot = [...idx.docs]
+  // Use a fresh index read in the callback to avoid TOCTOU race with
+  // concurrent indexDocument calls that may have modified cachedIndex.
   getEmbedding(text)
     .then(emb => {
       if (emb) {
-        // Build a fresh index with the embedding-upgraded entry, then persist
-        const upgraded = docsSnapshot.filter(d => d.id !== id)
+        // Re-read the current index to avoid stomping on concurrent writes
+        const currentIdx = ensureIndex()
+        const upgraded = currentIdx.docs.filter(d => d.id !== id)
         upgraded.push({ id, text, vector: emb, indexedAt: Date.now() })
-        cachedIndex = { docs: upgraded, version: idx.version }
+        cachedIndex = { docs: upgraded, version: currentIdx.version }
         rebuildIdf()
         saveIndex(cachedIndex)
       }
@@ -414,5 +429,5 @@ export async function indexSessionContent(): Promise<void> {
 // Rebuild IDF from loaded corpus on startup
 rebuildIdf()
 
-// Fire-and-forget auto-index on module load
-void indexSessionContent()
+// Fire-and-forget auto-index on module load (with catch to avoid unhandled rejection)
+void indexSessionContent().catch(() => { /* auto-index failed silently */ })

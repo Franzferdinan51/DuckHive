@@ -483,7 +483,9 @@ async function* queryLoop(
       queryTracking,
     }
 
-    let messagesForQuery = [...getMessagesAfterCompactBoundary(messages)]
+    let messagesForQuery = [...getMessagesAfterCompactBoundary(messages)].filter(
+  m => !('isApiErrorMessage' in m && m.isApiErrorMessage),
+)
 
     // Extract facts and update phase from the latest message (user input or tool result)
     if (

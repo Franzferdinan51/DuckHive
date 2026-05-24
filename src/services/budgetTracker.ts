@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Budget Tracker Service
  *
@@ -298,6 +297,8 @@ export function getBudgetState(): BudgetState {
 function checkAndResetDailySpend(state: BudgetState): void {
   const today = getTodayDate()
   if (!sameDay(state.lastResetDate, today)) {
+    // Capture spend BEFORE clearing so the log reflects actual usage
+    const totalSpentBeforeReset = Object.values(state.dailySpend).reduce((sum, s) => sum + s.spentUsd, 0)
     state.dailySpend = {} as Record<ProviderId, DailySpend>
     state.lastResetDate = today
     scheduleStateSave(state)
@@ -306,7 +307,7 @@ function checkAndResetDailySpend(state: BudgetState): void {
       event: 'reset',
       provider: 'minimax',
       reason: `daily_reset_new_date=${today}`,
-      globalSpentUsd: Object.values(state.dailySpend).reduce((sum, s) => sum + s.spentUsd, 0),
+      globalSpentUsd: totalSpentBeforeReset,
       globalBudgetUsd: state.globalDailyBudgetUsd,
     })
   }
