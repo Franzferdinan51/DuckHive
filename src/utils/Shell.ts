@@ -35,6 +35,7 @@ import { getPlatform } from './platform.js'
 import { SandboxManager } from './sandbox/sandbox-adapter.js'
 import { invalidateSessionEnvCache } from './sessionEnvironment.js'
 import { createBashShellProvider } from './shell/bashProvider.js'
+import { getMaxOutputLength } from './shell/outputLimits.js'
 import { getCachedPowerShellPath } from './shell/powershellDetection.js'
 import { createPowerShellProvider } from './shell/powershellProvider.js'
 import type { ShellProvider, ShellType } from './shell/shellProvider.js'
@@ -296,10 +297,18 @@ export async function exec(
 
   // When onStdout is provided, use pipe mode: stdout flows through
   // StreamWrapper → TaskOutput in-memory buffer instead of a file fd.
-  // This lets callers receive real-time stdout callbacks.
-  const usePipeMode = !!onStdout
+  // Bash on Windows also needs pipe mode because its file-backed merge path
+  // drops one of the streams when stdout and stderr share the same file handle.
+  const usePipeMode = !!onStdout || (shellType === 'bash' && getPlatform() === 'windows')
   const taskId = generateTaskId('local_bash')
-  const taskOutput = new TaskOutput(taskId, onProgress ?? null, !usePipeMode)
+  const taskOutput = new TaskOutput(
+    taskId,
+    onProgress ?? null,
+    !usePipeMode,
+    usePipeMode && shellType === 'bash' && getPlatform() === 'windows'
+      ? getMaxOutputLength()
+      : undefined,
+  )
   await mkdir(getTaskOutputDir(), { recursive: true })
 
   // In file mode, both stdout and stderr go to the same file fd.

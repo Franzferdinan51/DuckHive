@@ -6,6 +6,7 @@ import memoize from 'lodash-es/memoize.js'
 import { createConnection } from 'net'
 import * as os from 'os'
 import { basename, join, sep as pathSeparator, resolve } from 'path'
+import { parse as shellQuoteParse } from 'shell-quote'
 import { logEvent } from 'src/services/analytics/index.js'
 import { getIsScrollDraining, getOriginalCwd } from '../bootstrap/state.js'
 import { callIdeRpc } from '../services/mcp/client.js'
@@ -1226,8 +1227,10 @@ export function toIDEDisplayName(terminal: string | null): string {
   }
 
   // Extract command name from path/arguments (e.g., "/usr/bin/code --wait" -> "code")
-  const command = terminal.split(' ')[0]
-  const commandName = command ? basename(command).toLowerCase() : null
+  const command = extractCommandToken(terminal)
+  const commandName = command
+    ? basename(command).toLowerCase().replace(/\.(exe|cmd|bat)$/i, '')
+    : null
   if (commandName) {
     const mappedName = EDITOR_DISPLAY_NAMES[commandName]
     if (mappedName) {
@@ -1239,6 +1242,32 @@ export function toIDEDisplayName(terminal: string | null): string {
 
   // Fallback: capitalize first letter
   return capitalize(terminal)
+}
+
+function extractCommandToken(terminal: string): string {
+  const trimmed = terminal.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.includes('"') || trimmed.includes("'")) {
+    const parsed = shellQuoteParse(trimmed)
+    const first = parsed[0]
+    if (typeof first === 'string') {
+      return first
+    }
+    if (first && typeof first === 'object') {
+      if ('pattern' in first && typeof first.pattern === 'string') {
+        return first.pattern
+      }
+      if ('comment' in first && typeof first.comment === 'string') {
+        return `#${first.comment}`
+      }
+      if ('op' in first && typeof first.op === 'string') {
+        return first.op
+      }
+    }
+  }
+
+  return trimmed.split(' ')[0] ?? ''
 }
 
 export { callIdeRpc }

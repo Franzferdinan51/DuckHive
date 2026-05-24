@@ -522,6 +522,7 @@ Examples:
       goal.activeAgentRunId = agentRunId
       goal.activeAgentName = agentName
       spawnInfo = `\nBackground teammate started: ${agentRunId} (${agentName || 'unknown name'})`
+      enqueueLeadCoordinatorPrompt(goal, step, agentName, agentRunId)
     } else if (spawnResult.includes('Failed to spawn subagent teammate')) {
       goal.autonomousMode = false
       goal.activeAgentRunId = undefined
@@ -966,6 +967,22 @@ function extractSpawnedAgentName(spawnResult: string): string | undefined {
   return spawnResult.match(/Subagent teammate \*\*([^*]+)\*\*/)?.[1]
 }
 
+function enqueueLeadCoordinatorPrompt(
+  goal: Goal,
+  currentStep: GoalStep | undefined,
+  agentName: string | undefined,
+  agentRunId: string | undefined,
+): void {
+  enqueuePendingNotification({
+    value: `<goal_tick>Teammate ${agentName || agentRunId || 'goal-worker'} has been assigned to goal ${goal.id} (${goal.title}). Current step: ${currentStep?.description || 'none'}.
+
+As team-lead, you must actively manage the team. DO NOT sit idle. Immediately assess the goal steps, identify parallelizable work, and take action: either (1) delegate a parallel sub-task to another worker via AgentTool, (2) start working on the current step yourself, or (3) review the codebase to prepare the next steps. Report your plan to the user.</goal_tick>`,
+    mode: 'prompt',
+    priority: 'next',
+    isMeta: true,
+  })
+}
+
 async function pursueGoal(args: string[], context?: ToolUseContext): Promise<string> {
   const budgetIdx = args.indexOf('--budget')
   let budgetUSD: number | undefined
@@ -1015,7 +1032,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
   const { addSessionCronTask } = await import('../../bootstrap/state.js')
   addSessionCronTask({
     id: `heartbeat-${goal.id}`,
-    cron: '*/30 * * * *', // Every 30 minutes
+    cron: '*/5 * * * *', // Every 5 minutes
     prompt: `<goal_tick>Heartbeat tick. Proactively monitor progress on goal "${goal.title}". If everything is on track and there is no useful action, respond with HEARTBEAT_OK. If you see an opportunity to advance a milestone or fix a minor issue, take action now.</goal_tick>`,
     createdAt: Date.now(),
     recurring: true,
@@ -1045,6 +1062,7 @@ async function pursueGoal(args: string[], context?: ToolUseContext): Promise<str
       goal.activeAgentRunId = agentRunId
       goal.activeAgentName = agentName
       spawnInfo = `\nBackground teammate started: ${agentRunId} (${agentName || 'unknown name'})`
+      enqueueLeadCoordinatorPrompt(goal, currentStep, agentName, agentRunId)
     } else if (spawnResult.includes('Failed to spawn subagent teammate')) {
       goal.autonomousMode = false
       goal.activeAgentRunId = undefined

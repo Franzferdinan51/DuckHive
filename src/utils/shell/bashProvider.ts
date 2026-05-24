@@ -72,7 +72,9 @@ export async function createBashShellProvider(
   return {
     type: 'bash',
     shellPath,
-    detached: true,
+    // Windows bash.exe drops file-backed stdout/stderr when spawned detached.
+    // Keep it attached there so shell output remains readable.
+    detached: getPlatform() !== 'windows',
 
     async buildExecCommand(
       command: string,

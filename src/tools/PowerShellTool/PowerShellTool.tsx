@@ -605,7 +605,7 @@ export const PowerShellTool = buildTool({
       // which interpretCommandResult can mistake for grep-no-match / findstr
       // string-not-found. Throw it directly. Matches BashTool.tsx:957.
       if (result.preSpawnError) {
-        throw new Error(result.preSpawnError);
+        throw new ShellError('', result.preSpawnError, 1, false);
       }
       if (interpretation.isError && !isInterrupt) {
         throw new ShellError(stdout, result.stderr || '', result.code, result.interrupted);

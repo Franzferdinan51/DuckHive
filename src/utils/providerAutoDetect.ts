@@ -281,6 +281,7 @@ export async function detectLocalService(options?: {
  */
 const OPENGATEWAY_DEFAULT_BASE_URL = 'https://opengateway.gitlawb.com/v1/xiaomi-mimo'
 const OPENGATEWAY_DEFAULT_MODEL = 'mimo-v2.5-pro'
+const OPENGATEWAY_HOSTNAMES = new Set(['opengateway.gitlawb.com', 'opengateway.fly.dev'])
 
 /**
  * Fallback: the Gitlawb Opengateway exposes free partner inference through a
@@ -290,7 +291,19 @@ const OPENGATEWAY_DEFAULT_MODEL = 'mimo-v2.5-pro'
  * silently routing to an endpoint that will 401.
  */
 function normalizeOpengatewayBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/xiaomi-mimo\/?$/, '')
+  try {
+    const url = new URL(baseUrl)
+    if (!OPENGATEWAY_HOSTNAMES.has(url.hostname.toLowerCase())) {
+      return baseUrl
+    }
+    if (!/\/xiaomi-mimo\/?$/.test(url.pathname)) {
+      return baseUrl
+    }
+    url.pathname = url.pathname.replace(/\/xiaomi-mimo\/?$/, '')
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return baseUrl
+  }
 }
 
 function defaultOpengatewayProvider(env: EnvLike): DetectedProvider | null {

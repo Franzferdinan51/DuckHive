@@ -693,6 +693,7 @@ export const BashTool = buildTool({
     let result: ExecResult;
     const isMainThread = !toolUseContext.agentId;
     const preventCwdChanges = !isMainThread;
+
     try {
       // Use the new async generator version of runShellCommand
       const commandGenerator = runShellCommand({
@@ -748,7 +749,9 @@ export const BashTool = buildTool({
         interrupted: false
       };
     }
-    trackGitOperations(input.command, result.code, result.stdout);
+
+    try {
+      trackGitOperations(input.command, result.code, result.stdout);
       const isInterrupt = result.interrupted && abortController.signal.reason === 'interrupt';
 
       // stderr is interleaved in stdout (merged fd) — result.stdout has both
@@ -771,7 +774,7 @@ export const BashTool = buildTool({
       // Annotate output with sandbox violations if any (stderr is in stdout)
       const outputWithSbFailures = SandboxManager.annotateStderrWithSandboxFailures(input.command, result.stdout || '');
       if (result.preSpawnError) {
-        throw new Error(result.preSpawnError);
+        throw new ShellError('', result.preSpawnError, 1, false);
       }
       if (interpretationResult.isError && !isInterrupt) {
         // Merged-fd setup puts both streams into result.stdout. Carry it on
@@ -783,9 +786,6 @@ export const BashTool = buildTool({
         throw new ShellError(outputWithSbFailures, result.stderr || '', result.code, result.interrupted);
       }
       wasInterrupted = result.interrupted;
-    } finally {
-      if (setToolJSX) setToolJSX(null);
-    }
 
     // Get final string from accumulator
     const stdout = stdoutAccumulator.toString();
@@ -879,9 +879,12 @@ export const BashTool = buildTool({
       persistedOutputPath,
       persistedOutputSize
     };
-    return {
-      data
-    };
+      return {
+        data
+      };
+    } finally {
+      if (setToolJSX) setToolJSX(null);
+    }
   },
   renderToolUseErrorMessage,
   isResultTruncated(output: Out): boolean {

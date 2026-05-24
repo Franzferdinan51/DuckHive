@@ -548,7 +548,7 @@ describe('/goal command', () => {
     )
     expect(sessionCronTasks).toHaveLength(1)
     expect(sessionCronTasks[0]?.id).toBe(`heartbeat-${goal?.id}`)
-    expect(sessionCronTasks[0]?.cron).toBe('*/30 * * * *')
+    expect(sessionCronTasks[0]?.cron).toBe('*/5 * * * *')
     expect(sessionCronTasks[0]?.recurring).toBe(true)
     expect(sessionCronTasks[0]?.prompt).toContain('HEARTBEAT_OK')
   })
@@ -736,7 +736,7 @@ describe('/goal command', () => {
     expect(result).toContain('Multiple active goals found.')
   })
 
-  test('autonomous start does not enqueue tick for lead when teammate is spawned', async () => {
+  test('autonomous start enqueues coordinator tick for lead when teammate is spawned', async () => {
     let enqueuedCommand: any = null
     mock.module('../../utils/messageQueueManager.js', () => ({
       enqueuePendingNotification: (cmd: any) => {
@@ -749,8 +749,38 @@ describe('/goal command', () => {
     await call('"Fix bug"', {} as any)
 
     expect(spawnedTasks).toHaveLength(1)
-    // Should NOT have enqueued a tick for the lead
-    expect(enqueuedCommand).toBeNull()
+    // Should have enqueued a coordinator tick so the lead doesn't sit idle
+    expect(enqueuedCommand).not.toBeNull()
+    expect(enqueuedCommand.value).toContain('<goal_tick>')
+    expect(enqueuedCommand.value).toContain('actively manage the team')
+    expect(enqueuedCommand.value).toContain('goal-worker')
+    expect(enqueuedCommand.value).toContain('Current step:')
+    expect(enqueuedCommand.mode).toBe('prompt')
+    expect(enqueuedCommand.priority).toBe('next')
+    expect(enqueuedCommand.isMeta).toBe(true)
+  })
+
+  test('pursue enqueues coordinator tick for lead when teammate is spawned', async () => {
+    let enqueuedCommand: any = null
+    mock.module('../../utils/messageQueueManager.js', () => ({
+      enqueuePendingNotification: (cmd: any) => {
+        enqueuedCommand = cmd
+      },
+    }))
+
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Refactor auth module'])
+    await goalCommand(['pursue'], {} as any)
+
+    expect(spawnedTasks).toHaveLength(1)
+    expect(enqueuedCommand).not.toBeNull()
+    expect(enqueuedCommand.value).toContain('<goal_tick>')
+    expect(enqueuedCommand.value).toContain('actively manage the team')
+    expect(enqueuedCommand.value).toContain('goal-worker')
+    expect(enqueuedCommand.value).toContain('Current step:')
+    expect(enqueuedCommand.mode).toBe('prompt')
+    expect(enqueuedCommand.priority).toBe('next')
+    expect(enqueuedCommand.isMeta).toBe(true)
   })
 
   test('autonomous start enqueues tick for lead when no teammate is spawned (non-REPL)', async () => {

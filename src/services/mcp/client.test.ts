@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { cleanupFailedConnection } from './client.js'
+import { cleanupFailedConnection, parsePromptArgs } from './client.js'
 
 test('cleanupFailedConnection awaits transport close before resolving', async () => {
   let closed = false
@@ -45,4 +45,9 @@ test('cleanupFailedConnection closes in-process server and transport', async () 
 
   assert.equal(inProcessClosed, true)
   assert.equal(transportClosed, true)
+})
+
+test('parsePromptArgs preserves quoted prompt arguments with spaces', () => {
+  assert.deepEqual(parsePromptArgs('"hello world" tail'), ['hello world', 'tail'])
+  assert.deepEqual(parsePromptArgs(''), [])
 })

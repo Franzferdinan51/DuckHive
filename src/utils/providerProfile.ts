@@ -46,6 +46,8 @@ export const DEFAULT_GEMINI_BASE_URL =
 export const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview'
 export const DEFAULT_MISTRAL_BASE_URL = 'https://api.mistral.ai/v1'
 export const DEFAULT_MISTRAL_MODEL = 'devstral-latest'
+const DEFAULT_MINIMAX_BASE_URL = 'https://api.minimax.io/v1'
+const DEFAULT_MINIMAX_MODEL = 'MiniMax-M2.7'
 
 const PROFILE_ENV_KEYS = [
   'CLAUDE_CODE_USE_OPENAI',
@@ -499,18 +501,13 @@ export function buildMiniMaxProfileEnv(options: {
     return null
   }
 
-  const defaultBaseUrl = getRouteDefaultBaseUrl('minimax')
-  const defaultModel = getRouteDefaultModel('minimax')
-  if (!defaultBaseUrl || !defaultModel) {
-    throw new Error('MiniMax route defaults are missing from integration metadata.')
-  }
   const secretSource: SecretValueSource = { OPENAI_API_KEY: key }
 
   return {
     OPENAI_BASE_URL:
       sanitizeProviderConfigValue(options.baseUrl, secretSource) ||
       sanitizeProviderConfigValue(processEnv.OPENAI_BASE_URL, secretSource) ||
-      defaultBaseUrl,
+      DEFAULT_MINIMAX_BASE_URL,
     OPENAI_MODEL:
       normalizeProfileModel(
         sanitizeProviderConfigValue(options.model, secretSource),
@@ -518,13 +515,13 @@ export function buildMiniMaxProfileEnv(options: {
       normalizeProfileModel(
         sanitizeProviderConfigValue(processEnv.OPENAI_MODEL, secretSource),
       ) ||
-      defaultModel,
+      DEFAULT_MINIMAX_MODEL,
     OPENAI_API_KEY: key,
     MINIMAX_API_KEY: key,
     MMX_API_KEY:
       resolvedCredential?.kind === 'api-key' ? resolvedCredential.credential : undefined,
-    MINIMAX_BASE_URL: defaultBaseUrl,
-    MINIMAX_MODEL: defaultModel,
+    MINIMAX_BASE_URL: DEFAULT_MINIMAX_BASE_URL,
+    MINIMAX_MODEL: DEFAULT_MINIMAX_MODEL,
   }
 }
 
@@ -1657,7 +1654,8 @@ export async function buildStartupEnvFromProfile(options?: {
   readGeminiAccessToken?: () => string | undefined
 }): Promise<NodeJS.ProcessEnv> {
   const processEnv = options?.processEnv ?? process.env
-  const persisted = options?.persisted ?? loadProfileFile()
+  const persisted =
+    options?.persisted === undefined ? loadProfileFile() : options.persisted
 
   const profileManagedEnv = processEnv.CLAUDE_CODE_PROVIDER_PROFILE_ENV_APPLIED === '1'
   const hasConfiguredProviderProfile =
@@ -1710,27 +1708,14 @@ export async function buildStartupEnvFromProfile(options?: {
         profileEnv: miniMaxEnv,
       })
     }
-    const defaultMiniMaxBaseUrl = getRouteDefaultBaseUrl('minimax')
-    const defaultMiniMaxModel =
-      getRouteDefaultModel('minimax') ?? 'MiniMax-M2.7'
-    if (defaultMiniMaxBaseUrl) {
-      return buildCompatibilityProcessEnv({
-        processEnv,
-        compatibilityMode: 'openai',
-        profileEnv: {
-          OPENAI_BASE_URL: defaultMiniMaxBaseUrl,
-          OPENAI_MODEL: defaultMiniMaxModel,
-          MINIMAX_BASE_URL: defaultMiniMaxBaseUrl,
-          MINIMAX_MODEL: defaultMiniMaxModel,
-        },
-      })
-    }
     return buildCompatibilityProcessEnv({
       processEnv,
       compatibilityMode: 'openai',
       profileEnv: {
-        OPENAI_MODEL: defaultMiniMaxModel,
-        MINIMAX_MODEL: defaultMiniMaxModel,
+        OPENAI_BASE_URL: DEFAULT_MINIMAX_BASE_URL,
+        OPENAI_MODEL: DEFAULT_MINIMAX_MODEL,
+        MINIMAX_BASE_URL: DEFAULT_MINIMAX_BASE_URL,
+        MINIMAX_MODEL: DEFAULT_MINIMAX_MODEL,
       },
     })
   }

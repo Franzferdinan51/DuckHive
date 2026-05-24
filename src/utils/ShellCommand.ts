@@ -328,6 +328,12 @@ class ShellCommandImpl implements ShellCommand {
         result.outputFileSize = this.taskOutput.outputFileSize
         result.outputTaskId = this.taskOutput.taskId
       }
+    } else if (!this.taskOutput.stdoutToFile && this.taskOutput.isOverflowed && !this.#backgroundTaskId) {
+      // Pipe mode can still spill to disk. Surface the spill file so callers
+      // can persist or preview large outputs the same way file mode does.
+      result.outputFilePath = this.taskOutput.path
+      result.outputFileSize = this.taskOutput.totalBytes
+      result.outputTaskId = this.taskOutput.taskId
     }
 
     if (this.#killedForSize) {

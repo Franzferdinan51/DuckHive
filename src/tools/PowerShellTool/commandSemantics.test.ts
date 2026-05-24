@@ -109,6 +109,17 @@ describe('interpretCommandResult', () => {
       expect(result.message).toBe('Files differ')
     })
 
+    test('git diff with file path exit code 1 = files differ (not error)', () => {
+      const result = interpretCommandResult(
+        'git diff src/foo.ts',
+        1,
+        '+added line',
+        '',
+      )
+      expect(result.isError).toBe(false)
+      expect(result.message).toBe('Files differ')
+    })
+
     test('git diff --exit-code exit code 1 = files differ (not error)', () => {
       const result = interpretCommandResult(
         'git diff --exit-code',

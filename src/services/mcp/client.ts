@@ -37,6 +37,7 @@ import {
   type PromptMessage,
   type ResourceLink,
 } from '@modelcontextprotocol/sdk/types.js'
+import { parse as shellQuoteParse } from 'shell-quote'
 import mapValues from 'lodash-es/mapValues.js'
 import memoize from 'lodash-es/memoize.js'
 import zipObject from 'lodash-es/zipObject.js'
@@ -2115,7 +2116,7 @@ export const fetchCommandsForClient = memoizeWithLRU(
           argNames,
           source: 'mcp',
           async getPromptForCommand(args: string) {
-            const argsArray = args.split(' ')
+            const argsArray = parsePromptArgs(args)
             try {
               const connectedClient = await ensureConnectedClient(client)
               const result = await connectedClient.client.getPrompt({
@@ -2149,6 +2150,27 @@ export const fetchCommandsForClient = memoizeWithLRU(
   (client: MCPServerConnection) => client.name,
   MCP_FETCH_CACHE_SIZE,
 )
+
+export function parsePromptArgs(args: string): string[] {
+  const trimmed = args.trim()
+  if (!trimmed) return []
+
+  return shellQuoteParse(trimmed).map(part => {
+    if (typeof part === 'string') {
+      return part
+    }
+    if ('pattern' in part && typeof part.pattern === 'string') {
+      return part.pattern
+    }
+    if ('comment' in part && typeof part.comment === 'string') {
+      return `#${part.comment}`
+    }
+    if ('op' in part && typeof part.op === 'string') {
+      return part.op
+    }
+    return String(part)
+  })
+}
 
 /**
  * Call an IDE tool directly as an RPC

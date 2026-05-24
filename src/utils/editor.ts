@@ -6,6 +6,7 @@ import {
 } from 'child_process'
 import memoize from 'lodash-es/memoize.js'
 import { basename } from 'path'
+import { parse as shellQuoteParse } from 'shell-quote'
 import instances from '../ink/instances.js'
 import { logForDebugging } from './debug.js'
 import { whichSync } from './which.js'
@@ -47,8 +48,20 @@ const VSCODE_FAMILY = new Set(['code', 'cursor', 'windsurf', 'codium'])
  * 'code' → matches.
  */
 export function classifyGuiEditor(editor: string): string | undefined {
-  const base = basename(editor.split(' ')[0] ?? '')
+  const base = basename(parseEditorCommand(editor)[0] ?? '')
   return GUI_EDITORS.find(g => base.includes(g))
+}
+
+function parseEditorCommand(editor: string): string[] {
+  const trimmed = editor.trim()
+  if (!trimmed) return []
+  if (!trimmed.includes('"') && !trimmed.includes("'")) {
+    return trimmed.split(/\s+/)
+  }
+  return shellQuoteParse(trimmed)
+    .filter((part): part is string => typeof part === 'string')
+    .map(part => part.trim())
+    .filter(Boolean)
 }
 
 /**
@@ -88,7 +101,8 @@ export function openFileInExternalEditor(
   // Spawn the user's actual binary (preserves code-insiders, abs paths, etc.).
   // Split into binary + extra args so multi-word values like 'start /wait
   // notepad' or 'code --wait' propagate all tokens to spawn.
-  const parts = editor.split(' ')
+  // Preserve quoted binaries like "C:\\Program Files\\Code\\Code.exe --wait".
+  const parts = parseEditorCommand(editor)
   const base = parts[0] ?? editor
   const editorArgs = parts.slice(1)
   const guiFamily = classifyGuiEditor(editor)

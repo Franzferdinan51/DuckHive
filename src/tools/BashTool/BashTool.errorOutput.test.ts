@@ -64,6 +64,8 @@ describe('BashTool error output (#1231)', () => {
   test('empty-output failure still surfaces the exit code', async () => {
     const err = await expectShellError('exit 1')
     expect(err.code).toBe(1)
-    expect(formatError(err)).toBe('Exit code 1')
+    expect(formatError(err)).toBe(
+      'Exit code 1\n(No output captured — the command may have failed to start or was terminated before producing output)',
+    )
   })
 })

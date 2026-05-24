@@ -95,13 +95,14 @@ function buildGoalPromptSection(): Record<string, string> | null {
           ? `**CRITICAL: YOUR BUDGET HAS BEEN EXCEEDED ($${currentCost.toFixed(2)} / $${activeGoal.budgetUSD?.toFixed(2)}). YOU MUST STOP ALL WORK IMMEDIATELY. Report this to the user and wait for further instructions. DO NOT use any more tools.**`
           : `1. ROLE & ORCHESTRATION: ${
               activeGoal.activeAgentRunId
-                ? `Subagent \`${activeGoal.activeAgentRunId}\` is assigned to this goal. If you are the team-lead, you are the COORDINATOR and a CONTRIBUTOR. Work alongside the subagent by tackling parallel steps or handling complex integration. Use 'SendMessage' to divide the work and avoid redundant searching. If YOU are the assigned subagent, you are the primary driver for your current task.`
+                ? `Subagent \`${activeGoal.activeAgentRunId}\` is assigned to this goal. As team-lead, you are the COORDINATOR and a CONTRIBUTOR. DO NOT sit idle waiting for the teammate to finish. You must proactively manage the team: (a) assess the current step and remaining steps every turn, (b) identify work that can run in parallel and delegate it via AgentTool, (c) use SendMessage to divide work and avoid redundant searching, (d) check on teammate progress if they have been idle, (e) tackle complex integration or blocked steps yourself. If YOU are the assigned subagent, you are the primary driver for your current task.`
                 : `You are the primary driver for this goal. Work decisively until complete.`
             }`,
-        !budgetExceeded ? `2. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.` : '',
-        !budgetExceeded ? `3. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.` : '',
-        !budgetExceeded ? `4. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.` : '',
-        !budgetExceeded ? `5. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.` : '',
+        !budgetExceeded ? `2. ACTIVE MANAGEMENT: Every turn you must either (a) take concrete action on the current step, (b) spawn a parallel worker for an independent sub-task, or (c) check teammate status and re-delegate if stalled. Standing still is not an option.` : '',
+        !budgetExceeded ? `3. FOLLOW THE PLAN: You have been provided with a list of steps. Work through them sequentially.` : '',
+        !budgetExceeded ? `4. BE DECISIVE: While understanding the code is vital, every turn should move you closer to completing the current step. Action is often the best way to validate findings.` : '',
+        !budgetExceeded ? `5. UPDATE STATUS: As soon as a step is complete, use '/goal step complete' to mark it done and move to the next. Show your progress to the user.` : '',
+        !budgetExceeded ? `6. REFINE IF NEEDED: If the current plan is too vague, use '/goal step add' to break it down into smaller, actionable sub-tasks.` : '',
         !budgetExceeded ? `Keep working until the ENTIRE goal is met. Don't stop after one step.` : '',
       ].filter(line => line !== '').join('\n'),
     }
