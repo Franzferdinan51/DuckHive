@@ -41,6 +41,7 @@ let modelStringsState: unknown = null
 let inlinePlugins: string[] = []
 let agentColorMap: Map<string, unknown>
 let sessionCronTasks: any[] = []
+const interactiveGoalContext = { options: { isNonInteractiveSession: false } } as any
 
 async function importFreshGoalCommand() {
   return (await import(`./goal.ts?goal-test=${Date.now()}-${Math.random()}`))
@@ -223,7 +224,7 @@ describe('/goal command', () => {
   test('bare /goal <description> uses the Codex-style shorthand create flow', async () => {
     const goalCommand = await importFreshGoalCommand()
 
-    const result = await goalCommand(['Build', 'user', 'authentication', 'system'])
+    const result = await goalCommand(['Build', 'user', 'authentication', 'system'], interactiveGoalContext)
 
     expect(result).toContain('Autonomous goal started')
     expect(getStoredGoals()).toHaveLength(1)
@@ -268,7 +269,7 @@ describe('/goal command', () => {
   test('REPL /goal shorthand preserves escaped quotes in descriptions', async () => {
     const { call } = await importFreshGoalModule()
 
-    const result = await call('Build the \\"fast\\" workflow')
+    const result = await call('Build the \\"fast\\" workflow', interactiveGoalContext)
 
     expect(result.value).toContain('Autonomous goal started')
     expect(getStoredGoals()).toHaveLength(1)
@@ -472,7 +473,7 @@ describe('/goal command', () => {
   test('single-word goals are accepted exactly like Codex (no longer rejected as unknown subcommands)', async () => {
     const goalCommand = await importFreshGoalCommand()
 
-    const result = await goalCommand(['Refactor'])
+    const result = await goalCommand(['Refactor'], interactiveGoalContext)
 
     expect(result).toContain('Autonomous goal started')
     expect(getStoredGoals()).toHaveLength(1)
@@ -746,7 +747,7 @@ describe('/goal command', () => {
 
     const { call } = await importFreshGoalModule()
     // context present means REPL mode -> spawn teammate
-    await call('"Fix bug"', {} as any)
+    await call('"Fix bug"', interactiveGoalContext)
 
     expect(spawnedTasks).toHaveLength(1)
     // Should have enqueued a coordinator tick so the lead doesn't sit idle
@@ -783,7 +784,7 @@ describe('/goal command', () => {
     expect(enqueuedCommand.isMeta).toBe(true)
   })
 
-  test('autonomous start enqueues tick for lead when no teammate is spawned (non-REPL)', async () => {
+  test('pursue enqueues tick for lead when no teammate is spawned (non-REPL)', async () => {
     let enqueuedCommand: any = null
     mock.module('../../utils/messageQueueManager.js', () => ({
       enqueuePendingNotification: (cmd: any) => {
@@ -791,9 +792,9 @@ describe('/goal command', () => {
       },
     }))
 
-    const { call } = await importFreshGoalModule()
-    // No context -> cron tick loop mode
-    await call('"Fix bug"', undefined)
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Fix', 'bug'])
+    await goalCommand(['pursue'], undefined)
 
     expect(spawnedTasks).toHaveLength(0)
     expect(enqueuedCommand).not.toBeNull()

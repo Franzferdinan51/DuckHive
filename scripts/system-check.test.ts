@@ -11,6 +11,7 @@ import {
   checkHarnessCommandSurfaces,
   checkHarnessStateReadiness,
   checkCouncilRuntimeReadiness,
+  checkBaseUrlReachability,
   checkTuiInputSmoke,
   checkTopLevelCliHelpSurface,
   checkOpenAIEnv,
@@ -29,6 +30,7 @@ const originalEnv = {
   DUCKHIVE_DEFAULT_PROVIDER: process.env.DUCKHIVE_DEFAULT_PROVIDER,
   OPENAI_MODEL: process.env.OPENAI_MODEL,
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+  OPENGATEWAY_API_KEY: process.env.OPENGATEWAY_API_KEY,
   MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
   MMX_API_KEY: process.env.MMX_API_KEY,
   DUCKHIVE_CLAWHUB_REGISTRY: process.env.DUCKHIVE_CLAWHUB_REGISTRY,
@@ -57,6 +59,7 @@ function clearProviderEnv(): void {
   delete process.env.DUCKHIVE_DEFAULT_PROVIDER
   delete process.env.OPENAI_MODEL
   delete process.env.OPENAI_BASE_URL
+  delete process.env.OPENGATEWAY_API_KEY
   delete process.env.MINIMAX_API_KEY
   delete process.env.MMX_API_KEY
   delete process.env.DUCKHIVE_CLAWHUB_REGISTRY
@@ -423,6 +426,104 @@ describe('checkOpenAIEnv', () => {
       label: 'Provider mode',
       detail: 'Anthropic login flow enabled by explicit DuckHive provider selection.',
     })
+  })
+
+  test('uses route-specific Opengateway credentials when OpenAI mode is enabled', () => {
+    clearProviderEnv()
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    process.env.OPENAI_BASE_URL = 'https://opengateway.gitlawb.com/v1'
+    process.env.OPENAI_MODEL = 'mimo-v2.5-pro'
+    process.env.OPENGATEWAY_API_KEY = 'opengateway-test-key'
+
+    const results = checkOpenAIEnv()
+    const credentialCheck = results.find(result => result.label.includes('OPENGATEWAY_API_KEY'))
+
+    expect(credentialCheck).toEqual({
+      ok: true,
+      label: 'OPENGATEWAY_API_KEY or OPENAI_API_KEY',
+      detail: 'Configured.',
+    })
+  })
+})
+
+describe('checkBaseUrlReachability', () => {
+  test('probes Gitlawb Opengateway with chat completions instead of /models', async () => {
+    clearProviderEnv()
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    process.env.OPENAI_BASE_URL = 'https://opengateway.gitlawb.com/v1'
+    process.env.OPENAI_MODEL = 'mimo-v2.5-pro'
+    process.env.OPENGATEWAY_API_KEY = 'opengateway-test-key'
+
+    const originalFetch = globalThis.fetch
+    const requests: Array<{
+      url: string
+      headers: Record<string, string>
+      body: Record<string, unknown> | null
+    }> = []
+
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url
+      const headers = Object.fromEntries(
+        Object.entries((init?.headers ?? {}) as Record<string, string>)
+      )
+      const body = typeof init?.body === 'string'
+        ? JSON.parse(init.body) as Record<string, unknown>
+        : null
+
+      requests.push({ url, headers, body })
+
+      if (url.endsWith('/models')) {
+        return new Response('not found', { status: 404 })
+      }
+
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-opengateway-probe',
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: 'ok',
+              },
+              finish_reason: 'stop',
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      )
+    }) as typeof globalThis.fetch
+
+    try {
+      const result = await checkBaseUrlReachability()
+
+      expect(result.ok).toBe(true)
+      expect(result.detail).toContain('Reached https://opengateway.gitlawb.com/v1/chat/completions')
+      expect(requests).toHaveLength(1)
+      expect(requests[0]?.url).toBe('https://opengateway.gitlawb.com/v1/chat/completions')
+      expect(requests[0]?.headers.Authorization).toBe('Bearer opengateway-test-key')
+      expect(requests[0]?.body).toMatchObject({
+        model: 'mimo-v2.5-pro',
+        max_completion_tokens: 1,
+        stream: true,
+      })
+      expect(requests[0]?.body?.messages).toEqual([
+        {
+          role: 'user',
+          content: 'Runtime doctor probe.',
+        },
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })
 

@@ -487,6 +487,13 @@ Examples:
   const goal = goals.find(g => g.id === goalId)
   if (!goal) return message
 
+  // Bare /goal shorthand only auto-starts in an interactive REPL context.
+  // Headless print mode and the top-level CLI fast-path stay one-shot so they
+  // can create goals without keeping the process alive.
+  if (context?.options?.isNonInteractiveSession !== false) {
+    return message
+  }
+
   if (budgetUSD !== undefined && !isNaN(budgetUSD)) {
     goal.budgetUSD = budgetUSD
   }
@@ -1204,7 +1211,7 @@ function showHelp(): string {
 ${bold('DuckHive /goal - Persisted Workflow Goals')}
 
 ${bold('REPL commands:')}
-  /goal <description>            Create goal and start autonomous work
+  /goal <description>            Create goal (interactive REPL sessions also start autonomous work)
   /goal create <description>     Create a goal (does not start autonomous mode)
   /goal list                     List all goals
   /goal status                   Show active goal progress
@@ -1222,7 +1229,7 @@ ${bold('Flags:')}
   --budget <usd>                 Set a maximum cost for autonomous mode (e.g. /goal "do X" --budget 1.50)
 
 ${bold('Terminal commands:')}
-  duckhive goal <description>            Create goal and start autonomous work
+  duckhive goal <description>            Create goal
   duckhive goal create <description>     Create a goal
   duckhive goal list                     List all goals
   duckhive goal status                   Show goal status
@@ -1300,9 +1307,9 @@ export default async function goalCommand(
     'stop', 'stop-autonomous', 'help',
   ].includes(subcommand ?? '')
 
-  // /goal do X — multi-word non-subcommand → create goal and start autonomous
-  // pursuit (Codex-style shorthand). The agent works toward the goal in the
-  // foreground, visible to the user, not stopping until the goal is met.
+  // /goal do X — multi-word non-subcommand → create goal and, in an
+  // interactive REPL, start autonomous pursuit (Codex-style shorthand).
+  // Headless print mode and the top-level CLI path stay one-shot.
   // We no longer reject single words, to match Codex exactly.
   if (args.length >= 1 && !isKnownSubcommand) {
     return await createGoalAndStartAutonomous(args, context)

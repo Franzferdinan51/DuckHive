@@ -1099,6 +1099,15 @@ export function checkOpenAIEnv(): CheckResult[] {
   }
 
   const request = resolveDoctorProviderRequest()
+  const routeCredential =
+    activeRouteId && activeRouteId !== 'anthropic'
+      ? getRouteCredentialValue(activeRouteId)
+      : undefined
+  const credentialLabel =
+    activeRouteId && activeRouteId !== 'anthropic'
+      ? getRouteCredentialEnvVars(activeRouteId).join(' or ')
+      : 'OPENAI_API_KEY'
+  const key = routeCredential ?? process.env.OPENAI_API_KEY
 
   results.push(
     pass(
@@ -1135,30 +1144,29 @@ export function checkOpenAIEnv(): CheckResult[] {
     return results
   }
 
-  const key = process.env.OPENAI_API_KEY
   const githubToken = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
   if (key === 'SUA_CHAVE') {
-    results.push(fail('OPENAI_API_KEY', 'Placeholder value detected: SUA_CHAVE.'))
+    results.push(fail(credentialLabel, 'Placeholder value detected: SUA_CHAVE.'))
   } else if (
     !key &&
     !isLocalBaseUrl(request.baseUrl) &&
     !(useGithub && githubToken?.trim())
   ) {
-    results.push(fail('OPENAI_API_KEY', 'Missing key for non-local provider URL.'))
+    results.push(fail(credentialLabel, 'Missing key for non-local provider URL.'))
   } else if (!key && useGithub && githubToken?.trim()) {
     results.push(
-      pass('OPENAI_API_KEY', 'Not set; GITHUB_TOKEN/GH_TOKEN will be used for GitHub Models.'),
+      pass(credentialLabel, 'Not set; GITHUB_TOKEN/GH_TOKEN will be used for GitHub Models.'),
     )
   } else if (!key) {
-    results.push(pass('OPENAI_API_KEY', 'Not set (allowed for local providers like Atomic Chat/Ollama/LM Studio).'))
+    results.push(pass(credentialLabel, 'Not set (allowed for local providers like Atomic Chat/Ollama/LM Studio).'))
   } else {
-    results.push(pass('OPENAI_API_KEY', 'Configured.'))
+    results.push(pass(credentialLabel, 'Configured.'))
   }
 
   return results
 }
 
-async function checkBaseUrlReachability(): Promise<CheckResult> {
+export async function checkBaseUrlReachability(): Promise<CheckResult> {
   const useGemini = isTruthy(process.env.CLAUDE_CODE_USE_GEMINI)
   const useOpenAI = isTruthy(process.env.CLAUDE_CODE_USE_OPENAI)
   const useGithub = isTruthy(process.env.CLAUDE_CODE_USE_GITHUB)
@@ -1184,8 +1192,11 @@ async function checkBaseUrlReachability(): Promise<CheckResult> {
     model: process.env.OPENAI_MODEL || (descriptorRouteId ? getRouteDefaultModel(descriptorRouteId) : undefined),
     baseUrl: resolvedBaseUrl ?? process.env.OPENAI_BASE_URL ?? (descriptorRouteId ? getRouteDefaultBaseUrl(descriptorRouteId) : undefined),
   })
+  const probeViaChatCompletions = descriptorRouteId === 'gitlawb-opengateway'
   const endpoint = request.transport === 'codex_responses'
     ? `${request.baseUrl}/responses`
+    : probeViaChatCompletions
+      ? `${request.baseUrl}/chat/completions`
     : `${request.baseUrl}/models`
   const redactedEndpoint = redactUrlForDisplay(endpoint)
 
@@ -1227,8 +1238,26 @@ async function checkBaseUrlReachability(): Promise<CheckResult> {
       headers.Authorization = `Bearer ${process.env.MISTRAL_API_KEY}`
     } else if (descriptorRouteId && getRouteCredentialValue(descriptorRouteId)) {
       headers.Authorization = `Bearer ${getRouteCredentialValue(descriptorRouteId)}`
+    } else if (probeViaChatCompletions && process.env.OPENAI_API_KEY) {
+      headers.Authorization = `Bearer ${process.env.OPENAI_API_KEY}`
     } else if (process.env.OPENAI_API_KEY) {
       headers.Authorization = `Bearer ${process.env.OPENAI_API_KEY}`
+    }
+
+    if (probeViaChatCompletions) {
+      method = 'POST'
+      headers['Content-Type'] = 'application/json'
+      body = JSON.stringify({
+        model: request.resolvedModel,
+        messages: [
+          {
+            role: 'user',
+            content: 'Runtime doctor probe.',
+          },
+        ],
+        max_completion_tokens: 1,
+        stream: true,
+      })
     }
 
     const response = await fetch(endpoint, {
@@ -1239,6 +1268,9 @@ async function checkBaseUrlReachability(): Promise<CheckResult> {
     })
 
     if (response.status === 200 || response.status === 401 || response.status === 403) {
+      if (probeViaChatCompletions && response.body) {
+        await response.body.cancel().catch(() => {})
+      }
       return pass(
         'Provider reachability',
         `Reached ${redactedEndpoint} (status ${response.status}).`,
