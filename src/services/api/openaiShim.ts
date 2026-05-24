@@ -36,7 +36,8 @@ import { resolveGeminiCredential } from '../../utils/geminiAuth.js'
 import { hydrateGeminiAccessTokenFromSecureStorage } from '../../utils/geminiCredentials.js'
 import { hydrateGithubModelsTokenFromSecureStorage } from '../../utils/githubModelsCredentials.js'
 import { resolveXaiAccessToken } from '../../utils/xaiCredentials.js'
-import { resolveOpenAIShimRuntimeContext } from '../../integrations/runtimeMetadata.js'
+import { resolveOpenAIShimRuntimeContext, resolveModelRuntimeLimits } from '../../integrations/runtimeMetadata.js'
+import { roughTokenCountEstimation } from '../tokenEstimation.js'
 import {
   isXaiBaseUrl,
   resolveRouteCredentialValue,
@@ -89,6 +90,7 @@ import {
   getStreamStats,
 } from '../../utils/streamingOptimizer.js'
 import { stableStringifyJson } from '../../utils/stableStringify.js'
+import { getOpenAIContextWindow } from '../../utils/model/openaiContextWindows.js'
 
 type SecretValueSource = Partial<{
   OPENAI_API_KEY: string
@@ -1844,6 +1846,35 @@ class OpenAIShimMessages {
       delete body.max_completion_tokens
     }
 
+    // Clamp max_tokens / max_completion_tokens to the model's context window
+    // minus estimated input tokens. Strict proxy servers (vLLM, StepFun,
+    // DashScope, etc.) reject requests where max_output + prompt > context_window.
+    {
+      const maxField = body.max_tokens !== undefined
+        ? 'max_tokens'
+        : body.max_completion_tokens !== undefined
+          ? 'max_completion_tokens'
+          : null
+      if (maxField && typeof body[maxField] === 'number') {
+        const ctxWindow = getOpenAIContextWindow(request.resolvedModel) ?? 0
+        if (ctxWindow > 0) {
+          // Rough input token estimate: serialize messages portion of the body
+          // and divide by ~4 bytes per token (conservative for English/code).
+          const messagesStr = JSON.stringify(body.messages ?? [])
+          const estimatedInputTokens = Math.ceil(messagesStr.length / 4)
+          const safetyBuffer = 256 // guard against estimation drift
+          const maxAllowed = ctxWindow - estimatedInputTokens - safetyBuffer
+          if (maxAllowed > 0 && (body[maxField] as number) > maxAllowed) {
+            logForDebugging(
+              `[openaiShim] clamping ${maxField} ${(body[maxField] as number)} → ${maxAllowed}` +
+              ` (ctx=${ctxWindow}, est_input=${estimatedInputTokens})`,
+            )
+            body[maxField] = maxAllowed
+          }
+        }
+      }
+    }
+
     for (const field of shimConfig.removeBodyFields ?? []) {
       delete body[field]
     }
@@ -2132,6 +2163,33 @@ class OpenAIShimMessages {
       }
 
       return false
+    }
+
+    // ── Clamp max_completion_tokens / max_tokens to fit context window ──
+    // Strict proxy servers (vLLM, StepFun, DashScope, NVIDIA NIM) reject
+    // requests where max_output_tokens + prompt > context_window.
+    if (request.transport !== 'responses') {
+      try {
+        const limits = resolveModelRuntimeLimits({
+          model: request.resolvedModel,
+          baseUrl: request.baseUrl,
+        })
+        const contextWindow = limits.contextWindow
+        if (contextWindow && contextWindow > 0) {
+          const maxTokensField = shimConfig.maxTokensField ?? 'max_completion_tokens'
+          const currentMaxTokens = body[maxTokensField] as number | undefined
+          if (currentMaxTokens && currentMaxTokens > 0) {
+            // Rough estimate: serialize the payload, count tokens in the messages portion
+            const payloadStr = JSON.stringify(body)
+            const estimatedInputTokens = roughTokenCountEstimation(payloadStr, 3)
+            const budget = contextWindow - estimatedInputTokens
+            if (budget < currentMaxTokens) {
+              const clamped = Math.max(budget, 64) // always leave at least 64 tokens
+              body[maxTokensField] = clamped
+            }
+          }
+        }
+      } catch { /* resolution failed — skip clamping, let the server decide */ }
     }
 
     // WHY: byte-identity required for implicit prefix caching in
