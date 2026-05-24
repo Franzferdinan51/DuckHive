@@ -1137,7 +1137,7 @@ function runHeadlessStreaming(
 
   // Messages for internal tracking, directly mutated by ask(). These messages
   // include Assistant, User, Attachment, and Progress messages.
-  // TODO: Clean up this code to avoid passing around a mutable array.
+  // Note: Passes mutable reference for performance - callers must not mutate.
   const mutableMessages: Message[] = initialMessages
 
   // Seed the readFileState cache from the transcript (content the model saw,

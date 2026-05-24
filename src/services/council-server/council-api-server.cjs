@@ -1088,7 +1088,7 @@ async function handleMCPTool(name, args = {}) {
         return files.map(f => ({ name: f.replace('session_', '').replace('.json', ''), file: f }));
       } catch(e) { return []; }
     case 'delete_session':
-      try { fs.unlinkSync(path.join(__dirname, `session_${args.name}.json`)); } catch(e) {}
+      try { fs.unlinkSync(path.join(__dirname, `session_${args.name}.json`)); } catch(e) { /* Session file already gone */ }
       return { ok: true };
 
     // Multi-Agent

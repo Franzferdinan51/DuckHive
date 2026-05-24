@@ -347,7 +347,9 @@ async function flushPromptHistory(retries: number): Promise<void> {
       // Avoid trying again in a hot loop
       await sleep(500)
 
-      void flushPromptHistory(retries + 1)
+      void flushPromptHistory(retries + 1).catch(err =>
+        logForDebugging(`flushPromptHistory retry failed: ${err}`),
+      )
     }
   }
 }
@@ -389,7 +391,9 @@ async function addToPromptHistory(
           filename: content.filename,
         }
         // Fire-and-forget disk write - don't block history entry creation
-        void storePastedText(hash, content.content)
+        void storePastedText(hash, content.content).catch(err =>
+          logForDebugging(`storePastedText failed: ${err}`),
+        )
       }
     }
   }
@@ -405,7 +409,9 @@ async function addToPromptHistory(
   pendingEntries.push(logEntry)
   lastAddedEntry = logEntry
   currentFlushPromise = flushPromptHistory(0)
-  void currentFlushPromise
+  void currentFlushPromise.catch(err =>
+    logForDebugging(`currentFlushPromise failed: ${err}`),
+  )
 }
 
 export function addToHistory(command: HistoryEntry | string): void {
@@ -430,7 +436,9 @@ export function addToHistory(command: HistoryEntry | string): void {
     })
   }
 
-  void addToPromptHistory(command)
+  void addToPromptHistory(command).catch(err =>
+    logForDebugging(`addToPromptHistory failed: ${err}`),
+  )
 }
 
 export function clearPendingHistoryEntries(): void {

@@ -490,7 +490,7 @@ Examples:
   // Bare /goal shorthand only auto-starts in an interactive REPL context.
   // Headless print mode and the top-level CLI fast-path stay one-shot so they
   // can create goals without keeping the process alive.
-  if (context?.options?.isNonInteractiveSession !== false) {
+  if (context?.options?.isNonInteractiveSession === true) {
     return message
   }
 

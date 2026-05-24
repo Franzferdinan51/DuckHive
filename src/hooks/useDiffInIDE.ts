@@ -56,6 +56,7 @@ export function useDiffInIDE({
   hasError: boolean
 } {
   const isUnmounted = useRef(false)
+  const cleanupRef = useRef<(() => Promise<void>) | null>(null)
   const [hasError, setHasError] = useState(false)
 
   const sha = useMemo(() => randomUUID().slice(0, 6), [])
@@ -138,11 +139,20 @@ export function useDiffInIDE({
   }
 
   useEffect(() => {
+    let settled = false
     void showDiff()
+      .catch(err => {
+        if (!settled) {
+          logError(err)
+          setHasError(true)
+        }
+      })
 
-    // Set flag on unmount
+    // Set flag on unmount and cleanup IDE tab
     return () => {
+      settled = true
       isUnmounted.current = true
+      cleanupRef.current?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -209,9 +219,7 @@ export function computeEditsFromContents(
  *
  * Resolves with the new file content.
  *
- * TODO: Time out after 5 mins of inactivity?
  * TODO: Update auto-approval UI when IDE exits
- * TODO: Close the IDE tab when the approval prompt is unmounted
  */
 async function showDiffInIDE(
   file_path: string,

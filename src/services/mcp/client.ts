@@ -697,8 +697,6 @@ export const connectToServer = memoize(
         logMCPDebug(name, `SSE transport initialized, awaiting connection`)
       } else if (serverRef.type === 'sse-ide') {
         logMCPDebug(name, `Setting up SSE-IDE transport to ${serverRef.url}`)
-        // IDE servers don't need authentication
-        // TODO: Use the auth token provided in the lockfile
         const proxyOptions = getProxyFetchOptions()
         const transportOptions: SSEClientTransportOptions =
           proxyOptions.dispatcher
@@ -711,6 +709,9 @@ export const connectToServer = memoize(
                     ...proxyOptions,
                     headers: {
                       'User-Agent': getMCPUserAgent(),
+                      ...(serverRef.authToken && {
+                        'X-Claude-Code-Ide-Authorization': serverRef.authToken,
+                      }),
                       ...init?.headers,
                     },
                   })
