@@ -40,6 +40,7 @@ import duckcustodian from './commands/duckcustodian/index.js'
 import onboardGithub from './commands/onboard-github/index.js'
 import knowledge from './commands/knowledge/index.js'
 import memory from './commands/memory/index.js'
+import memoryReset from './commands/memory-reset/index.js'
 import help from './commands/help/index.js'
 import ide from './commands/ide/index.js'
 import init from './commands/init.js'
@@ -371,6 +372,7 @@ const COMMANDS = memoize((): Command[] => [
   mcp,
   mcpManage,
   memory,
+  memoryReset,
   mobile,
   model,
   mmx,
