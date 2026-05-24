@@ -851,6 +851,28 @@ describe('/goal command', () => {
     expect(mailboxMessage.msg.summary).toContain('Next step: Step 2')
   })
 
+  test('completeStep marks the goal completed when the final step finishes', async () => {
+    const { default: goalCommand } = await importFreshGoalModule()
+    await goalCommand(['create', 'Ship', 'release'])
+    await goalCommand(['pursue'], {} as any)
+
+    expect(sessionCronTasks).toHaveLength(1)
+
+    const result = await goalCommand(['step', 'complete'], {} as any)
+
+    expect(result).toContain('All steps completed!')
+    const goal = getStoredGoals()[0]
+    expect(goal?.status).toBe('completed')
+    expect(goal?.autonomousMode).toBe(false)
+    expect(goal?.activeAgentRunId).toBeUndefined()
+    expect(goal?.activeAgentName).toBeUndefined()
+    expect(goal?.currentStepId).toBeUndefined()
+    expect(goal?.completedAt).toBeTruthy()
+    expect(goal?.steps[0]?.status).toBe('completed')
+    expect(goal?.steps[0]?.completedAt).toBeTruthy()
+    expect(sessionCronTasks).toHaveLength(0)
+  })
+
   test('completeStep routes goal_tick to lead if called from main thread', async () => {
     let enqueuedCommand: any = null
     mock.module('../../utils/messageQueueManager.js', () => ({

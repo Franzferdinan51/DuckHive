@@ -15,7 +15,7 @@
  */
 
 import { bold, italic } from '../../components/styles.js'
-import { getSessionId, setActiveGoalId, getActiveGoalId } from '../../bootstrap/state.js'
+import { getSessionId, setActiveGoalId, getActiveGoalId, removeSessionCronTasks } from '../../bootstrap/state.js'
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js'
 import { sessions_spawn } from '../../subagentSystem.js'
 import { enqueuePendingNotification } from '../../utils/messageQueueManager.js'
@@ -374,12 +374,22 @@ async function saveGoals(
     })
 
     // Trigger global state signal if it's the active goal or just became autonomous
-    if (
-      event.goal?.id === getActiveGoalId() ||
-      event.type === 'autonomous_started'
-    ) {
+    const activeGoalId = getActiveGoalId()
+    if (event.type === 'autonomous_started') {
       setActiveGoalId(event.goal?.id ?? null)
+    } else if (event.goal?.id === activeGoalId) {
+      if (
+        event.goal.status === 'completed' ||
+        event.goal.status === 'failed' ||
+        event.type === 'cleared'
+      ) {
+        setActiveGoalId(null)
+      } else {
+        setActiveGoalId(event.goal.id)
+      }
     }
+
+    getSystemContext.cache.clear?.()
   }
 }
 
@@ -728,8 +738,16 @@ async function completeGoal(args: string[]): Promise<string> {
     currentStep.completedAt = new Date().toISOString()
   }
   goal.currentStepId = undefined
+  goal.autonomousMode = false
+  goal.activeAgentRunId = undefined
+  goal.activeAgentName = undefined
   goal.completedAt = new Date().toISOString()
   goal.updatedAt = new Date().toISOString()
+  try {
+    removeSessionCronTasks([`heartbeat-${goal.id}`])
+  } catch {
+    // Best effort cleanup only.
+  }
   await saveGoals(goals, { type: 'completed', goal })
 
   return `Goal completed.\n\n${formatGoal(goal)}`
@@ -754,8 +772,16 @@ async function failGoal(args: string[]): Promise<string> {
     currentStep.completedAt = new Date().toISOString()
   }
   goal.currentStepId = undefined
+  goal.autonomousMode = false
+  goal.activeAgentRunId = undefined
+  goal.activeAgentName = undefined
   goal.completedAt = new Date().toISOString()
   goal.updatedAt = new Date().toISOString()
+  try {
+    removeSessionCronTasks([`heartbeat-${goal.id}`])
+  } catch {
+    // Best effort cleanup only.
+  }
   await saveGoals(goals, { type: 'failed', goal })
 
   return `Goal marked failed.\n\n${formatGoal(goal)}`
@@ -859,7 +885,23 @@ async function completeStep(
   const nextStep = currentIdx >= 0 ? goal.steps[currentIdx + 1] : undefined
   goal.currentStepId = nextStep?.id
 
-  await saveGoals(goals, { type: 'step_completed', goal })
+  if (!nextStep) {
+    goal.status = 'completed'
+    goal.autonomousMode = false
+    goal.activeAgentRunId = undefined
+    goal.activeAgentName = undefined
+    goal.completedAt = new Date().toISOString()
+
+    try {
+      removeSessionCronTasks([`heartbeat-${goal.id}`])
+    } catch {
+      // Best effort cleanup only.
+    }
+
+    await saveGoals(goals, { type: 'completed', goal })
+  } else {
+    await saveGoals(goals, { type: 'step_completed', goal })
+  }
 
   // If goal is in autonomous mode and there's a next step, re-enqueue
   // a goal_tick to keep the agent working (Codex-style autonomous loop).
@@ -1129,6 +1171,11 @@ async function clearGoal(args: string[]): Promise<string> {
   const index = goals.indexOf(goal)
 
   const removed = goals.splice(index, 1)[0]
+  try {
+    removeSessionCronTasks([`heartbeat-${removed.id}`])
+  } catch {
+    // Best effort cleanup only.
+  }
   await saveGoals(goals, { type: 'cleared', goal: removed })
 
   return `Goal "${removed.title}" has been removed.`
