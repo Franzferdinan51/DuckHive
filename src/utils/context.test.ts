@@ -271,6 +271,19 @@ test('MiniMax-M2.7 uses explicit provider-specific context and output caps', () 
   expect(getMaxOutputTokensForModel('MiniMax-M2.7')).toBe(131_072)
 })
 
+test('provider-qualified MiniMax model ids use MiniMax runtime limits', () => {
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  delete process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  delete process.env.OPENAI_MODEL
+
+  expect(getContextWindowForModel('minimax-portal/MiniMax-M2.7')).toBe(204_800)
+  expect(getModelMaxOutputTokens('minimax-portal/MiniMax-M2.7')).toEqual({
+    default: 131_072,
+    upperLimit: 131_072,
+  })
+  expect(getMaxOutputTokensForModel('minimax-portal/MiniMax-M2.7')).toBe(131_072)
+})
+
 test('env-only MiniMax key uses provider-specific context and output caps before client setup', () => {
   process.env.MINIMAX_API_KEY = 'minimax-test-key'
   delete process.env.CLAUDE_CODE_USE_OPENAI

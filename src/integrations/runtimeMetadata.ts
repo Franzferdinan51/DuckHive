@@ -26,12 +26,39 @@ function normalizeModelApiName(
   return trimmed ? trimmed : null
 }
 
+function getModelApiNameCandidates(value: string | undefined): string[] {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return []
+  }
+
+  const candidates = [trimmed]
+  const slashIndex = trimmed.lastIndexOf('/')
+  if (slashIndex >= 0 && slashIndex < trimmed.length - 1) {
+    candidates.push(trimmed.slice(slashIndex + 1))
+  }
+
+  return [...new Set(candidates)]
+}
+
+function getNormalizedModelApiNameCandidates(
+  value: string | undefined,
+): string[] {
+  return [
+    ...new Set(
+      getModelApiNameCandidates(value)
+        .map(candidate => normalizeModelApiName(candidate))
+        .filter((candidate): candidate is string => Boolean(candidate)),
+    ),
+  ]
+}
+
 function matchesCatalogEntryModel(
   routeId: string,
   entry: ModelCatalogEntry,
-  modelApiName: string,
+  modelApiNames: string[],
 ): boolean {
-  if (entry.apiName.trim().toLowerCase() === modelApiName) {
+  if (modelApiNames.includes(entry.apiName.trim().toLowerCase())) {
     return true
   }
 
@@ -44,20 +71,24 @@ function matchesCatalogEntryModel(
     return false
   }
 
-  if (modelDescriptor.defaultModel.trim().toLowerCase() === modelApiName) {
+  if (
+    modelApiNames.includes(modelDescriptor.defaultModel.trim().toLowerCase())
+  ) {
     return true
   }
 
   const providerMappedModel = modelDescriptor.providerModelMap?.[routeId]
-  return providerMappedModel?.trim().toLowerCase() === modelApiName
+  return providerMappedModel
+    ? modelApiNames.includes(providerMappedModel.trim().toLowerCase())
+    : false
 }
 
 function getCatalogEntryForModel(
   routeId: string,
   modelApiName: string | undefined,
 ): ModelCatalogEntry | null {
-  const normalizedModel = normalizeModelApiName(modelApiName)
-  if (!normalizedModel) {
+  const normalizedModels = getNormalizedModelApiNameCandidates(modelApiName)
+  if (normalizedModels.length === 0) {
     return null
   }
 
@@ -65,7 +96,7 @@ function getCatalogEntryForModel(
   const entries = getCatalogEntriesForRoute(routeId)
   return (
     entries.find(entry =>
-      matchesCatalogEntryModel(routeId, entry, normalizedModel),
+      matchesCatalogEntryModel(routeId, entry, normalizedModels),
     ) ?? null
   )
 }
@@ -255,11 +286,13 @@ function findModelDescriptorForApiName(
   routeId: string | null,
   modelApiName: string | undefined,
 ) {
-  const trimmedModel = modelApiName?.trim()
-  if (!trimmedModel) {
+  const modelCandidates = getModelApiNameCandidates(modelApiName)
+  if (modelCandidates.length === 0) {
     return null
   }
-  const normalizedModel = trimmedModel.toLowerCase()
+  const normalizedModelCandidates = modelCandidates.map(candidate =>
+    candidate.toLowerCase(),
+  )
 
   ensureIntegrationsLoaded()
   const models = getAllModels()
@@ -283,13 +316,21 @@ function findModelDescriptorForApiName(
     })
 
   for (const candidate of models) {
-    if (candidate.names.some(name => trimmedModel === name.trim())) {
+    if (
+      candidate.names.some(name =>
+        modelCandidates.some(model => model === name.trim()),
+      )
+    ) {
       return candidate.model
     }
   }
 
   for (const candidate of models) {
-    if (candidate.names.some(name => trimmedModel.startsWith(name.trim()))) {
+    if (
+      candidate.names.some(name =>
+        modelCandidates.some(model => model.startsWith(name.trim())),
+      )
+    ) {
       return candidate.model
     }
   }
@@ -298,9 +339,10 @@ function findModelDescriptorForApiName(
     if (
       candidate.names.some(name => {
         const normalizedName = name.trim().toLowerCase()
-        return (
-          normalizedModel === normalizedName ||
-          normalizedModel.startsWith(normalizedName)
+        return normalizedModelCandidates.some(
+          normalizedModel =>
+            normalizedModel === normalizedName ||
+            normalizedModel.startsWith(normalizedName),
         )
       })
     ) {
