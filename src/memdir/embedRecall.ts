@@ -73,9 +73,50 @@ interface EmbedIndex {
   version: number
 }
 
-// ─── LM Studio client (optional) ──────────────────────────────────────────────
-
+// ─── Embedding provider (configurable) ───────────────────────────────────────
+// Supports: 'lmstudio' (default, local), 'openai', 'ollama'
+const EMBEDDING_PROVIDER = process.env['EMBEDDING_PROVIDER'] ?? 'lmstudio'
 const LM_STUDIO_URL = process.env['LM_STUDIO_URL'] ?? 'http://localhost:1234'
+const OPENAI_URL = process.env['OPENAI_EMBEDDING_URL'] ?? 'https://api.openai.com/v1/embeddings'
+const OPENAI_MODEL = process.env['OPENAI_EMBEDDING_MODEL'] ?? 'text-embedding-3-small'
+const OPENAI_API_KEY = process.env['OPENAI_API_KEY'] ?? ''
+
+async function getEmbedding(text: string): Promise<Record<string, number> | null> {
+  if (EMBEDDING_PROVIDER === 'openai') {
+    return getOpenAIEmbedding(text)
+  }
+  // Default: LM Studio (local)
+  return getLmStudioEmbedding(text)
+}
+
+async function getOpenAIEmbedding(text: string): Promise<Record<string, number> | null> {
+  try {
+    if (!OPENAI_API_KEY) return null
+    const { signal, cleanup } = createCombinedAbortSignal(undefined, { timeoutMs: 10000 })
+    const res = await fetch(OPENAI_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({ input: text, model: OPENAI_MODEL }),
+      signal,
+    }).finally(cleanup)
+    if (!res.ok) return null
+    const data = (await res.json()) as { data?: { embedding?: number[] }[] }
+    const embedding = data?.data?.[0]?.embedding
+    if (!embedding) return null
+    // Quantize to 128 buckets for uniform sparse similarity API
+    const sparse: Record<string, number> = {}
+    for (let i = 0; i < embedding.length; i++) {
+      const bucket = Math.floor((embedding[i] + 1) * 64)
+      sparse[`d${i}_b${bucket}`] = 1
+    }
+    return sparse
+  } catch {
+    return null
+  }
+}
 
 async function getLmStudioEmbedding(text: string): Promise<Record<string, number> | null> {
   try {
@@ -244,10 +285,10 @@ export function indexDocument(id: string, text: string): void {
   const tf = computeTf(tokens)
   const vector = tfidfVector(tf, idf)
 
-  // Fire-and-forget LM Studio embedding — if it responds, upgrade the entry
+  // Fire-and-forget dense embedding — if it responds, upgrade the entry
   // Use a fresh local idx so the module-level cachedIndex stays valid
   const localIdx = ensureIndex()
-  getLmStudioEmbedding(text)
+  getEmbedding(text)
     .then(emb => {
       if (emb) {
         localIdx.docs = localIdx.docs.filter(d => d.id !== id)
@@ -255,7 +296,7 @@ export function indexDocument(id: string, text: string): void {
         saveIndex(localIdx)
       }
     })
-    .catch(() => { /* LM Studio unavailable, skip */ })
+    .catch(() => { /* Provider unavailable, skip */ })
 
   // Always push TF-IDF entry first (synchronous, stable)
   idx.docs.push({ id, text, vector, indexedAt: Date.now() })
@@ -288,7 +329,7 @@ export function search(
   let queryVector = tfidfVector(queryTf, idf)
 
   // LM Studio: fire-and-forget upgrade — don't overwrite TF-IDF result
-  getLmStudioEmbedding(query)
+  getEmbedding(query)
     .then(emb => {
       if (emb) {
         // Re-score with LM Studio embeddings (overwrite queryVector)
@@ -317,6 +358,15 @@ export function clearIndex(): void {
   cachedIndex = { docs: [], version: 1 }
   cachedIdf = {}
   saveIndex(cachedIndex)
+}
+
+/**
+ * Remove a document from the embedding index.
+ */
+export function removeDocument(id: string): void {
+  const idx = ensureIndex()
+  idx.docs = idx.docs.filter(d => d.id !== id)
+  saveIndex(idx)
 }
 
 /**
