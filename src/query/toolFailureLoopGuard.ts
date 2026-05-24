@@ -2,7 +2,7 @@ import type { ToolUseBlock } from '@anthropic-ai/sdk/resources/index.mjs'
 
 import type { AttachmentMessage, UserMessage } from '../types/message.js'
 
-const DEFAULT_TOOL_FAILURE_LOOP_THRESHOLD = 3
+const DEFAULT_TOOL_FAILURE_LOOP_THRESHOLD = 5
 const MAX_FALLBACK_CATEGORY_LENGTH = 120
 
 export type ToolFailureLoopGuardState = {

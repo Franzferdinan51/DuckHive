@@ -736,11 +736,19 @@ export const BashTool = buildTool({
       result = generatorResult.value ?? {
         code: 1,
         stdout: '',
-        stderr: '',
-        interrupted: false,
-        preSpawnError: 'Command terminated abnormally before producing a result'
+        stderr: 'Command terminated abnormally before producing a result (generator returned no result)',
+        interrupted: false
       };
-      trackGitOperations(input.command, result.code, result.stdout);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result = {
+        code: 1,
+        stdout: '',
+        stderr: `BashTool caught an unexpected error: ${msg}`,
+        interrupted: false
+      };
+    }
+    trackGitOperations(input.command, result.code, result.stdout);
       const isInterrupt = result.interrupted && abortController.signal.reason === 'interrupt';
 
       // stderr is interleaved in stdout (merged fd) — result.stdout has both
@@ -881,6 +889,61 @@ export const BashTool = buildTool({
   }
 } satisfies ToolDef<InputSchema, Out, BashProgress>);
 async function* runShellCommand({
+  input,
+  abortController,
+  setAppState,
+  setToolJSX,
+  preventCwdChanges,
+  isMainThread,
+  toolUseId,
+  agentId
+}: {
+  input: BashToolInput;
+  abortController: AbortController;
+  setAppState: (f: (prev: AppState) => AppState) => void;
+  setToolJSX?: SetToolJSXFn;
+  preventCwdChanges?: boolean;
+  isMainThread?: boolean;
+  toolUseId?: string;
+  agentId?: AgentId;
+}): AsyncGenerator<{
+  type: 'progress';
+  output: string;
+  fullOutput: string;
+  elapsedTimeSeconds: number;
+  totalLines: number;
+  totalBytes?: number;
+  taskId?: string;
+  timeoutMs?: number;
+}, ExecResult, void> {
+  try {
+    return yield* _runShellCommand({
+      input,
+      abortController,
+      setAppState,
+      setToolJSX,
+      preventCwdChanges,
+      isMainThread,
+      toolUseId,
+      agentId,
+    });
+  } catch (err) {
+    // Any unhandled exception inside the generator would normally cause
+    // generator.next() to throw. By catching here we return a structured
+    // ExecResult so the tool framework sees a clean error instead of an
+    // opaque exception — and more importantly the generator never returns
+    // undefined, which triggers the "terminated abnormally" fallback.
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      code: 1,
+      stdout: '',
+      stderr: `Internal shell error: ${message}`,
+      interrupted: false,
+    };
+  }
+}
+
+async function* _runShellCommand({
   input,
   abortController,
   setAppState,

@@ -463,45 +463,55 @@ export const PowerShellTool = buildTool({
     const isMainThread = !toolUseContext.agentId;
     let progressCounter = 0;
     try {
-      const commandGenerator = runPowerShellCommand({
-        input,
-        abortController,
-        // Use the always-shared task channel so async agents' background
-        // shell tasks are actually registered (and killable on agent exit).
-        setAppState: toolUseContext.setAppStateForTasks ?? setAppState,
-        setToolJSX,
-        preventCwdChanges: !isMainThread,
-        isMainThread,
-        toolUseId: toolUseContext.toolUseId,
-        agentId: toolUseContext.agentId
-      });
-      let generatorResult;
-      do {
-        generatorResult = await commandGenerator.next();
-        if (!generatorResult.done && generatorResult.value && onProgress) {
-          const progress = generatorResult.value;
-          onProgress({
-            toolUseID: `ps-progress-${progressCounter++}`,
-            data: {
-              type: 'powershell_progress',
-              output: progress.output,
-              fullOutput: progress.fullOutput,
-              elapsedTimeSeconds: progress.elapsedTimeSeconds,
-              totalLines: progress.totalLines,
-              totalBytes: progress.totalBytes,
-              timeoutMs: progress.timeoutMs,
-              taskId: progress.taskId
-            }
-          });
-        }
-      } while (!generatorResult.done);
-      const result = generatorResult.value ?? {
-        code: 1,
-        stdout: '',
-        stderr: '',
-        interrupted: false,
-        preSpawnError: 'Command terminated abnormally before producing a result'
-      };
+      let result: ExecResult;
+      try {
+        const commandGenerator = runPowerShellCommand({
+          input,
+          abortController,
+          // Use the always-shared task channel so async agents' background
+          // shell tasks are actually registered (and killable on agent exit).
+          setAppState: toolUseContext.setAppStateForTasks ?? setAppState,
+          setToolJSX,
+          preventCwdChanges: !isMainThread,
+          isMainThread,
+          toolUseId: toolUseContext.toolUseId,
+          agentId: toolUseContext.agentId
+        });
+        let generatorResult;
+        do {
+          generatorResult = await commandGenerator.next();
+          if (!generatorResult.done && generatorResult.value && onProgress) {
+            const progress = generatorResult.value;
+            onProgress({
+              toolUseID: `ps-progress-${progressCounter++}`,
+              data: {
+                type: 'powershell_progress',
+                output: progress.output,
+                fullOutput: progress.fullOutput,
+                elapsedTimeSeconds: progress.elapsedTimeSeconds,
+                totalLines: progress.totalLines,
+                totalBytes: progress.totalBytes,
+                timeoutMs: progress.timeoutMs,
+                taskId: progress.taskId
+              }
+            });
+          }
+        } while (!generatorResult.done);
+        result = generatorResult.value ?? {
+          code: 1,
+          stdout: '',
+          stderr: 'Command terminated abnormally before producing a result (generator returned no result)',
+          interrupted: false
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result = {
+          code: 1,
+          stdout: '',
+          stderr: `PowerShellTool caught an unexpected error: ${msg}`,
+          interrupted: false
+        };
+      }
 
       // Feed git/PR usage metrics (same counters as BashTool). PS invokes
       // git/gh/glab/curl as external binaries with identical syntax, so the
@@ -678,6 +688,56 @@ export const PowerShellTool = buildTool({
   }
 } satisfies ToolDef<InputSchema, Out>);
 async function* runPowerShellCommand({
+  input,
+  abortController,
+  setAppState,
+  setToolJSX,
+  preventCwdChanges,
+  isMainThread,
+  toolUseId,
+  agentId
+}: {
+  input: PowerShellToolInput;
+  abortController: AbortController;
+  setAppState: (f: (prev: AppState) => AppState) => void;
+  setToolJSX?: SetToolJSXFn;
+  preventCwdChanges?: boolean;
+  isMainThread?: boolean;
+  toolUseId?: string;
+  agentId?: AgentId;
+}): AsyncGenerator<{
+  type: 'progress';
+  output: string;
+  fullOutput: string;
+  elapsedTimeSeconds: number;
+  totalLines: number;
+  totalBytes: number;
+  taskId?: string;
+  timeoutMs?: number;
+}, ExecResult, void> {
+  try {
+    return yield* _runPowerShellCommand({
+      input,
+      abortController,
+      setAppState,
+      setToolJSX,
+      preventCwdChanges,
+      isMainThread,
+      toolUseId,
+      agentId,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      code: 1,
+      stdout: '',
+      stderr: `Internal shell error: ${message}`,
+      interrupted: false,
+    };
+  }
+}
+
+async function* _runPowerShellCommand({
   input,
   abortController,
   setAppState,
