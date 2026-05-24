@@ -40,6 +40,7 @@ DuckHive features a powerful, persisted goal system inspired by Codex `r0.128.0`
 - **Autonomous Execution**: Starting a goal automatically enables **YOLO mode** (permission bypass). The agent works continuously across turns without requiring constant approval.
 - **Integrated Planning**: Uses the DuckHive `TaskPlanner` to automatically decompose complex goals into actionable **Milestones** synced with your session's `PLAN.md`.
 - **Visual Progress**: High-fidelity ASCII progress bars and roadmap indicators in `/goal status` provide real-time visibility into the agent's work.
+- **Reliable Completion Lifecycle**: Finishing the final milestone through `/goal step complete` now marks the persisted goal as completed, clears autonomous agent assignment, removes the heartbeat task, and refreshes the active goal context so the agent stops pursuing already-finished work.
 - **Traceability**: Agents are mandated to perform **Atomic Git Commits** after each verified milestone, ensuring a clean, revertible history of autonomous work.
 
 ### Engineering Excellence
