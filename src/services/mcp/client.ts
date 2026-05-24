@@ -217,6 +217,15 @@ export function isMcpSessionExpiredError(error: Error): boolean {
 const DEFAULT_MCP_TOOL_TIMEOUT_MS = 300_000
 
 /**
+ * Timeout for bundled MCP server tools/list during catalog discovery.
+ * Hung MCP servers could block session startup for 60s (SDK default).
+ * 1500ms is generous enough for local servers while preventing stalls.
+ * Only applies to bundled SDK servers — user-configured remote servers
+ * may be legitimately slow and use the SDK default.
+ */
+const BUNDLE_MCP_CATALOG_LIST_TIMEOUT_MS = 1500
+
+/**
  * Cap on MCP tool descriptions and server instructions sent to the model.
  * OpenAPI-generated MCP servers have been observed dumping 15-60KB of endpoint
  * docs into tool.description; this caps the p95 tail without losing the intent.
@@ -1780,10 +1789,25 @@ export const fetchToolsForClient = memoizeWithLRU(
       let lastError: unknown
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          result = (await client.client.request(
+          // Bundled SDK servers get a tight timeout to prevent hung servers
+          // from blocking session startup. User-configured remote servers
+          // may be legitimately slow and use the SDK default.
+          const isBundled = client.config.type === 'sdk'
+          const requestPromise = client.client.request(
             { method: 'tools/list' },
             ListToolsResultSchema,
-          )) as ListToolsResult
+          ) as Promise<ListToolsResult>
+          result = isBundled
+            ? (await Promise.race([
+                requestPromise,
+                new Promise<never>((_, reject) =>
+                  setTimeout(
+                    () => reject(new Error('tools/list timed out')),
+                    BUNDLE_MCP_CATALOG_LIST_TIMEOUT_MS,
+                  ),
+                ),
+              ])) as ListToolsResult
+            : await requestPromise
           break
         } catch (err) {
           lastError = err
