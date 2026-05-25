@@ -31,6 +31,7 @@ import {
   refreshCodexAccessTokenIfNeeded,
 } from '../../utils/codexCredentials.js'
 import { logForDebugging } from '../../utils/debug.js'
+import { sanitizePrompt } from '../../utils/privacyShield.js'
 import { isBareMode, isEnvTruthy } from '../../utils/envUtils.js'
 import { resolveGeminiCredential } from '../../utils/geminiAuth.js'
 import { hydrateGeminiAccessTokenFromSecureStorage } from '../../utils/geminiCredentials.js'
@@ -292,20 +293,21 @@ function convertSystemPrompt(
   system: unknown,
 ): string {
   if (!system) return ''
-  if (typeof system === 'string') return system
-  if (Array.isArray(system)) {
-    return system
-      .map((block: { type?: string; text?: string }) =>
-        block.type === 'text' ? block.text ?? '' : '',
-      )
-      // Drop the Anthropic billing/attribution block — it's only meaningful to
-      // Anthropic's `_parse_cc_header` and is dead weight (plus a churning
-      // per-build fingerprint that busts prefix KV cache) for OpenAI-compat
-      // providers like local Ollama / llama.cpp / Codex pass-throughs.
-      .filter(text => !text.startsWith('x-anthropic-billing-header'))
-      .join('\n\n')
-  }
-  return String(system)
+  const raw = typeof system === 'string'
+    ? system
+    : Array.isArray(system)
+      ? system
+          .map((block: { type?: string; text?: string }) =>
+            block.type === 'text' ? block.text ?? '' : '',
+          )
+          // Drop the Anthropic billing/attribution block — it's only meaningful to
+          // Anthropic's `_parse_cc_header` and is dead weight (plus a churning
+          // per-build fingerprint that busts prefix KV cache) for OpenAI-compat
+          // providers like local Ollama / llama.cpp / Codex pass-throughs.
+          .filter(text => !text.startsWith('x-anthropic-billing-header'))
+          .join('\n\n')
+      : String(system)
+  return sanitizePrompt(raw)
 }
 
 function convertToolResultContent(
@@ -1792,9 +1794,19 @@ class OpenAIShimMessages {
       ),
     })
 
+
+    // Sanitize PII from message content before sending to external API
+    const sanitizedMessages = openaiMessages.map((msg: OpenAIMessage) => {
+      if (typeof msg.content === 'string') {
+        const sanitized = sanitizePrompt(msg.content)
+        return sanitized === msg.content ? msg : { ...msg, content: sanitized }
+      }
+      return msg
+    })
+
     const body: Record<string, unknown> = {
       model: request.resolvedModel,
-      messages: openaiMessages,
+      messages: sanitizedMessages,
       stream: params.stream ?? false,
       store: false,
     }

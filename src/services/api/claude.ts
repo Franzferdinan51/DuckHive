@@ -1353,7 +1353,7 @@ async function* queryModel(
     if (typeof content === 'string') {
       return {
         ...msg,
-        message: { ...msg.message, content: sanitizePrompt(content) },
+        message: { ...msg.message, content: (s => s === content ? content : s)(sanitizePrompt(content)) },
       }
     }
     if (Array.isArray(content)) {
