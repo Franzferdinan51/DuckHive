@@ -168,6 +168,7 @@ import { CHROME_TOOL_SEARCH_INSTRUCTIONS } from 'src/utils/claudeInChrome/prompt
 import { getMaxThinkingTokensForModel } from 'src/utils/context.js'
 import { logForDebugging } from 'src/utils/debug.js'
 import { logForDiagnosticsNoPII } from 'src/utils/diagLogs.js'
+import { sanitizePrompt } from '../../utils/privacyShield.js'
 import { type EffortValue, modelSupportsEffort } from 'src/utils/effort.js'
 import {
   isFastModeAvailable,
@@ -1344,6 +1345,35 @@ async function* queryModel(
     API_MAX_MEDIA_PER_REQUEST,
   )
 
+  // Sanitize PII from message content before sending to external API.
+  // Uses light-touch sanitization (SSN, credit cards, API keys only)
+  // to avoid disrupting code examples with email/phone patterns.
+  messagesForAPI = messagesForAPI.map(msg => {
+    const content = msg.message.content
+    if (typeof content === 'string') {
+      return {
+        ...msg,
+        message: { ...msg.message, content: sanitizePrompt(content) },
+      }
+    }
+    if (Array.isArray(content)) {
+      return {
+        ...msg,
+        message: {
+          ...msg.message,
+          content: content.map((block: any) => {
+            if (block.type === 'text' && typeof block.text === 'string') {
+              return { ...block, text: sanitizePrompt(block.text) }
+            }
+            return block
+          }),
+        },
+      }
+    }
+    return msg
+  })
+
+
   // Instrumentation: Track message count after normalization
   logEvent('tengu_api_after_normalize', {
     postNormalizedMessageCount: messagesForAPI.length,
@@ -1397,6 +1427,10 @@ async function* queryModel(
       ...(injectChromeHere ? [CHROME_TOOL_SEARCH_INSTRUCTIONS] : []),
     ].filter(Boolean),
   )
+
+
+  // Sanitize PII from system prompt before sending to external API
+  systemPrompt = asSystemPrompt(systemPrompt.map(s => sanitizePrompt(s)))
 
   // Prepend system prompt block for easy API identification
   logAPIPrefix(systemPrompt)
