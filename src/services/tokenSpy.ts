@@ -179,7 +179,11 @@ export function trackTokenUsage(
   sessionTokens.set(provider, session)
 
   // Track spend in budget tracker (for daily limits)
-  trackSpend(provider, estimatedCostUsd, totalTokens)
+  try {
+    trackSpend(provider, estimatedCostUsd, totalTokens)
+  } catch {
+    // Never let budget tracker errors affect token tracking
+  }
 
   // Compute budget remaining
   const remainingProviderBudgetUsd = getRemainingBudget(provider)
@@ -267,7 +271,11 @@ export function trackInputTokens(
   session.cost += estimatedCostUsd
   sessionTokens.set(provider, session)
 
-  trackSpend(provider, estimatedCostUsd, inputTokens)
+  try {
+    trackSpend(provider, estimatedCostUsd, inputTokens)
+  } catch {
+    // Never let budget tracker errors affect token tracking
+  }
 }
 
 /**
@@ -285,7 +293,11 @@ export function trackOutputTokens(
   session.cost += estimatedCostUsd
   sessionTokens.set(provider, session)
 
-  trackSpend(provider, estimatedCostUsd, outputTokens)
+  try {
+    trackSpend(provider, estimatedCostUsd, outputTokens)
+  } catch {
+    // Never let budget tracker errors affect token tracking
+  }
 }
 
 // ─── Query methods ─────────────────────────────────────────────────────────

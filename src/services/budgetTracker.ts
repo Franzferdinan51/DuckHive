@@ -211,7 +211,7 @@ function getDefaultState(): BudgetState {
 function loadStateFromDisk(): BudgetState {
   try {
     const content = fsReadFileSync(getBudgetStatePath(), 'utf-8')
-    const parsed = safeParseJSON(content, null) as BudgetState | null
+    const parsed = safeParseJSON(content, false) as BudgetState | null
     if (!parsed) return getDefaultState()
 
     // Validate required fields

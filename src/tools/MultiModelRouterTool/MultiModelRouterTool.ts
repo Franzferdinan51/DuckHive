@@ -74,12 +74,18 @@ export const MultiModelRouterTool = buildTool({
       }
       case 'compare': {
         if (!task) return { data: { success: false, action: 'compare', error: 'task required' } }
-        const models = listModels().slice(0, 5)
-        const results = models.map(m => {
+        const compareModels = listModels().slice(0, 5)
+        const results = compareModels.map(m => ({
+          provider: m.provider,
+          model: m.model,
+          speed: m.speed,
+          vision: m.vision,
+        }))
+        const reason = compareModels.map(m => {
           const r = routeTask({ task, complexity: complexity ?? 5, vision, functionCalling })
           return `${m.provider}/${m.model}: ${r.reason}`
-        })
-        return { data: { success: true, action: 'compare', models: results } }
+        }).join(' | ')
+        return { data: { success: true, action: 'compare', models: results, reason } }
       }
       default:
         return { data: { success: false, action, error: `Unknown action: ${action}` } }

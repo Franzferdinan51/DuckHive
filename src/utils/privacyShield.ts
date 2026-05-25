@@ -36,6 +36,8 @@ export interface PiiMatch {
   redacted: string
 }
 
+// NOTE: 'api_key' is not produced by scanForPii() (secret detection is handled
+// by secretScanner). It exists for scanAndRedactPii() composite reporting.
 export type PiiCategory =
   | 'email'
   | 'phone'
