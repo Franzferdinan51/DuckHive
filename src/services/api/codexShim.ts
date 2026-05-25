@@ -14,6 +14,7 @@ import {
   createThinkTagFilter,
   stripThinkTags,
 } from './thinkTagSanitizer.js'
+import { sanitizePrompt } from '../../utils/privacyShield.js'
 
 export interface AnthropicUsage {
   input_tokens: number
@@ -125,19 +126,20 @@ function normalizeToolUseId(toolUseId: string | undefined): {
 
 export function convertSystemPrompt(system: unknown): string {
   if (!system) return ''
-  if (typeof system === 'string') return system
-  if (Array.isArray(system)) {
-    return system
-      .map((block: { type?: string; text?: string }) =>
-        block.type === 'text' ? (block.text ?? '') : '',
-      )
-      // Drop the Anthropic billing/attribution block — Codex's Responses API
-      // doesn't parse it and the per-build fingerprint just churns the
-      // upstream prompt cache.
-      .filter(text => !text.startsWith('x-anthropic-billing-header'))
-      .join('\n\n')
-  }
-  return String(system)
+  const raw = typeof system === 'string'
+    ? system
+    : Array.isArray(system)
+      ? system
+          .map((block: { type?: string; text?: string }) =>
+            block.type === 'text' ? (block.text ?? '') : '',
+          )
+          // Drop the Anthropic billing/attribution block — Codex's Responses API
+          // doesn't parse it and the per-build fingerprint just churns the
+          // upstream prompt cache.
+          .filter(text => !text.startsWith('x-anthropic-billing-header'))
+          .join('\n\n')
+      : String(system)
+  return sanitizePrompt(raw)
 }
 
 function convertToolResultToText(content: unknown): string {
@@ -227,6 +229,15 @@ export function convertAnthropicMessagesToResponsesInput(
 ): ResponsesInputItem[] {
   const items: ResponsesInputItem[] = []
 
+  const sanitizeContentParts = (parts: ResponsesInputPart[]): ResponsesInputPart[] =>
+    parts.map(part => {
+      if ('text' in part && typeof part.text === 'string') {
+        const sanitized = sanitizePrompt(part.text)
+        return sanitized === part.text ? part : { ...part, text: sanitized }
+      }
+      return part
+    })
+
   for (const message of messages) {
     const inner = message.message ?? message
     const role = (inner as { role?: string }).role ?? message.role
@@ -243,17 +254,18 @@ export function convertAnthropicMessagesToResponsesInput(
 
         for (const toolResult of toolResults) {
           const { callId } = normalizeToolUseId(toolResult.tool_use_id)
+          const rawOutput = (() => {
+            const out = convertToolResultToText(toolResult.content)
+            return toolResult.is_error ? `Error: ${out}` : out
+          })()
           items.push({
             type: 'function_call_output',
             call_id: callId,
-            output: (() => {
-              const out = convertToolResultToText(toolResult.content)
-              return toolResult.is_error ? `Error: ${out}` : out
-            })(),
+            output: sanitizePrompt(rawOutput),
           })
         }
 
-        const parts = convertContentBlocksToResponsesParts(otherContent, 'user')
+        const parts = sanitizeContentParts(convertContentBlocksToResponsesParts(otherContent, 'user'))
         if (parts.length > 0) {
           items.push({
             type: 'message',
@@ -267,7 +279,7 @@ export function convertAnthropicMessagesToResponsesInput(
       items.push({
         type: 'message',
         role: 'user',
-        content: convertContentBlocksToResponsesParts(content, 'user'),
+        content: sanitizeContentParts(convertContentBlocksToResponsesParts(content, 'user')),
       })
       continue
     }
@@ -277,7 +289,7 @@ export function convertAnthropicMessagesToResponsesInput(
         ? content.filter((block: { type?: string }) =>
             block.type !== 'tool_use' && block.type !== 'thinking')
         : content
-      const parts = convertContentBlocksToResponsesParts(textBlocks, 'assistant')
+      const parts = sanitizeContentParts(convertContentBlocksToResponsesParts(textBlocks, 'assistant'))
       if (parts.length > 0) {
         items.push({
           type: 'message',
