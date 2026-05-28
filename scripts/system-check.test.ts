@@ -62,11 +62,16 @@ function clearProviderEnv(): void {
   delete process.env.OPENGATEWAY_API_KEY
   delete process.env.MINIMAX_API_KEY
   delete process.env.MMX_API_KEY
+  delete process.env.XAI_API_KEY
+  delete process.env.VENICE_API_KEY
+  delete process.env.MIMO_API_KEY
   delete process.env.DUCKHIVE_CLAWHUB_REGISTRY
   delete process.env.CLAWHUB_REGISTRY
   delete process.env.DUCKHIVE_TELEGRAM_BOT_TOKEN
   delete process.env.TELEGRAM_BOT_TOKEN
   delete process.env.DUCKHIVE_TELEGRAM_ALLOWED_CHAT_ID
+  // Set MMX_HOME to a temp directory to prevent file-based MiniMax credential detection
+  process.env.MMX_HOME = mkdtempSync(join(tmpdir(), 'duckhive-test-mmx-'))
 }
 
 afterEach(() => {

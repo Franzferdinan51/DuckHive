@@ -183,7 +183,7 @@ describe('executeToolCall', () => {
 
   test('executes shell commands', async () => {
     const result = await executeToolCall('shell', {
-      command: 'cmd /c echo ACP_OK',
+      command: '/bin/sh -c "echo ACP_OK"',
     })
 
     expect(result.success).toBe(true)

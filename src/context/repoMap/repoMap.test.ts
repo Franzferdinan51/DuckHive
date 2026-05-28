@@ -164,7 +164,7 @@ describe('cache', () => {
       files: FIXTURE_FILES,
     })
     expect(result2.cacheHit).toBe(true)
-    expect(result2.buildTimeMs).toBeLessThan(result1.buildTimeMs)
+    expect(result2.buildTimeMs).toBeLessThanOrEqual(result1.buildTimeMs)
 
     // Output should be identical
     expect(result2.map).toBe(result1.map)

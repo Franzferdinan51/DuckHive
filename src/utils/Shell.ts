@@ -146,6 +146,11 @@ async function getShellConfigImpl(): Promise<ShellConfig> {
 // Memoize the entire shell config so it only happens once per session
 export const getShellConfig = memoize(getShellConfigImpl)
 
+/** Exported for test isolation — clears the memoized shell config cache. */
+export function clearShellConfigCache(): void {
+  getShellConfig.cache.clear()
+}
+
 export const getPsProvider = memoize(async (): Promise<ShellProvider> => {
   const psPath = await getCachedPowerShellPath()
   if (!psPath) {

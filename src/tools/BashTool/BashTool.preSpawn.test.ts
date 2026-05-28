@@ -6,6 +6,17 @@ const execMock = mock()
 
 afterEach(() => {
   mock.restore()
+  // Clear the module override so it doesn't persist into subsequent test files.
+  // Bun's mock.module() applies globally and has no official undo - the last
+  // mock.module() call wins. We replace our mock with the real module here
+  // so subsequent tests get the real Shell.js.
+  import('../../utils/Shell.js').then(realShell => {
+    try {
+      mock.module('../../utils/Shell.js', () => realShell)
+    } catch {
+      // Best effort - may fail in some Bun versions
+    }
+  })
 })
 
 function makeCtx() {
@@ -21,9 +32,9 @@ function makeCtx() {
 }
 
 test('BashTool surfaces pre-spawn failures as ShellError', async () => {
-  const actual = await import('../../utils/Shell.js')
+  const shellModule = await import('../../utils/Shell.js')
   mock.module('../../utils/Shell.js', () => ({
-    ...actual,
+    ...shellModule,
     exec: execMock,
   }))
 

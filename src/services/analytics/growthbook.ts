@@ -27,6 +27,8 @@ let _flags: Record<string, unknown> | null | undefined = undefined
 
 function _loadFlags(): void {
 	if (_flags !== undefined) return
+	// null means "cache is cleared, reload on next access"
+	if (_flags === null) return
 	try {
 		const flagsPath =
 			process.env.CLAUDE_FEATURE_FLAGS_FILE ||
